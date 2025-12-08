@@ -6,7 +6,7 @@ function generatePlanId(): string {
 
 export const planCreateTool: ToolDefinition<PlanCreateInput, PlanOutput> = {
     name: "plan_create",
-    description: "Create a plan for the changes you want to make. CRITICAL: Before calling this tool, you MUST ask the user at least one clarifying question to understand requirements better. Never create a plan immediately - always engage in dialogue first. After understanding the requirements through questions, create a detailed plan that will be shown to the user for approval before any write operations are allowed.",
+    description: "Create a plan for the changes you want to make. CRITICAL WORKFLOW - YOU MUST FOLLOW THESE STEPS IN SEPARATE TURNS: (1) First turn: Use read tools to gather context about the codebase/files involved. End your turn by asking the user numbered clarifying questions (1-n) based on what you found. DO NOT call plan_create yet - STOP and wait for user response. (2) Second turn: After the user answers your questions, THEN call this tool to create the plan. NEVER call plan_create in the same turn as asking questions. The user must have a chance to respond to your questions before you create any plan.",
     approvalPolicy: "plan",
     inputSchema: {
         type: "object",

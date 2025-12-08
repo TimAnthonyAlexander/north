@@ -265,7 +265,7 @@ All tools follow the pattern:
 | `hotfiles` | Important files | Git history or fallback |
 | `edit_replace_exact` | Replace exact text | Requires user approval |
 | `edit_insert_at_line` | Insert at line | 1-based, requires approval |
-| `plan_create` | Create implementation plan | MUST ask questions first, requires approval |
+| `plan_create` | Create implementation plan | Multi-turn: Turn 1 = read + ask questions, Turn 2 = create plan after user answers |
 | `plan_update` | Update existing plan | Revise plan, requires approval |
 | `edit_create_file` | Create/overwrite file | Requires approval |
 | `edit_apply_batch` | Atomic batch edits | All-or-nothing, requires approval |
@@ -564,10 +564,12 @@ North supports three conversation modes that control tool availability:
 
 Creating and using plans:
 
-1. **Pre-Planning Dialog** (REQUIRED):
-   - Before calling `plan_create`, LLM MUST ask at least one clarifying question
-   - This ensures the plan is based on user requirements, not assumptions
-   - Tool description enforces this requirement
+1. **Pre-Planning Dialog** (REQUIRED - MULTI-TURN):
+   - Before calling `plan_create`, LLM MUST follow this workflow across SEPARATE turns:
+   - **Turn 1**: Use read tools to gather context, then ask numbered questions (1-n). STOP - do not call plan_create. Wait for user response.
+   - **Turn 2**: After user answers questions, THEN call `plan_create`
+   - The model must NEVER call plan_create in the same turn as asking questions
+   - This ensures the user has a chance to clarify requirements before any plan is created
 
 2. **Plan Creation** (in Plan or Agent mode):
    - After gathering requirements, LLM calls `plan_create` with detailed plan text
