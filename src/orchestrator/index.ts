@@ -43,9 +43,9 @@ export interface OrchestratorCallbacks {
     onWriteReviewDecision?: (decision: "accept" | "reject", filesCount: number) => void;
     onWriteApplyStart?: () => void;
     onWriteApplyComplete?: (durationMs: number, ok: boolean) => void;
-    onShellReviewShown?: (command: string, cwd?: string | null) => void;
+    onShellReviewShown?: (command: string, cwd?: string | null, timeoutMs?: number | null) => void;
     onShellReviewDecision?: (decision: "run" | "always" | "deny", command: string) => void;
-    onShellRunStart?: (command: string, cwd?: string | null) => void;
+    onShellRunStart?: (command: string, cwd?: string | null, timeoutMs?: number | null) => void;
     onShellRunComplete?: (command: string, exitCode: number, durationMs: number, stdoutBytes: number, stderrBytes: number) => void;
 }
 
@@ -222,7 +222,7 @@ export function createOrchestratorWithTools(
     async function executeShellCommand(command: string, cwd?: string | null, timeoutMs?: number | null): Promise<{ ok: boolean; data?: unknown; error?: string }> {
         const cwdOrUndefined = cwd || undefined;
         const timeoutOrUndefined = timeoutMs ?? undefined;
-        callbacks.onShellRunStart?.(command, cwdOrUndefined);
+        callbacks.onShellRunStart?.(command, cwdOrUndefined, timeoutOrUndefined);
         const startTime = Date.now();
 
         try {
@@ -293,7 +293,7 @@ export function createOrchestratorWithTools(
             return { needsReview: false, entry: reviewEntry };
         }
 
-        callbacks.onShellReviewShown?.(command, cwd);
+        callbacks.onShellReviewShown?.(command, cwd, timeoutMs);
 
         const reviewId = generateId();
         const reviewEntry: TranscriptEntry = {
