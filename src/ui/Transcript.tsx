@@ -208,7 +208,7 @@ export function Transcript({
     if (entries.length === 0) {
         return (
             <Box marginBottom={1}>
-                <Text color="gray">Start a conversation by typing below.</Text>
+                <Text color="#999999">Start a conversation by typing below.</Text>
             </Box>
         );
     }

@@ -260,7 +260,7 @@ export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps)
                 </Text>
                 <Box flexDirection="column" flexGrow={1}>
                     {showPlaceholder ? (
-                        <Text color="gray">Type a message... (Ctrl+J for newline)</Text>
+                        <Text color="#999999">Type a message... (Ctrl+J for newline)</Text>
                     ) : (
                         lines.map((line, i) => (
                             <Text key={i} wrap="wrap">
