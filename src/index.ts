@@ -4,6 +4,7 @@ import { render } from "ink";
 import { App } from "./ui/App";
 import { initLogger, type LogLevel } from "./logging/index";
 import { detectRepoRoot } from "./utils/repo";
+import { loadCursorRules } from "./rules/index";
 
 function parseArgs(): { path?: string; logLevel: LogLevel } {
     const args = process.argv.slice(2);
@@ -42,16 +43,20 @@ function summarizeToolArgs(args: unknown): Record<string, unknown> {
     return summary;
 }
 
-function main() {
+async function main() {
     const { path, logLevel } = parseArgs();
     const startDir = path || process.cwd();
     const projectPath = detectRepoRoot(startDir);
     const logger = initLogger({ projectPath, logLevel });
 
+    const cursorRulesResult = await loadCursorRules(projectPath);
+    const cursorRulesText = cursorRulesResult?.text || null;
+
     const { unmount, waitUntilExit } = render(
         React.createElement(App, {
             projectPath,
             logger,
+            cursorRulesText,
             onRequestStart(requestId: string, model: string) {
                 logger.info("model_request_start", { requestId, model });
             },

@@ -16,6 +16,7 @@ import type { CommandRegistry } from "../commands/index";
 interface AppProps {
     projectPath: string;
     logger: Logger;
+    cursorRulesText: string | null;
     onRequestStart: (requestId: string, model: string) => void;
     onRequestComplete: (requestId: string, durationMs: number, error?: Error) => void;
     onUserPrompt: (length: number) => void;
@@ -34,6 +35,7 @@ interface AppProps {
 export function App({
     projectPath,
     logger,
+    cursorRulesText,
     onRequestStart,
     onRequestComplete,
     onUserPrompt,
@@ -85,6 +87,7 @@ export function App({
             {
                 repoRoot: projectPath,
                 logger,
+                cursorRulesText,
             }
         );
         setOrchestrator(orch);

@@ -39,6 +39,9 @@ src/
 │   └── index.ts          # Conversation state, message flow, tool loop, commands, reviews
 ├── provider/
 │   └── anthropic.ts      # Claude streaming client with tool support
+├── rules/
+│   ├── index.ts          # Rules module exports
+│   └── cursor.ts         # Cursor rules loader (.cursor/rules/*.mdc)
 ├── shell/
 │   └── index.ts          # Persistent PTY service with sentinel-based output parsing
 ├── storage/
@@ -148,6 +151,7 @@ Span-based tokenizer for reliable command extraction:
 
 - Owns `transcript` (array of `TranscriptEntry`)
 - Owns `isProcessing`, `pendingReviewId`, `currentModel`, `rollingSummary`
+- Receives `cursorRulesText` in context (loaded once at startup)
 - Owns command registry via `createCommandRegistryWithAllCommands()`
 - Preprocesses user input for slash commands before sending to Claude
 - Implements tool call loop:
@@ -167,7 +171,8 @@ Span-based tokenizer for reliable command extraction:
 - Streaming throttle: buffer chunks, flush every 32ms or on complete
 - Emits state changes via `onStateChange` callback (includes `currentModel`)
 - `buildMessagesForClaude()`: excludes `command_review` and `command_executed` entries
-- Prepends `rollingSummary` as context block if present
+- Prepends `cursorRulesText` as first context block if present
+- Prepends `rollingSummary` as second context block if present
 - Exposes `resolveWriteReview(reviewId, decision)` for UI to signal accept/reject
 - Exposes `resolveShellReview(reviewId, decision)` for UI to signal run/always/deny
 - Exposes `resolveCommandReview(reviewId, decision)` for UI to signal selection/cancel
@@ -175,6 +180,17 @@ Span-based tokenizer for reliable command extraction:
 - Exposes `cancel()` for interrupting ongoing operations (CTRL+C during processing)
 - Exposes `stop()` for clean exit (CTRL+C when idle)
 - Exposes `isProcessing()` for checking if an operation is in progress
+
+### rules/cursor.ts
+
+- Loads Cursor project rules from `.cursor/rules/` directory
+- Walks directory recursively, collecting all `*.mdc` files
+- Parses optional YAML frontmatter, extracts body content
+- Returns stable order (sorted by relativePath)
+- Hard cap at 30KB total size, truncates with `[truncated]` marker
+- API: `loadCursorRules(repoRoot)` returns `LoadedCursorRules | null`
+- `LoadedCursorRules`: `{ rules, text, truncated }`
+- `CursorRule`: `{ name, relativePath, body }`
 
 ### shell/index.ts
 
@@ -317,6 +333,30 @@ All tools follow the pattern:
 - `applyEditsAtomically()`: writes to temp files then renames for safety
 
 ## Data Flow
+
+### Startup Flow
+
+```
+main()
+    │
+    ├──► parseArgs()
+    ├──► detectRepoRoot()
+    ├──► initLogger()
+    │
+    ▼
+loadCursorRules(projectPath)
+    │
+    ├──► Walk .cursor/rules/ for *.mdc files
+    ├──► Parse frontmatter, extract body
+    ├──► Sort by relativePath
+    ├──► Concatenate into single text block
+    │
+    ▼
+render(App, { cursorRulesText, ... })
+    │
+    ▼
+Orchestrator created with cursorRulesText in context
+```
 
 ### User Input with Commands
 
@@ -472,6 +512,40 @@ When Claude requests `shell_run` (approvalPolicy: "shell"):
 9. On Deny: return `{ denied: true }` to Claude, status set to "denied"
 10. Tool result sent to Claude with outcome
 11. Claude continues processing
+
+### Cursor Rules Loading
+
+North automatically loads Cursor project rules at startup:
+
+1. **Loading** (in `index.ts`):
+   - Calls `loadCursorRules(projectPath)` once before rendering
+   - Walks `.cursor/rules/` recursively for `*.mdc` files
+   - Parses YAML frontmatter (if present), keeps body content
+   - Sorts by relativePath for deterministic order
+   - Enforces 30KB hard cap, truncates if exceeded
+
+2. **Storage** (in orchestrator context):
+   - `cursorRulesText` passed through App to orchestrator context
+   - Stored as plain string or null
+
+3. **Injection** (in `buildMessagesForClaude()`):
+   - If `cursorRulesText` is non-empty, prepends to every request
+   - Format: `# Cursor Project Rules (.cursor/rules)` header
+   - Each rule: `## relativePath` followed by rule body
+   - Injected before rolling summary, ensuring rules always apply
+
+4. **Format of injected rules**:
+```
+# Cursor Project Rules (.cursor/rules)
+
+## path/to/rule.mdc
+
+<rule body content>
+
+## another-rule.mdc
+
+<rule body content>
+```
 
 ### Cancellation Flow (CTRL+C)
 

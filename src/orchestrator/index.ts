@@ -69,6 +69,7 @@ export interface OrchestratorCallbacks {
 export interface OrchestratorContext {
     repoRoot: string;
     logger: Logger;
+    cursorRulesText: string | null;
 }
 
 export type ShellDecision = "run" | "always" | "deny";
@@ -211,6 +212,17 @@ export function createOrchestratorWithTools(
     function buildMessagesForClaude(): Message[] {
         const messages: Message[] = [];
         let pendingToolResults: Array<{ toolCallId: string; result: string; isError?: boolean }> = [];
+
+        if (context.cursorRulesText) {
+            messages.push({
+                role: "user",
+                content: context.cursorRulesText,
+            });
+            messages.push({
+                role: "assistant",
+                content: "I understand these project rules and will follow them throughout our conversation.",
+            });
+        }
 
         if (rollingSummary) {
             messages.push({
