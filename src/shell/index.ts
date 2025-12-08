@@ -19,27 +19,26 @@ interface PendingCommand {
 interface PtySession {
     pty: IPty;
     buffer: string;
-    pending: Map<string, PendingCommand>;
+    pending: PendingCommand | null;
     disposed: boolean;
 }
 
-const START_MARKER = "__NORTH_START_";
-const END_MARKER = "__NORTH_END_";
-const EXIT_MARKER = "__EXIT__";
+const START_MARKER = "__NORTH_CMD_START_";
+const END_MARKER = "__NORTH_CMD_END_";
 
 function generateCommandId(): string {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function parseEndMarker(buffer: string, commandId: string): { found: boolean; exitCode: number; endIndex: number } {
-    const endPattern = `${END_MARKER}${commandId}${EXIT_MARKER}`;
+    const endPattern = `\n${END_MARKER}${commandId}_EXIT_`;
     const idx = buffer.indexOf(endPattern);
     if (idx === -1) {
         return { found: false, exitCode: -1, endIndex: -1 };
     }
 
     const afterMarker = buffer.slice(idx + endPattern.length);
-    const exitMatch = afterMarker.match(/^(\d+)__/);
+    const exitMatch = afterMarker.match(/^(\d+)_END_\r?\n/);
     if (!exitMatch) {
         return { found: false, exitCode: -1, endIndex: -1 };
     }
@@ -50,26 +49,35 @@ function parseEndMarker(buffer: string, commandId: string): { found: boolean; ex
 }
 
 function extractOutput(buffer: string, commandId: string, endIndex: number): string {
-    const startPattern = `${START_MARKER}${commandId}__`;
+    const startPattern = `${START_MARKER}${commandId}_START_\n`;
     const startIdx = buffer.indexOf(startPattern);
     if (startIdx === -1) {
-        return "";
+        const altPattern = `${START_MARKER}${commandId}_START_\r\n`;
+        const altIdx = buffer.indexOf(altPattern);
+        if (altIdx === -1) {
+            return "";
+        }
+        const outputStart = altIdx + altPattern.length;
+        const endPatternStart = `\n${END_MARKER}${commandId}_EXIT_`;
+        const endIdx = buffer.indexOf(endPatternStart, outputStart);
+        if (endIdx === -1) {
+            return "";
+        }
+        return buffer.slice(outputStart, endIdx).replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "");
     }
 
     const outputStart = startIdx + startPattern.length;
-    const endPattern = `${END_MARKER}${commandId}${EXIT_MARKER}`;
-    const endIdx = buffer.indexOf(endPattern);
+    const endPatternStart = `\n${END_MARKER}${commandId}_EXIT_`;
+    const endIdx = buffer.indexOf(endPatternStart, outputStart);
     if (endIdx === -1) {
         return "";
     }
 
-    let output = buffer.slice(outputStart, endIdx);
-    output = output.replace(/^\r?\n/, "").replace(/\r?\n$/, "");
-    return output;
+    return buffer.slice(outputStart, endIdx).replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "");
 }
 
 export interface ShellService {
-    run(command: string, options?: { cwd?: string; timeoutMs?: number }): Promise<ShellRunResult>;
+    run(command: string, options?: { cwd?: string | null; timeoutMs?: number }): Promise<ShellRunResult>;
     dispose(): void;
 }
 
@@ -82,13 +90,27 @@ export function createShellService(options: ShellServiceOptions): ShellService {
     const { repoRoot, logger } = options;
     let session: PtySession | null = null;
 
-    function getOrCreateSession(): PtySession {
-        if (session && !session.disposed) {
-            return session;
+    function destroySession(): void {
+        if (session) {
+            session.disposed = true;
+            if (session.pending) {
+                if (session.pending.timeout) {
+                    clearTimeout(session.pending.timeout);
+                }
+            }
+            session.pending = null;
+            try {
+                session.pty.kill();
+            } catch {
+            }
+            session = null;
         }
+    }
 
-        const shell = process.env.SHELL || "/bin/bash";
-        const pty = spawn(shell, ["--norc", "--noprofile", "-i"], {
+    function createSession(): PtySession {
+        destroySession();
+
+        const pty = spawn("/bin/bash", ["--norc", "--noprofile", "-i"], {
             name: "xterm-256color",
             cols: 120,
             rows: 40,
@@ -105,7 +127,7 @@ export function createShellService(options: ShellServiceOptions): ShellService {
         const newSession: PtySession = {
             pty,
             buffer: "",
-            pending: new Map(),
+            pending: null,
             disposed: false,
         };
 
@@ -113,17 +135,19 @@ export function createShellService(options: ShellServiceOptions): ShellService {
             if (newSession.disposed) return;
             newSession.buffer += data;
 
-            for (const [cmdId, pending] of newSession.pending) {
-                const result = parseEndMarker(newSession.buffer, cmdId);
+            if (newSession.pending) {
+                const pending = newSession.pending;
+                const result = parseEndMarker(newSession.buffer, pending.id);
                 if (result.found) {
-                    const output = extractOutput(newSession.buffer, cmdId, result.endIndex);
+                    const output = extractOutput(newSession.buffer, pending.id, result.endIndex);
                     const durationMs = Date.now() - pending.startTime;
 
                     if (pending.timeout) {
                         clearTimeout(pending.timeout);
                     }
 
-                    newSession.pending.delete(cmdId);
+                    newSession.pending = null;
+                    newSession.buffer = newSession.buffer.slice(result.endIndex);
 
                     pending.resolve({
                         stdout: output,
@@ -131,44 +155,52 @@ export function createShellService(options: ShellServiceOptions): ShellService {
                         exitCode: result.exitCode,
                         durationMs,
                     });
-
-                    const startIdx = newSession.buffer.indexOf(`${START_MARKER}${cmdId}__`);
-                    if (startIdx !== -1) {
-                        newSession.buffer = newSession.buffer.slice(result.endIndex);
-                    }
                 }
             }
         });
 
         pty.onExit(({ exitCode, signal }) => {
             newSession.disposed = true;
-            for (const [, pending] of newSession.pending) {
+            if (newSession.pending) {
+                const pending = newSession.pending;
                 if (pending.timeout) {
                     clearTimeout(pending.timeout);
                 }
                 pending.reject(new Error(`Shell exited unexpectedly: exitCode=${exitCode}, signal=${signal}`));
+                newSession.pending = null;
             }
-            newSession.pending.clear();
         });
 
         session = newSession;
         return newSession;
     }
 
+    function getOrCreateSession(): PtySession {
+        if (session && !session.disposed) {
+            return session;
+        }
+        return createSession();
+    }
+
     return {
-        async run(command: string, runOptions?: { cwd?: string; timeoutMs?: number }): Promise<ShellRunResult> {
-            const sess = getOrCreateSession();
+        async run(command: string, runOptions?: { cwd?: string | null; timeoutMs?: number }): Promise<ShellRunResult> {
+            let sess = getOrCreateSession();
+
+            if (sess.pending) {
+                throw new Error("A command is already running. Wait for it to complete or timeout.");
+            }
+
             const commandId = generateCommandId();
             const timeoutMs = runOptions?.timeoutMs ?? 60000;
 
-            const startMarker = `${START_MARKER}${commandId}__`;
-            const endMarker = `${END_MARKER}${commandId}${EXIT_MARKER}`;
+            const startMarker = `${START_MARKER}${commandId}_START_`;
+            const endMarker = `${END_MARKER}${commandId}_EXIT_`;
 
             let wrappedCommand = "";
             if (runOptions?.cwd) {
                 wrappedCommand += `cd ${JSON.stringify(runOptions.cwd)} && `;
             }
-            wrappedCommand += `echo ${startMarker}; ${command}; echo ${endMarker}$?__`;
+            wrappedCommand += `printf '\\n${startMarker}\\n'; ${command}; printf '\\n${endMarker}%d_END_\\n' $?`;
 
             return new Promise<ShellRunResult>((resolve, reject) => {
                 const pending: PendingCommand = {
@@ -180,32 +212,19 @@ export function createShellService(options: ShellServiceOptions): ShellService {
 
                 if (timeoutMs > 0) {
                     pending.timeout = setTimeout(() => {
-                        sess.pending.delete(commandId);
-                        reject(new Error(`Command timed out after ${timeoutMs}ms: ${command}`));
+                        logger.info("shell_timeout", { command, timeoutMs });
+                        destroySession();
+                        reject(new Error(`Command timed out after ${timeoutMs}ms (session destroyed): ${command}`));
                     }, timeoutMs);
                 }
 
-                sess.pending.set(commandId, pending);
+                sess.pending = pending;
                 sess.pty.write(wrappedCommand + "\n");
             });
         },
 
         dispose(): void {
-            if (session && !session.disposed) {
-                session.disposed = true;
-                for (const [, pending] of session.pending) {
-                    if (pending.timeout) {
-                        clearTimeout(pending.timeout);
-                    }
-                    pending.reject(new Error("Shell service disposed"));
-                }
-                session.pending.clear();
-                try {
-                    session.pty.kill();
-                } catch {
-                }
-                session = null;
-            }
+            destroySession();
         },
     };
 }
@@ -227,4 +246,3 @@ export function disposeAllShellServices(): void {
     }
     globalSessions.clear();
 }
-

@@ -45,13 +45,15 @@ function saveAllowlistData(repoRoot: string, data: AllowlistData): void {
 
 export function isCommandAllowed(repoRoot: string, command: string): boolean {
     const data = loadAllowlistData(repoRoot);
-    return data.allowedCommands.includes(command);
+    const trimmed = command.trim();
+    return data.allowedCommands.includes(trimmed);
 }
 
 export function allowCommand(repoRoot: string, command: string): void {
     const data = loadAllowlistData(repoRoot);
-    if (!data.allowedCommands.includes(command)) {
-        data.allowedCommands.push(command);
+    const trimmed = command.trim();
+    if (!data.allowedCommands.includes(trimmed)) {
+        data.allowedCommands.push(trimmed);
         saveAllowlistData(repoRoot, data);
     }
 }

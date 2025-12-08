@@ -113,7 +113,7 @@ function MessageBlock({
         return (
             <ShellReview
                 command={entry.shellCommand}
-                cwd={entry.shellCwd}
+                cwd={entry.shellCwd || undefined}
                 status={shellStatus}
                 onRun={onShellRun}
                 onAlways={onShellAlways}

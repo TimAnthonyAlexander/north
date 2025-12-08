@@ -164,7 +164,7 @@ export interface EditBatchInput {
 
 export interface ShellRunInput {
     command: string;
-    cwd?: string;
+    cwd?: string | null;
     timeoutMs?: number;
 }
 

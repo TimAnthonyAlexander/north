@@ -23,7 +23,7 @@ export interface TranscriptEntry {
     reviewStatus?: ReviewStatus;
     applyPayload?: unknown;
     shellCommand?: string;
-    shellCwd?: string;
+    shellCwd?: string | null;
 }
 
 export interface OrchestratorState {
@@ -42,9 +42,9 @@ export interface OrchestratorCallbacks {
     onWriteReviewDecision?: (decision: "accept" | "reject", filesCount: number) => void;
     onWriteApplyStart?: () => void;
     onWriteApplyComplete?: (durationMs: number, ok: boolean) => void;
-    onShellReviewShown?: (command: string, cwd?: string) => void;
+    onShellReviewShown?: (command: string, cwd?: string | null) => void;
     onShellReviewDecision?: (decision: "run" | "always" | "deny", command: string) => void;
-    onShellRunStart?: (command: string, cwd?: string) => void;
+    onShellRunStart?: (command: string, cwd?: string | null) => void;
     onShellRunComplete?: (command: string, exitCode: number, durationMs: number, stdoutBytes: number, stderrBytes: number) => void;
 }
 
@@ -218,13 +218,14 @@ export function createOrchestratorWithTools(
         return toolCallsMap.get(assistantId) || [];
     }
 
-    async function executeShellCommand(command: string, cwd?: string): Promise<{ ok: boolean; data?: unknown; error?: string }> {
-        callbacks.onShellRunStart?.(command, cwd);
+    async function executeShellCommand(command: string, cwd?: string | null): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+        const cwdOrUndefined = cwd || undefined;
+        callbacks.onShellRunStart?.(command, cwdOrUndefined);
         const startTime = Date.now();
 
         try {
             const shellService = getShellService(context.repoRoot, context.logger);
-            const result = await shellService.run(command, { cwd });
+            const result = await shellService.run(command, { cwd: cwdOrUndefined });
             const durationMs = Date.now() - startTime;
 
             callbacks.onShellRunComplete?.(
@@ -412,7 +413,7 @@ export function createOrchestratorWithTools(
                 id: reviewEntry.id,
                 resolve,
                 command: reviewEntry.shellCommand || "",
-                cwd: reviewEntry.shellCwd,
+                cwd: reviewEntry.shellCwd || undefined,
             };
         });
     }
@@ -456,7 +457,16 @@ export function createOrchestratorWithTools(
         callbacks.onShellReviewDecision?.(decision, command);
 
         if (decision === "deny") {
-            const result = { ok: true, data: { denied: true } };
+            const result = {
+                ok: true,
+                data: {
+                    stdout: "",
+                    stderr: "",
+                    exitCode: -1,
+                    durationMs: 0,
+                    denied: true,
+                },
+            };
             (reviewEntry as any).shellResult = result;
             updateEntry(reviewEntry.id, { reviewStatus: "denied" });
         } else {

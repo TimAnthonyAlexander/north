@@ -24,9 +24,9 @@ interface AppProps {
     onWriteReviewDecision?: (decision: "accept" | "reject", filesCount: number) => void;
     onWriteApplyStart?: () => void;
     onWriteApplyComplete?: (durationMs: number, ok: boolean) => void;
-    onShellReviewShown?: (command: string, cwd?: string) => void;
+    onShellReviewShown?: (command: string, cwd?: string | null) => void;
     onShellReviewDecision?: (decision: "run" | "always" | "deny", command: string) => void;
-    onShellRunStart?: (command: string, cwd?: string) => void;
+    onShellRunStart?: (command: string, cwd?: string | null) => void;
     onShellRunComplete?: (command: string, exitCode: number, durationMs: number, stdoutBytes: number, stderrBytes: number) => void;
 }
 
