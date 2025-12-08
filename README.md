@@ -4,7 +4,8 @@
 
 A Claude-powered pair programmer that lives in your terminal. No IDE lock-in, no subscription tiers, no bloat—just you, Claude, and your codebase.
 
-![North in action](screenshot.png)
+![North in action](screenshot1.png)
+![One Shot Website](screenshot2.png)
 
 ## Why North?
 
