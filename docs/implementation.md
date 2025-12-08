@@ -635,3 +635,15 @@ Example entries:
 {"timestamp":"2025-12-08T10:00:06.150Z","level":"info","event":"tool_call_complete","data":{"toolName":"search_text","durationMs":150,"ok":true}}
 {"timestamp":"2025-12-08T10:00:08.500Z","level":"info","event":"model_request_complete","data":{"requestId":"req-123-abc","durationMs":3499}}
 ```
+
+## Todo Backlog
+
+Technical debt and improvements are tracked in the `todo/` folder. Each file represents a single actionable item with:
+- Severity level (Major/Minor/Trivial)
+- Affected location(s)
+- Problem description
+- Solution approach
+- Implementation notes
+
+Files are numbered by priority (01-xx = Major, 05-xx = Minor, 10-xx+ = Trivial).
+Delete each file after completing the task: `rm todo/XX-filename.md`
