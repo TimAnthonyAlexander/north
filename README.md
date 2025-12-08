@@ -129,3 +129,6 @@ Architecture details are in `docs/implementation.md`.
 
 Logs record events and metadata (tool names, durations, prompt lengths) but not file contents or exact prompts. Your prompts and tool results go to Anthropic's API. Keeping it transparent, as it should be.
 
+
+
+<!-- Simple comment added to README -->

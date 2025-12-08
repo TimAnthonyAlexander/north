@@ -322,7 +322,7 @@ export function createOrchestratorWithTools(
                 }
             } else if (entry.role === "tool" && entry.toolResult) {
                 const toolCallId = (entry as any).toolCallId;
-                if (toolCallId && !writeToolCallIds.has(toolCallId) && !shellToolCallIds.has(toolCallId)) {
+                if (toolCallId && !writeToolCallIds.has(toolCallId) && !shellToolCallIds.has(toolCallId) && !planToolCallIds.has(toolCallId)) {
                     pendingToolResults.push({
                         toolCallId,
                         result: JSON.stringify(entry.toolResult),
@@ -366,10 +366,11 @@ export function createOrchestratorWithTools(
                         planId: entry.planId,
                         version: entry.planVersion,
                     };
-                    if (entry.reviewStatus === "rejected") {
+                    if (entry.reviewStatus === "accepted") {
+                        resultData.message = "Plan accepted by user. You now have access to all write tools. Begin implementing the plan immediately. Do not ask for permission - start making the changes outlined in your plan.";
+                    } else if (entry.reviewStatus === "rejected") {
                         resultData.reason = "User rejected the plan";
-                    }
-                    if (revised) {
+                    } else if (revised) {
                         resultData.reason = "User requested revisions to the plan";
                     }
                     pendingToolResults.push({

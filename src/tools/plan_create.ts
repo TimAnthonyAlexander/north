@@ -6,7 +6,7 @@ function generatePlanId(): string {
 
 export const planCreateTool: ToolDefinition<PlanCreateInput, PlanOutput> = {
     name: "plan_create",
-    description: "Create a plan for the changes you want to make. The plan will be shown to the user for approval before any write operations are allowed. Use this tool in Plan mode to outline your approach before implementation.",
+    description: "Create a plan for the changes you want to make. CRITICAL: Before calling this tool, you MUST ask the user at least one clarifying question to understand requirements better. Never create a plan immediately - always engage in dialogue first. After understanding the requirements through questions, create a detailed plan that will be shown to the user for approval before any write operations are allowed.",
     approvalPolicy: "plan",
     inputSchema: {
         type: "object",

@@ -562,21 +562,28 @@ North supports three conversation modes that control tool availability:
 
 Creating and using plans:
 
-1. **Plan Creation** (in Plan or Agent mode):
-   - LLM calls `plan_create` with detailed plan text
+1. **Pre-Planning Dialog** (REQUIRED):
+   - Before calling `plan_create`, LLM MUST ask at least one clarifying question
+   - This ensures the plan is based on user requirements, not assumptions
+   - Tool description enforces this requirement
+
+2. **Plan Creation** (in Plan or Agent mode):
+   - After gathering requirements, LLM calls `plan_create` with detailed plan text
    - Orchestrator creates `plan_review` transcript entry with status "pending"
    - PlanReview component renders plan with keyboard shortcuts
 
-2. **User Decision**:
-   - Press `a`: Accept plan → stored in `acceptedPlan` state, enables write tools
+3. **User Decision**:
+   - Press `a`: Accept plan → stored in `acceptedPlan` state, automatically switches to Agent mode
    - Press `r`: Request revision → LLM should call `plan_update` with revised plan
    - Press `x`: Reject plan → returned to LLM, no write tools enabled
 
-3. **Plan Acceptance**:
+4. **Plan Acceptance & Auto-Execution**:
    - Accepted plan stored: `{ planId, version, text }`
-   - Conversation loop automatically switches to Agent mode for subsequent iterations
+   - UI automatically switches displayed mode to "agent"
+   - Conversation loop continues immediately in Agent mode
+   - Tool result message instructs LLM to begin implementation immediately
    - Write tools now allowed (will pass plan existence check)
-   - LLM receives success response and can proceed with implementation
+   - LLM proceeds with implementation without asking for permission
 
 4. **Plan Updates**:
    - LLM can call `plan_update(planId, newPlanText)` to revise plan

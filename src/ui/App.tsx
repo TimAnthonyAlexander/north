@@ -162,6 +162,7 @@ export function App({
     function handlePlanAccept(entryId: string) {
         if (!orchestrator) return;
         orchestrator.resolvePlanReview(entryId, "accept");
+        setNextMode("agent");
     }
 
     function handlePlanRevise(entryId: string) {
