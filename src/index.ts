@@ -25,6 +25,23 @@ function parseArgs(): { path?: string; logLevel: LogLevel } {
   return { path, logLevel };
 }
 
+function summarizeToolArgs(args: unknown): Record<string, unknown> {
+  if (!args || typeof args !== "object") return {};
+
+  const summary: Record<string, unknown> = {};
+  const obj = args as Record<string, unknown>;
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === "string" && value.length > 100) {
+      summary[key] = `${value.slice(0, 50)}... (${value.length} chars)`;
+    } else {
+      summary[key] = value;
+    }
+  }
+
+  return summary;
+}
+
 function main() {
   const { path, logLevel } = parseArgs();
   const startDir = path || process.cwd();
@@ -34,6 +51,7 @@ function main() {
   const { unmount, waitUntilExit } = render(
     React.createElement(App, {
       projectPath,
+      logger,
       onRequestStart(requestId: string, model: string) {
         logger.info("model_request_start", { requestId, model });
       },
@@ -47,6 +65,19 @@ function main() {
       onUserPrompt(length: number) {
         logger.info("user_prompt", { length });
       },
+      onToolCallStart(toolName: string, args: unknown) {
+        logger.info("tool_call_start", {
+          toolName,
+          argsSummary: summarizeToolArgs(args),
+        });
+      },
+      onToolCallComplete(toolName: string, durationMs: number, ok: boolean) {
+        logger.info("tool_call_complete", {
+          toolName,
+          durationMs,
+          ok,
+        });
+      },
     })
   );
 
@@ -57,4 +88,3 @@ function main() {
 }
 
 main();
-

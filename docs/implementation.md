@@ -7,7 +7,7 @@ This document describes the current implementation state and module architecture
 | Milestone | Status |
 |-----------|--------|
 | 1: Chat UI + streaming | ✅ Complete |
-| 2: Read/search tools | Not started |
+| 2: Read/search tools | ✅ Complete |
 | 3: Deterministic edits + diff review | Not started |
 | 4: Persistent PTY shell + approvals | Not started |
 | 5: Memory + project card cache | Not started |
@@ -21,16 +21,28 @@ src/
 ├── logging/
 │   └── index.ts          # Append-only JSON-lines logger
 ├── orchestrator/
-│   └── index.ts          # Conversation state, message flow, streaming coordination
+│   └── index.ts          # Conversation state, message flow, tool loop
 ├── provider/
-│   └── anthropic.ts      # Claude streaming client
+│   └── anthropic.ts      # Claude streaming client with tool support
+├── tools/
+│   ├── index.ts          # Tool exports and registry factory
+│   ├── types.ts          # Tool type definitions
+│   ├── registry.ts       # Tool registry implementation
+│   ├── list_root.ts      # List repo root entries
+│   ├── find_files.ts     # Glob pattern file search
+│   ├── search_text.ts    # Text/regex search (ripgrep or fallback)
+│   ├── read_file.ts      # File content reader with ranges
+│   ├── read_readme.ts    # README finder and reader
+│   ├── detect_languages.ts # Language composition detector
+│   └── hotfiles.ts       # Frequently modified files (git or fallback)
 ├── ui/
 │   ├── App.tsx           # Root Ink component, SIGINT handling
 │   ├── Composer.tsx      # Multiline input with Ctrl+J newline
 │   ├── StatusLine.tsx    # Model name, project path display
-│   └── Transcript.tsx    # User/assistant message rendering
+│   └── Transcript.tsx    # User/assistant/tool message rendering
 └── utils/
-    └── repo.ts           # Repo root detection (walks up to filesystem root)
+    ├── repo.ts           # Repo root detection
+    └── ignore.ts         # Gitignore parsing and file walking
 ```
 
 ## Module Responsibilities
@@ -42,19 +54,25 @@ src/
 - Initializes logger
 - Renders Ink app
 - Handles clean exit via `waitUntilExit()`
+- Wires tool logging callbacks
 
 ### logging/index.ts
 
 - Writes to `~/.local/state/north/north.log`
 - JSON-lines format (one JSON object per line)
-- Events: `app_start`, `user_prompt`, `model_request_start`, `model_request_complete`, `app_exit`
+- Events: `app_start`, `user_prompt`, `model_request_start`, `model_request_complete`, `tool_call_start`, `tool_call_complete`, `app_exit`
 - Silent fail on write errors (logging must not crash the app)
 
 ### orchestrator/index.ts
 
 - Owns `transcript` (array of `TranscriptEntry`)
 - Owns `isProcessing` flag
-- Builds message history for API calls (excludes streaming entries)
+- Implements tool call loop:
+  1. Send message to Claude
+  2. Stream response text
+  3. If Claude requests tools, execute them
+  4. Feed tool results back to Claude
+  5. Continue until Claude stops requesting tools
 - Throttles streaming updates (~32ms) to prevent UI thrashing
 - Emits state changes via callback
 
@@ -63,41 +81,50 @@ src/
 - Wraps `@anthropic-ai/sdk`
 - Default model: `claude-sonnet-4-20250514`
 - Streaming via `client.messages.stream()`
-- Callbacks: `onChunk`, `onComplete`, `onError`
+- Supports tool definitions and tool_use blocks
+- Callbacks: `onChunk`, `onToolCall`, `onComplete`, `onError`
+- Helpers for building tool result messages
 
-### ui/App.tsx
+### tools/registry.ts
 
-- Root component
-- Creates orchestrator on mount
-- Handles SIGINT (calls Ink's `exit()`)
-- Wires callbacks between orchestrator and logger
+- In-process registry mapping tool name -> definition
+- Each tool has: name, description, inputSchema, execute()
+- `getSchemas()` returns tool definitions for Claude API
+- `execute()` runs tool and returns structured result
 
-### ui/Composer.tsx
+### tools/*.ts (Tool Implementations)
 
-- Multiline text input
-- Enter: send message (if non-empty after trim)
-- Ctrl+J: insert newline (reliable across terminals)
-- Shift+Enter: insert newline (fallback, terminal-dependent)
-- Arrow keys, backspace for editing
-- Disabled state while processing
+All tools follow the pattern:
+- Input validation
+- Operation scoped to repoRoot
+- Structured result with `ok`, `data`, `error`
+
+| Tool | Purpose | Key Features |
+|------|---------|--------------|
+| `list_root` | List repo root entries | Respects .gitignore |
+| `find_files` | Glob pattern search | Case-insensitive, limit |
+| `search_text` | Text/regex search | Uses ripgrep if available |
+| `read_file` | Read file content | Line ranges, truncation |
+| `read_readme` | Read README | Auto-detect README.* |
+| `detect_languages` | Language composition | By extension and size |
+| `hotfiles` | Important files | Git history or fallback |
+
+### utils/ignore.ts
+
+- Parses .gitignore patterns
+- Always ignores common directories (node_modules, .git, etc.)
+- `createIgnoreChecker()` returns checker with `isIgnored(path, isDir)`
+- `walkDirectory()` recursively walks repo respecting ignores
+- `listRootEntries()` lists root level entries
 
 ### ui/Transcript.tsx
 
 - Renders conversation history
 - User messages: cyan label
 - Assistant messages: magenta label
-- Streaming indicator (●) while assistant is typing
-
-### ui/StatusLine.tsx
-
-- Shows project name (basename of path)
-- Shows current model
-
-### utils/repo.ts
-
-- `detectRepoRoot(startPath)`: walks up directory tree
-- Looks for markers: `.git`, `package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`
-- Falls back to start directory if no marker found
+- Tool messages: yellow ⚡ icon, gray text
+- Error tool results: red text
+- Streaming indicator (●)
 
 ## Data Flow
 
@@ -116,34 +143,67 @@ App.handleSubmit(content)
 orchestrator.sendMessage(content)
     │
     ├──► Push user entry to transcript
-    ├──► Push assistant entry (streaming: true)
-    ├──► Build messages array
-    ▼
-provider.stream(messages)
     │
-    ├──► onChunk: buffer chunks, throttled emit
-    ├──► onComplete: flush buffer, finalize entry
     ▼
-Transcript re-renders with updated content
+┌─► provider.stream(messages, { tools })
+│       │
+│       ├──► onChunk: buffer chunks, throttled emit
+│       ├──► onToolCall: add tool intent to transcript
+│       │
+│       ▼
+│   Stream completes
+│       │
+│       ├──► If tool calls requested:
+│       │       │
+│       │       ├──► Execute each tool
+│       │       ├──► Log tool_call_start/complete
+│       │       ├──► Update tool entry with result
+│       │       ├──► Build tool result message
+│       │       └──► Continue loop ─────────────────┐
+│       │                                           │
+│       └──► No tools: exit loop                    │
+│                                                   │
+└───────────────────────────────────────────────────┘
+    │
+    ▼
+Transcript re-renders with all content
 ```
 
 ## Key Implementation Details
 
-### Streaming Throttle
+### Tool Call Loop
 
-Chunks arrive rapidly during streaming. To avoid excessive re-renders:
+When Claude requests tools:
+1. Stream completes with `stopReason: "tool_use"`
+2. Orchestrator executes each tool via registry
+3. Results are JSON-stringified and sent back as `tool_result` blocks
+4. Claude processes results and may request more tools or respond
 
-1. Chunks are buffered in `streamBuffer`
-2. `emitStateThrottled()` schedules a flush every 32ms
-3. On `onComplete`, pending timeout is cleared and buffer is flushed immediately
+### Gitignore Handling
 
-### Message Duplication Prevention
+The ignore checker:
+1. Always ignores common directories (node_modules, .git, etc.)
+2. Parses .gitignore if present at repo root
+3. Supports glob patterns: `*`, `**`, `?`
+4. Supports negation patterns: `!important.log`
+5. Supports directory-only patterns: `logs/`
 
-The orchestrator builds the messages array *before* pushing the user entry to the transcript, then pushes the entry. This ensures the user message appears exactly once in the API call.
+### Search Implementation
 
-### Repo Root Detection
+`search_text` uses ripgrep if available (faster, better output), with fallback to pure JS implementation:
+- Ripgrep: spawns `rg --json` for structured output
+- Fallback: walks files and searches line by line
 
-Walks from start directory up to filesystem root (where `dirname(path) === path`), checking for repo markers at each level. Returns the first directory containing a marker, or the start directory if none found.
+### Output Truncation
+
+All tools enforce limits to prevent context overflow:
+- `read_file`: 500 lines or 100KB max
+- `search_text`: 50 matches default, 200 max
+- `find_files`: 50 files default, 500 max
+- `read_readme`: 8KB max
+- `hotfiles`: 10 files default, 50 max
+
+Truncation is always explicit with `truncated: true` in results.
 
 ## Dependencies
 
@@ -179,6 +239,7 @@ Example entries:
 {"timestamp":"2025-12-08T10:00:00.000Z","level":"info","event":"app_start","data":{"version":"0.1.0","projectPath":"/path/to/repo","cwd":"/path/to/repo"}}
 {"timestamp":"2025-12-08T10:00:05.000Z","level":"info","event":"user_prompt","data":{"length":42}}
 {"timestamp":"2025-12-08T10:00:05.001Z","level":"info","event":"model_request_start","data":{"requestId":"req-123-abc","model":"claude-sonnet-4-20250514"}}
+{"timestamp":"2025-12-08T10:00:06.000Z","level":"info","event":"tool_call_start","data":{"toolName":"search_text","argsSummary":{"query":"useState","path":"src"}}}
+{"timestamp":"2025-12-08T10:00:06.150Z","level":"info","event":"tool_call_complete","data":{"toolName":"search_text","durationMs":150,"ok":true}}
 {"timestamp":"2025-12-08T10:00:08.500Z","level":"info","event":"model_request_complete","data":{"requestId":"req-123-abc","durationMs":3499}}
 ```
-

@@ -4,24 +4,31 @@ import { Transcript } from "./Transcript";
 import { Composer } from "./Composer";
 import { StatusLine } from "./StatusLine";
 import {
-  createOrchestrator,
+  createOrchestratorWithTools,
   type Orchestrator,
   type OrchestratorState,
   type TranscriptEntry,
 } from "../orchestrator/index";
+import type { Logger } from "../logging/index";
 
 interface AppProps {
   projectPath: string;
+  logger: Logger;
   onRequestStart: (requestId: string, model: string) => void;
   onRequestComplete: (requestId: string, durationMs: number, error?: Error) => void;
   onUserPrompt: (length: number) => void;
+  onToolCallStart: (toolName: string, args: unknown) => void;
+  onToolCallComplete: (toolName: string, durationMs: number, ok: boolean) => void;
 }
 
 export function App({
   projectPath,
+  logger,
   onRequestStart,
   onRequestComplete,
   onUserPrompt,
+  onToolCallStart,
+  onToolCallComplete,
 }: AppProps) {
   const { exit } = useApp();
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
@@ -29,14 +36,22 @@ export function App({
   const [orchestrator, setOrchestrator] = useState<Orchestrator | null>(null);
 
   useEffect(() => {
-    const orch = createOrchestrator({
-      onStateChange(state: OrchestratorState) {
-        setTranscript(state.transcript);
-        setIsProcessing(state.isProcessing);
+    const orch = createOrchestratorWithTools(
+      {
+        onStateChange(state: OrchestratorState) {
+          setTranscript(state.transcript);
+          setIsProcessing(state.isProcessing);
+        },
+        onRequestStart,
+        onRequestComplete,
+        onToolCallStart,
+        onToolCallComplete,
       },
-      onRequestStart,
-      onRequestComplete,
-    });
+      {
+        repoRoot: projectPath,
+        logger,
+      }
+    );
     setOrchestrator(orch);
   }, []);
 
@@ -70,4 +85,3 @@ export function App({
     </Box>
   );
 }
-

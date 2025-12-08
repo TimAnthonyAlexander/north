@@ -254,4 +254,76 @@ Consequences:
 - Final content is always exact (flush on complete).
 - Streaming feels smooth without lag.
 
+---
+
+## 2025-12-08: Tool registry with in-process execution
+
+Decision:
+- Tools are registered in an in-process registry with name, schema, and execute function.
+- No plugin system for v0.
+- Tool schemas are passed to Claude API for tool use.
+
+Rationale:
+- Simplest possible tool system that works.
+- Shapes the interface for future MCP compatibility.
+- All tools are read-only in Milestone 2.
+
+Consequences:
+- Adding new tools requires code changes.
+- Tool definitions must be strict JSON Schema.
+- Results are structured for both Claude and UI display.
+
+---
+
+## 2025-12-08: Gitignore-aware file operations
+
+Decision:
+- All file listing/searching operations respect .gitignore.
+- Always ignore common directories (node_modules, .git, etc.) regardless of .gitignore.
+- Custom lightweight gitignore parser instead of external dependency.
+
+Rationale:
+- Prevents flooding context with generated/ignored files.
+- Keeps dependencies minimal.
+- Common ignores are safety net for missing .gitignore.
+
+Consequences:
+- May not handle edge cases in complex .gitignore patterns.
+- Good enough for v0, can improve later if needed.
+
+---
+
+## 2025-12-08: Tool output truncation is explicit
+
+Decision:
+- All tools enforce output limits (lines, bytes, count).
+- Truncation is always indicated with `truncated: true` in result.
+- Never silently drop content.
+
+Rationale:
+- Prevents context overflow in Claude API calls.
+- User/model always knows when data is incomplete.
+- Encourages targeted queries (use line ranges, narrower search paths).
+
+Consequences:
+- Model may need multiple tool calls for large files.
+- UI shows truncation indicator for transparency.
+
+---
+
+## 2025-12-08: Search uses ripgrep with JS fallback
+
+Decision:
+- `search_text` tool tries ripgrep first, falls back to pure JS.
+- Both implementations produce same result structure.
+
+Rationale:
+- Ripgrep is fast and widely available.
+- JS fallback ensures the tool always works.
+- No hard dependency on external binaries.
+
+Consequences:
+- Performance varies based on environment.
+- Fallback is slower but acceptable for v0.
+
 

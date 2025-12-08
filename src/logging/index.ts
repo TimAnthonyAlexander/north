@@ -4,7 +4,7 @@ import { homedir } from "os";
 
 export type LogLevel = "info" | "debug" | "error";
 
-interface Logger {
+export interface Logger {
   info(event: string, data?: Record<string, unknown>): void;
   debug(event: string, data?: Record<string, unknown>): void;
   error(event: string, error: Error, data?: Record<string, unknown>): void;

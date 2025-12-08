@@ -6,22 +6,68 @@ interface TranscriptProps {
   entries: TranscriptEntry[];
 }
 
-function MessageBlock({ entry }: { entry: TranscriptEntry }) {
-  const isUser = entry.role === "user";
-  const label = isUser ? "You" : "Claude";
-  const labelColor = isUser ? "cyan" : "magenta";
-
+function UserMessage({ entry }: { entry: TranscriptEntry }) {
   return (
     <Box flexDirection="column" marginBottom={1}>
-      <Text bold color={labelColor}>
-        {label}
-        {entry.isStreaming && <Text color="gray"> ●</Text>}
+      <Text bold color="cyan">
+        You
       </Text>
       <Box marginLeft={2}>
-        <Text wrap="wrap">{entry.content || (entry.isStreaming ? "..." : "")}</Text>
+        <Text wrap="wrap">{entry.content}</Text>
       </Box>
     </Box>
   );
+}
+
+function AssistantMessage({ entry }: { entry: TranscriptEntry }) {
+  const hasContent = entry.content.length > 0;
+
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <Text bold color="magenta">
+        Claude
+        {entry.isStreaming && <Text color="gray"> ●</Text>}
+      </Text>
+      {hasContent && (
+        <Box marginLeft={2}>
+          <Text wrap="wrap">{entry.content}</Text>
+        </Box>
+      )}
+      {!hasContent && entry.isStreaming && (
+        <Box marginLeft={2}>
+          <Text color="gray">...</Text>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+function ToolMessage({ entry }: { entry: TranscriptEntry }) {
+  const isError = entry.toolResult && !entry.toolResult.ok;
+
+  return (
+    <Box marginLeft={2} marginBottom={0}>
+      <Text color="gray">
+        <Text color={isError ? "red" : "yellow"}>⚡</Text>{" "}
+        <Text color={isError ? "red" : "gray"} dimColor={!isError}>
+          {entry.content}
+        </Text>
+        {entry.isStreaming && <Text color="gray"> ●</Text>}
+      </Text>
+    </Box>
+  );
+}
+
+function MessageBlock({ entry }: { entry: TranscriptEntry }) {
+  if (entry.role === "user") {
+    return <UserMessage entry={entry} />;
+  }
+
+  if (entry.role === "tool") {
+    return <ToolMessage entry={entry} />;
+  }
+
+  return <AssistantMessage entry={entry} />;
 }
 
 export function Transcript({ entries }: TranscriptProps) {
@@ -41,4 +87,3 @@ export function Transcript({ entries }: TranscriptProps) {
     </Box>
   );
 }
-
