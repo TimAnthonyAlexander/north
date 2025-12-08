@@ -13,6 +13,8 @@ This document describes the current implementation state and module architecture
 | 5: Memory + project card cache | Not started |
 | 6: UX polish | Not started |
 
+*Last verified: 2025-12-08*
+
 ## Project Structure
 
 ```
@@ -74,15 +76,20 @@ src/
 - Owns `transcript` (array of `TranscriptEntry`)
 - Owns `isProcessing` and `pendingReviewId` flags
 - Implements tool call loop:
-  1. Send message to Claude
-  2. Stream response text
-  3. If Claude requests tools, execute them
-  4. For write tools: block and wait for user approval
-  5. Feed tool results back to Claude
+  1. Append user entry to transcript
+  2. Create assistant entry with `isStreaming: true`
+  3. Send messages to Claude with tool schemas
+  4. Stream response text (throttled at ~32ms)
+  5. If `stopReason === "tool_use"`:
+     - Execute each tool via registry
+     - For `approvalPolicy: "write"`: create `diff_review` entry, block for user decision
+     - On accept: apply edits atomically, send result to Claude
+     - On reject: send rejection to Claude
   6. Continue until Claude stops requesting tools
-- Throttles streaming updates (~32ms) to prevent UI thrashing
-- Emits state changes via callback
-- Exposes `resolveWriteReview()` for UI to signal accept/reject
+- Streaming throttle: buffer chunks, flush every 32ms or on complete
+- Emits state changes via `onStateChange` callback
+- Exposes `resolveWriteReview(reviewId, decision)` for UI to signal accept/reject
+- Exposes `stop()` for clean SIGINT handling
 
 ### provider/anthropic.ts
 
@@ -153,6 +160,7 @@ All tools follow the pattern:
 
 - `resolveSafePath()`: validates paths stay within repo root
 - `readFileContent()`: safe file reading with error handling
+- `preserveTrailingNewline()`: ensures trailing newline consistency after edits
 - `computeUnifiedDiff()`: generates unified diff format
 - `computeCreateFileDiff()`: generates diff for new files
 - `applyEditsAtomically()`: writes to temp files then renames for safety
