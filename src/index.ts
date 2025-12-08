@@ -90,6 +90,18 @@ function main() {
             onWriteApplyComplete(durationMs: number, ok: boolean) {
                 logger.info("write_apply_complete", { durationMs, ok });
             },
+            onShellReviewShown(command: string, cwd?: string) {
+                logger.info("shell_review_shown", { command, cwd });
+            },
+            onShellReviewDecision(decision: "run" | "always" | "deny", command: string) {
+                logger.info("shell_review_decision", { decision, command });
+            },
+            onShellRunStart(command: string, cwd?: string) {
+                logger.info("shell_run_start", { command, cwd });
+            },
+            onShellRunComplete(command: string, exitCode: number, durationMs: number, stdoutBytes: number, stderrBytes: number) {
+                logger.info("shell_run_complete", { command, exitCode, durationMs, stdoutBytes, stderrBytes });
+            },
         })
     );
 

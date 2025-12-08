@@ -1,13 +1,17 @@
 import React from "react";
 import { Box, Text } from "ink";
-import type { TranscriptEntry } from "../orchestrator/index";
+import type { TranscriptEntry, ShellReviewStatus } from "../orchestrator/index";
 import { DiffReview } from "./DiffReview";
+import { ShellReview } from "./ShellReview";
 
 interface TranscriptProps {
     entries: TranscriptEntry[];
     pendingReviewId: string | null;
     onAcceptReview?: (entryId: string) => void;
     onRejectReview?: (entryId: string) => void;
+    onShellRun?: (entryId: string) => void;
+    onShellAlways?: (entryId: string) => void;
+    onShellDeny?: (entryId: string) => void;
 }
 
 function UserMessage({ entry }: { entry: TranscriptEntry }) {
@@ -67,9 +71,20 @@ interface MessageBlockProps {
     isActiveReview: boolean;
     onAccept?: () => void;
     onReject?: () => void;
+    onShellRun?: () => void;
+    onShellAlways?: () => void;
+    onShellDeny?: () => void;
 }
 
-function MessageBlock({ entry, isActiveReview, onAccept, onReject }: MessageBlockProps) {
+function MessageBlock({
+    entry,
+    isActiveReview,
+    onAccept,
+    onReject,
+    onShellRun,
+    onShellAlways,
+    onShellDeny,
+}: MessageBlockProps) {
     if (entry.role === "user") {
         return <UserMessage entry={entry} />;
     }
@@ -79,14 +94,30 @@ function MessageBlock({ entry, isActiveReview, onAccept, onReject }: MessageBloc
     }
 
     if (entry.role === "diff_review" && entry.diffContent) {
+        const reviewStatus = entry.reviewStatus as "pending" | "accepted" | "rejected";
         return (
             <DiffReview
                 diffs={entry.diffContent}
                 filesCount={entry.filesCount || 0}
                 toolName={entry.toolName || "edit"}
-                reviewStatus={entry.reviewStatus || "pending"}
+                reviewStatus={reviewStatus || "pending"}
                 onAccept={onAccept}
                 onReject={onReject}
+                isActive={isActiveReview}
+            />
+        );
+    }
+
+    if (entry.role === "shell_review" && entry.shellCommand) {
+        const shellStatus = (entry.reviewStatus || "pending") as ShellReviewStatus;
+        return (
+            <ShellReview
+                command={entry.shellCommand}
+                cwd={entry.shellCwd}
+                status={shellStatus}
+                onRun={onShellRun}
+                onAlways={onShellAlways}
+                onDeny={onShellDeny}
                 isActive={isActiveReview}
             />
         );
@@ -100,6 +131,9 @@ export function Transcript({
     pendingReviewId,
     onAcceptReview,
     onRejectReview,
+    onShellRun,
+    onShellAlways,
+    onShellDeny,
 }: TranscriptProps) {
     if (entries.length === 0) {
         return (
@@ -111,15 +145,21 @@ export function Transcript({
 
     return (
         <Box flexDirection="column">
-            {entries.map((entry) => (
-                <MessageBlock
-                    key={entry.id}
-                    entry={entry}
-                    isActiveReview={entry.id === pendingReviewId}
-                    onAccept={entry.id === pendingReviewId ? () => onAcceptReview?.(entry.id) : undefined}
-                    onReject={entry.id === pendingReviewId ? () => onRejectReview?.(entry.id) : undefined}
-                />
-            ))}
+            {entries.map((entry) => {
+                const isActive = entry.id === pendingReviewId;
+                return (
+                    <MessageBlock
+                        key={entry.id}
+                        entry={entry}
+                        isActiveReview={isActive}
+                        onAccept={isActive ? () => onAcceptReview?.(entry.id) : undefined}
+                        onReject={isActive ? () => onRejectReview?.(entry.id) : undefined}
+                        onShellRun={isActive ? () => onShellRun?.(entry.id) : undefined}
+                        onShellAlways={isActive ? () => onShellAlways?.(entry.id) : undefined}
+                        onShellDeny={isActive ? () => onShellDeny?.(entry.id) : undefined}
+                    />
+                );
+            })}
         </Box>
     );
 }

@@ -1,12 +1,18 @@
 import { createProvider, type Provider, type Message, type ToolCall } from "../provider/anthropic";
 import { createToolRegistryWithAllTools, type ToolRegistry } from "../tools/index";
 import type { Logger } from "../logging/index";
-import type { FileDiff, EditPrepareResult } from "../tools/types";
+import type { FileDiff, EditPrepareResult, ShellRunInput } from "../tools/types";
 import { applyEditsAtomically } from "../utils/editing";
+import { isCommandAllowed, allowCommand } from "../storage/allowlist";
+import { getShellService } from "../shell/index";
+
+export type ShellReviewStatus = "pending" | "ran" | "always" | "denied";
+export type WriteReviewStatus = "pending" | "accepted" | "rejected";
+export type ReviewStatus = WriteReviewStatus | ShellReviewStatus;
 
 export interface TranscriptEntry {
     id: string;
-    role: "user" | "assistant" | "tool" | "diff_review";
+    role: "user" | "assistant" | "tool" | "diff_review" | "shell_review";
     content: string;
     ts: number;
     isStreaming?: boolean;
@@ -14,8 +20,10 @@ export interface TranscriptEntry {
     diffContent?: FileDiff[];
     filesCount?: number;
     toolName?: string;
-    reviewStatus?: "pending" | "accepted" | "rejected";
+    reviewStatus?: ReviewStatus;
     applyPayload?: unknown;
+    shellCommand?: string;
+    shellCwd?: string;
 }
 
 export interface OrchestratorState {
@@ -34,6 +42,10 @@ export interface OrchestratorCallbacks {
     onWriteReviewDecision?: (decision: "accept" | "reject", filesCount: number) => void;
     onWriteApplyStart?: () => void;
     onWriteApplyComplete?: (durationMs: number, ok: boolean) => void;
+    onShellReviewShown?: (command: string, cwd?: string) => void;
+    onShellReviewDecision?: (decision: "run" | "always" | "deny", command: string) => void;
+    onShellRunStart?: (command: string, cwd?: string) => void;
+    onShellRunComplete?: (command: string, exitCode: number, durationMs: number, stdoutBytes: number, stderrBytes: number) => void;
 }
 
 export interface OrchestratorContext {
@@ -41,18 +53,28 @@ export interface OrchestratorContext {
     logger: Logger;
 }
 
+export type ShellDecision = "run" | "always" | "deny";
+
 export interface Orchestrator {
     sendMessage(content: string): void;
     resolveWriteReview(reviewId: string, decision: "accept" | "reject"): void;
+    resolveShellReview(reviewId: string, decision: ShellDecision): void;
     getModel(): string;
     stop(): void;
 }
 
-interface PendingReview {
+interface PendingWriteReview {
     id: string;
     resolve: (decision: "accept" | "reject") => void;
     filesCount: number;
     applyPayload: unknown;
+}
+
+interface PendingShellReview {
+    id: string;
+    resolve: (decision: ShellDecision) => void;
+    command: string;
+    cwd?: string;
 }
 
 const STREAM_THROTTLE_MS = 32;
@@ -71,7 +93,8 @@ export function createOrchestratorWithTools(
     let transcript: TranscriptEntry[] = [];
     let isProcessing = false;
     let pendingReviewId: string | null = null;
-    let pendingReview: PendingReview | null = null;
+    let pendingWriteReview: PendingWriteReview | null = null;
+    let pendingShellReview: PendingShellReview | null = null;
     let stopped = false;
 
     let streamBuffer = "";
@@ -122,6 +145,7 @@ export function createOrchestratorWithTools(
     }
 
     const writeToolCallIds = new Set<string>();
+    const shellToolCallIds = new Set<string>();
 
     function buildMessagesForClaude(): Message[] {
         const messages: Message[] = [];
@@ -145,7 +169,7 @@ export function createOrchestratorWithTools(
                 }
             } else if (entry.role === "tool" && entry.toolResult) {
                 const toolCallId = (entry as any).toolCallId;
-                if (toolCallId && !writeToolCallIds.has(toolCallId)) {
+                if (toolCallId && !writeToolCallIds.has(toolCallId) && !shellToolCallIds.has(toolCallId)) {
                     pendingToolResults.push({
                         toolCallId,
                         result: JSON.stringify(entry.toolResult),
@@ -168,6 +192,16 @@ export function createOrchestratorWithTools(
                         result: JSON.stringify(resultData),
                     });
                 }
+            } else if (entry.role === "shell_review" && entry.reviewStatus !== "pending") {
+                const toolCallId = (entry as any).toolCallId;
+                const shellResult = (entry as any).shellResult;
+                if (toolCallId && shellResult) {
+                    pendingToolResults.push({
+                        toolCallId,
+                        result: JSON.stringify(shellResult),
+                        isError: !shellResult.ok,
+                    });
+                }
             }
         }
 
@@ -184,17 +218,107 @@ export function createOrchestratorWithTools(
         return toolCallsMap.get(assistantId) || [];
     }
 
+    async function executeShellCommand(command: string, cwd?: string): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+        callbacks.onShellRunStart?.(command, cwd);
+        const startTime = Date.now();
+
+        try {
+            const shellService = getShellService(context.repoRoot, context.logger);
+            const result = await shellService.run(command, { cwd });
+            const durationMs = Date.now() - startTime;
+
+            callbacks.onShellRunComplete?.(
+                command,
+                result.exitCode,
+                durationMs,
+                result.stdout.length,
+                result.stderr.length
+            );
+
+            return {
+                ok: true,
+                data: {
+                    stdout: result.stdout,
+                    stderr: result.stderr,
+                    exitCode: result.exitCode,
+                    durationMs: result.durationMs,
+                },
+            };
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            return { ok: false, error: message };
+        }
+    }
+
+    async function handleShellTool(
+        toolCall: ToolCall,
+        toolEntryId: string
+    ): Promise<{ needsReview: boolean; entry: TranscriptEntry }> {
+        const args = toolCall.input as ShellRunInput;
+        const command = args.command?.trim() || "";
+        const cwd = args.cwd;
+
+        shellToolCallIds.add(toolCall.id);
+
+        if (isCommandAllowed(context.repoRoot, command)) {
+            updateEntry(toolEntryId, {
+                content: `shell_run (allowed)`,
+            });
+            emitState();
+
+            const result = await executeShellCommand(command, cwd);
+
+            const reviewEntry: TranscriptEntry = {
+                id: generateId(),
+                role: "shell_review",
+                content: "",
+                ts: Date.now(),
+                toolName: "shell_run",
+                shellCommand: command,
+                shellCwd: cwd,
+                reviewStatus: "always",
+            };
+            (reviewEntry as any).toolCallId = toolCall.id;
+            (reviewEntry as any).shellResult = result;
+            transcript.push(reviewEntry);
+
+            updateEntry(toolEntryId, { toolResult: { ok: true, data: { autoApproved: true } } });
+            emitState();
+
+            return { needsReview: false, entry: reviewEntry };
+        }
+
+        callbacks.onShellReviewShown?.(command, cwd);
+
+        const reviewId = generateId();
+        const reviewEntry: TranscriptEntry = {
+            id: reviewId,
+            role: "shell_review",
+            content: "",
+            ts: Date.now(),
+            toolName: "shell_run",
+            shellCommand: command,
+            shellCwd: cwd,
+            reviewStatus: "pending",
+        };
+        (reviewEntry as any).toolCallId = toolCall.id;
+        transcript.push(reviewEntry);
+
+        updateEntry(toolEntryId, {
+            content: `shell_run (awaiting approval)`,
+            toolResult: { ok: true, data: { awaitingApproval: true } },
+        });
+
+        return { needsReview: true, entry: reviewEntry };
+    }
+
     async function executeToolCall(
         toolCall: ToolCall,
         assistantId: string
-    ): Promise<{ needsReview: boolean; entry: TranscriptEntry }> {
+    ): Promise<{ needsReview: boolean; entry: TranscriptEntry; reviewType?: "write" | "shell" }> {
         const toolName = toolCall.name;
         const args = toolCall.input;
         const policy = registry.getApprovalPolicy(toolName);
-
-        if (policy === "write") {
-            writeToolCallIds.add(toolCall.id);
-        }
 
         callbacks.onToolCallStart?.(toolName, args);
         const startTime = Date.now();
@@ -211,6 +335,17 @@ export function createOrchestratorWithTools(
         (toolEntry as any).toolCallId = toolCall.id;
         transcript.push(toolEntry);
         emitState();
+
+        if (policy === "shell") {
+            const { needsReview, entry } = await handleShellTool(toolCall, toolEntryId);
+            const durationMs = Date.now() - startTime;
+            callbacks.onToolCallComplete?.(toolName, durationMs, true);
+            return { needsReview, entry, reviewType: "shell" };
+        }
+
+        if (policy === "write") {
+            writeToolCallIds.add(toolCall.id);
+        }
 
         const result = await registry.execute(toolName, args, {
             repoRoot: context.repoRoot,
@@ -245,7 +380,7 @@ export function createOrchestratorWithTools(
 
             callbacks.onWriteReviewShown?.(prepareResult.stats.filesChanged, toolName);
 
-            return { needsReview: true, entry: reviewEntry };
+            return { needsReview: true, entry: reviewEntry, reviewType: "write" };
         }
 
         updateEntry(toolEntryId, { toolResult: result });
@@ -254,16 +389,30 @@ export function createOrchestratorWithTools(
         return { needsReview: false, entry: toolEntry };
     }
 
-    async function waitForReviewDecision(reviewEntry: TranscriptEntry): Promise<"accept" | "reject"> {
+    async function waitForWriteReviewDecision(reviewEntry: TranscriptEntry): Promise<"accept" | "reject"> {
         pendingReviewId = reviewEntry.id;
         emitState();
 
         return new Promise((resolve) => {
-            pendingReview = {
+            pendingWriteReview = {
                 id: reviewEntry.id,
                 resolve,
                 filesCount: reviewEntry.filesCount || 0,
                 applyPayload: reviewEntry.applyPayload,
+            };
+        });
+    }
+
+    async function waitForShellReviewDecision(reviewEntry: TranscriptEntry): Promise<ShellDecision> {
+        pendingReviewId = reviewEntry.id;
+        emitState();
+
+        return new Promise((resolve) => {
+            pendingShellReview = {
+                id: reviewEntry.id,
+                resolve,
+                command: reviewEntry.shellCommand || "",
+                cwd: reviewEntry.shellCwd,
             };
         });
     }
@@ -293,7 +442,38 @@ export function createOrchestratorWithTools(
         }
 
         pendingReviewId = null;
-        pendingReview = null;
+        pendingWriteReview = null;
+        emitState();
+    }
+
+    async function applyShellDecision(
+        reviewEntry: TranscriptEntry,
+        decision: ShellDecision
+    ): Promise<void> {
+        const command = reviewEntry.shellCommand || "";
+        const cwd = reviewEntry.shellCwd;
+
+        callbacks.onShellReviewDecision?.(decision, command);
+
+        if (decision === "deny") {
+            const result = { ok: true, data: { denied: true } };
+            (reviewEntry as any).shellResult = result;
+            updateEntry(reviewEntry.id, { reviewStatus: "denied" });
+        } else {
+            if (decision === "always") {
+                allowCommand(context.repoRoot, command);
+            }
+
+            const result = await executeShellCommand(command, cwd);
+            (reviewEntry as any).shellResult = result;
+
+            updateEntry(reviewEntry.id, {
+                reviewStatus: decision === "always" ? "always" : "ran",
+            });
+        }
+
+        pendingReviewId = null;
+        pendingShellReview = null;
         emitState();
     }
 
@@ -320,10 +500,8 @@ export function createOrchestratorWithTools(
             const messages = buildMessagesForClaude();
             const toolSchemas = registry.getSchemas();
 
-            let streamResult: { text: string; toolCalls: ToolCall[]; stopReason: string | null } | null = null;
-            let streamError: Error | null = null;
-
-            await new Promise<void>((resolve) => {
+            type StreamResult = { text: string; toolCalls: ToolCall[]; stopReason: string | null };
+            const streamOutcome = await new Promise<{ result: StreamResult } | { error: Error }>((resolve) => {
                 provider.stream(
                     messages,
                     {
@@ -337,12 +515,10 @@ export function createOrchestratorWithTools(
                             toolCallsMap.set(assistantId, calls);
                         },
                         onComplete(result) {
-                            streamResult = result;
-                            resolve();
+                            resolve({ result });
                         },
                         onError(error: Error) {
-                            streamError = error;
-                            resolve();
+                            resolve({ error });
                         },
                     },
                     { tools: toolSchemas }
@@ -354,40 +530,43 @@ export function createOrchestratorWithTools(
 
             const requestDuration = Date.now() - requestStart;
 
-            if (streamError) {
-                callbacks.onRequestComplete?.(requestId, requestDuration, streamError);
+            if ("error" in streamOutcome) {
+                const err = streamOutcome.error;
+                callbacks.onRequestComplete?.(requestId, requestDuration, err);
                 updateEntry(assistantId, {
                     isStreaming: false,
-                    content: findEntry(assistantId)?.content + `\n\n[Error: ${streamError.message}]`,
+                    content: findEntry(assistantId)?.content + `\n\n[Error: ${err.message}]`,
                 });
                 emitState();
                 break;
             }
 
-            if (!streamResult) {
-                break;
-            }
-
+            const result = streamOutcome.result;
             callbacks.onRequestComplete?.(requestId, requestDuration);
 
             updateEntry(assistantId, {
                 isStreaming: false,
-                content: streamResult.text,
+                content: result.text,
             });
             emitState();
 
-            if (streamResult.stopReason !== "tool_use" || streamResult.toolCalls.length === 0) {
+            if (result.stopReason !== "tool_use" || result.toolCalls.length === 0) {
                 break;
             }
 
-            for (const toolCall of streamResult.toolCalls) {
+            for (const toolCall of result.toolCalls) {
                 if (stopped) break;
 
-                const { needsReview, entry } = await executeToolCall(toolCall, assistantId);
+                const { needsReview, entry, reviewType } = await executeToolCall(toolCall, assistantId);
 
                 if (needsReview) {
-                    const decision = await waitForReviewDecision(entry);
-                    await applyWriteDecision(entry, decision);
+                    if (reviewType === "write") {
+                        const decision = await waitForWriteReviewDecision(entry);
+                        await applyWriteDecision(entry, decision);
+                    } else if (reviewType === "shell") {
+                        const decision = await waitForShellReviewDecision(entry);
+                        await applyShellDecision(entry, decision);
+                    }
                 }
             }
 
@@ -421,8 +600,14 @@ export function createOrchestratorWithTools(
         },
 
         resolveWriteReview(reviewId: string, decision: "accept" | "reject") {
-            if (pendingReview && pendingReview.id === reviewId) {
-                pendingReview.resolve(decision);
+            if (pendingWriteReview && pendingWriteReview.id === reviewId) {
+                pendingWriteReview.resolve(decision);
+            }
+        },
+
+        resolveShellReview(reviewId: string, decision: ShellDecision) {
+            if (pendingShellReview && pendingShellReview.id === reviewId) {
+                pendingShellReview.resolve(decision);
             }
         },
 
@@ -432,8 +617,11 @@ export function createOrchestratorWithTools(
 
         stop() {
             stopped = true;
-            if (pendingReview) {
-                pendingReview.resolve("reject");
+            if (pendingWriteReview) {
+                pendingWriteReview.resolve("reject");
+            }
+            if (pendingShellReview) {
+                pendingShellReview.resolve("deny");
             }
         },
     };

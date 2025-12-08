@@ -10,6 +10,7 @@ import {
     type TranscriptEntry,
 } from "../orchestrator/index";
 import type { Logger } from "../logging/index";
+import { disposeAllShellServices } from "../shell/index";
 
 interface AppProps {
     projectPath: string;
@@ -23,6 +24,10 @@ interface AppProps {
     onWriteReviewDecision?: (decision: "accept" | "reject", filesCount: number) => void;
     onWriteApplyStart?: () => void;
     onWriteApplyComplete?: (durationMs: number, ok: boolean) => void;
+    onShellReviewShown?: (command: string, cwd?: string) => void;
+    onShellReviewDecision?: (decision: "run" | "always" | "deny", command: string) => void;
+    onShellRunStart?: (command: string, cwd?: string) => void;
+    onShellRunComplete?: (command: string, exitCode: number, durationMs: number, stdoutBytes: number, stderrBytes: number) => void;
 }
 
 export function App({
@@ -37,6 +42,10 @@ export function App({
     onWriteReviewDecision,
     onWriteApplyStart,
     onWriteApplyComplete,
+    onShellReviewShown,
+    onShellReviewDecision,
+    onShellRunStart,
+    onShellRunComplete,
 }: AppProps) {
     const { exit } = useApp();
     const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
@@ -60,6 +69,10 @@ export function App({
                 onWriteReviewDecision,
                 onWriteApplyStart,
                 onWriteApplyComplete,
+                onShellReviewShown,
+                onShellReviewDecision,
+                onShellRunStart,
+                onShellRunComplete,
             },
             {
                 repoRoot: projectPath,
@@ -67,17 +80,24 @@ export function App({
             }
         );
         setOrchestrator(orch);
+
+        return () => {
+            orch.stop();
+            disposeAllShellServices();
+        };
     }, []);
 
     useEffect(() => {
         const handleSigint = () => {
+            orchestrator?.stop();
+            disposeAllShellServices();
             exit();
         };
         process.on("SIGINT", handleSigint);
         return () => {
             process.off("SIGINT", handleSigint);
         };
-    }, [exit]);
+    }, [exit, orchestrator]);
 
     function handleSubmit(content: string) {
         if (!orchestrator) return;
@@ -95,6 +115,21 @@ export function App({
         orchestrator.resolveWriteReview(entryId, "reject");
     }
 
+    function handleShellRun(entryId: string) {
+        if (!orchestrator) return;
+        orchestrator.resolveShellReview(entryId, "run");
+    }
+
+    function handleShellAlways(entryId: string) {
+        if (!orchestrator) return;
+        orchestrator.resolveShellReview(entryId, "always");
+    }
+
+    function handleShellDeny(entryId: string) {
+        if (!orchestrator) return;
+        orchestrator.resolveShellReview(entryId, "deny");
+    }
+
     const model = orchestrator?.getModel() || "claude-sonnet-4-20250514";
     const composerDisabled = isProcessing || pendingReviewId !== null;
 
@@ -107,6 +142,9 @@ export function App({
                     pendingReviewId={pendingReviewId}
                     onAcceptReview={handleAcceptReview}
                     onRejectReview={handleRejectReview}
+                    onShellRun={handleShellRun}
+                    onShellAlways={handleShellAlways}
+                    onShellDeny={handleShellDeny}
                 />
             </Box>
             <Box paddingX={1}>

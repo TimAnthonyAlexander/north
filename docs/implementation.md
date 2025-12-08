@@ -9,7 +9,7 @@ This document describes the current implementation state and module architecture
 | 1: Chat UI + streaming | ✅ Complete |
 | 2: Read/search tools | ✅ Complete |
 | 3: Deterministic edits + diff review | ✅ Complete |
-| 4: Persistent PTY shell + approvals | Not started |
+| 4: Persistent PTY shell + approvals | ✅ Complete |
 | 5: Memory + project card cache | Not started |
 | 6: UX polish | Not started |
 
@@ -23,12 +23,16 @@ src/
 ├── logging/
 │   └── index.ts          # Append-only JSON-lines logger
 ├── orchestrator/
-│   └── index.ts          # Conversation state, message flow, tool loop, write approval
+│   └── index.ts          # Conversation state, message flow, tool loop, write/shell approval
 ├── provider/
 │   └── anthropic.ts      # Claude streaming client with tool support
+├── shell/
+│   └── index.ts          # Persistent PTY service with sentinel-based output parsing
+├── storage/
+│   └── allowlist.ts      # Per-project shell command allowlist (.north/allowlist.json)
 ├── tools/
 │   ├── index.ts          # Tool exports and registry factory
-│   ├── types.ts          # Tool type definitions (including edit types)
+│   ├── types.ts          # Tool type definitions (including edit and shell types)
 │   ├── registry.ts       # Tool registry implementation with approval policy
 │   ├── list_root.ts      # List repo root entries
 │   ├── find_files.ts     # Glob pattern file search
@@ -40,13 +44,15 @@ src/
 │   ├── edit_replace_exact.ts  # Exact text replacement
 │   ├── edit_insert_at_line.ts # Insert at line number
 │   ├── edit_create_file.ts    # Create or overwrite file
-│   └── edit_apply_batch.ts    # Atomic batch edits
+│   ├── edit_apply_batch.ts    # Atomic batch edits
+│   └── shell_run.ts      # Shell command execution (requires approval)
 ├── ui/
 │   ├── App.tsx           # Root Ink component, SIGINT handling, review wiring
 │   ├── Composer.tsx      # Multiline input with Ctrl+J newline
 │   ├── DiffReview.tsx    # Inline diff viewer with accept/reject
+│   ├── ShellReview.tsx   # Shell command approval with run/always/deny
 │   ├── StatusLine.tsx    # Model name, project path display
-│   └── Transcript.tsx    # User/assistant/tool/diff_review message rendering
+│   └── Transcript.tsx    # User/assistant/tool/diff_review/shell_review rendering
 └── utils/
     ├── repo.ts           # Repo root detection
     ├── ignore.ts         # Gitignore parsing and file walking
@@ -68,7 +74,7 @@ src/
 
 - Writes to `~/.local/state/north/north.log`
 - JSON-lines format (one JSON object per line)
-- Events: `app_start`, `user_prompt`, `model_request_start`, `model_request_complete`, `tool_call_start`, `tool_call_complete`, `write_review_shown`, `write_review_decision`, `write_apply_start`, `write_apply_complete`, `app_exit`
+- Events: `app_start`, `user_prompt`, `model_request_start`, `model_request_complete`, `tool_call_start`, `tool_call_complete`, `write_review_shown`, `write_review_decision`, `write_apply_start`, `write_apply_complete`, `shell_review_shown`, `shell_review_decision`, `shell_run_start`, `shell_run_complete`, `app_exit`
 - Silent fail on write errors (logging must not crash the app)
 
 ### orchestrator/index.ts
@@ -83,13 +89,34 @@ src/
   5. If `stopReason === "tool_use"`:
      - Execute each tool via registry
      - For `approvalPolicy: "write"`: create `diff_review` entry, block for user decision
-     - On accept: apply edits atomically, send result to Claude
-     - On reject: send rejection to Claude
+     - For `approvalPolicy: "shell"`: check allowlist, create `shell_review` if not allowed
+     - On accept/run: apply edits or execute command, send result to Claude
+     - On reject/deny: send rejection/denial to Claude
   6. Continue until Claude stops requesting tools
 - Streaming throttle: buffer chunks, flush every 32ms or on complete
 - Emits state changes via `onStateChange` callback
 - Exposes `resolveWriteReview(reviewId, decision)` for UI to signal accept/reject
+- Exposes `resolveShellReview(reviewId, decision)` for UI to signal run/always/deny
 - Exposes `stop()` for clean SIGINT handling
+
+### shell/index.ts
+
+- Creates and manages one PTY session per project root
+- Uses `bun-pty` for cross-platform PTY support
+- Sentinel-based output parsing:
+  - Wraps commands with `__NORTH_START_{uuid}__` and `__NORTH_END_{uuid}__EXIT__{exitCode}__`
+  - Buffers PTY output until end marker detected
+  - Extracts command output between markers
+- API: `getShellService(repoRoot, logger)` returns service with `run(command, options)` and `dispose()`
+- `disposeAllShellServices()` cleans up all sessions on exit
+
+### storage/allowlist.ts
+
+- Per-project shell command allowlist at `.north/allowlist.json`
+- Simple JSON format: `{ "allowedCommands": ["pnpm test", "bun test"] }`
+- API: `isCommandAllowed(repoRoot, command)`, `allowCommand(repoRoot, command)`, `getAllowedCommands(repoRoot)`
+- Exact string matching only (no patterns)
+- Creates `.north/` directory on first write
 
 ### provider/anthropic.ts
 
@@ -128,6 +155,7 @@ All tools follow the pattern:
 | `edit_insert_at_line` | Insert at line | 1-based, requires approval |
 | `edit_create_file` | Create/overwrite file | Requires approval |
 | `edit_apply_batch` | Atomic batch edits | All-or-nothing, requires approval |
+| `shell_run` | Execute shell command | Persistent PTY, requires approval or allowlist |
 
 ### utils/ignore.ts
 
@@ -155,6 +183,13 @@ All tools follow the pattern:
 - Shows file stats (+lines/-lines)
 - Keyboard shortcuts: `a` accept, `r` reject
 - Status badges: pending (yellow border), accepted (green), rejected (red)
+
+### ui/ShellReview.tsx
+
+- Renders shell command approval prompt
+- Shows command and optional cwd
+- Keyboard shortcuts: `r` run, `a` always (adds to allowlist), `d` deny
+- Status badges: pending (yellow), ran/always (green), denied (red)
 
 ### utils/editing.ts
 
@@ -231,6 +266,21 @@ When Claude requests an edit tool (approvalPolicy: "write"):
 8. Tool result sent to Claude with outcome (applied: true/false)
 9. Claude continues processing
 
+### Shell Approval Flow
+
+When Claude requests `shell_run` (approvalPolicy: "shell"):
+1. Orchestrator checks if command is in `.north/allowlist.json`
+2. If allowed: execute immediately in persistent PTY, return result
+3. If not allowed: create `shell_review` transcript entry with status "pending"
+4. Tool loop blocks, waiting for user decision
+5. ShellReview component renders command with Run/Always/Deny options
+6. User presses `r` (run), `a` (always), or `d` (deny)
+7. On Run: execute command, status set to "ran"
+8. On Always: add to allowlist, execute command, status set to "always"
+9. On Deny: return `{ denied: true }` to Claude, status set to "denied"
+10. Tool result sent to Claude with outcome
+11. Claude continues processing
+
 ### Gitignore Handling
 
 The ignore checker:
@@ -264,6 +314,7 @@ Truncation is always explicit with `truncated: true` in results.
 | `@anthropic-ai/sdk` | ^0.39.0 | Claude API client |
 | `ink` | ^5.1.0 | Terminal UI framework |
 | `react` | ^18.3.1 | UI component model |
+| `bun-pty` | ^0.4.2 | Cross-platform PTY for persistent shell |
 
 ## Running
 

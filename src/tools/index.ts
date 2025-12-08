@@ -11,6 +11,7 @@ export { editReplaceExactTool } from "./edit_replace_exact";
 export { editInsertAtLineTool } from "./edit_insert_at_line";
 export { editCreateFileTool } from "./edit_create_file";
 export { editApplyBatchTool } from "./edit_apply_batch";
+export { shellRunTool } from "./shell_run";
 
 import { createToolRegistry, type ToolRegistry } from "./registry";
 import { listRootTool } from "./list_root";
@@ -24,6 +25,7 @@ import { editReplaceExactTool } from "./edit_replace_exact";
 import { editInsertAtLineTool } from "./edit_insert_at_line";
 import { editCreateFileTool } from "./edit_create_file";
 import { editApplyBatchTool } from "./edit_apply_batch";
+import { shellRunTool } from "./shell_run";
 
 export function createToolRegistryWithAllTools(): ToolRegistry {
     const registry = createToolRegistry();
@@ -39,6 +41,7 @@ export function createToolRegistryWithAllTools(): ToolRegistry {
     registry.register(editInsertAtLineTool);
     registry.register(editCreateFileTool);
     registry.register(editApplyBatchTool);
+    registry.register(shellRunTool);
 
     return registry;
 }

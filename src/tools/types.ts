@@ -162,3 +162,17 @@ export interface EditBatchInput {
     }>;
 }
 
+export interface ShellRunInput {
+    command: string;
+    cwd?: string;
+    timeoutMs?: number;
+}
+
+export interface ShellRunOutput {
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+    durationMs: number;
+    denied?: boolean;
+}
+
