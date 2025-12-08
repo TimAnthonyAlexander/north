@@ -1,4 +1,10 @@
-import type { ToolDefinition, ToolContext, ToolResult, FindFilesInput, FindFilesOutput } from "./types";
+import type {
+    ToolDefinition,
+    ToolContext,
+    ToolResult,
+    FindFilesInput,
+    FindFilesOutput,
+} from "./types";
 import { createIgnoreChecker, walkDirectory } from "../utils/ignore";
 
 const DEFAULT_LIMIT = 50;
@@ -90,4 +96,3 @@ export const findFilesTool: ToolDefinition<FindFilesInput, FindFilesOutput> = {
         };
     },
 };
-

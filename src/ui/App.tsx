@@ -29,7 +29,13 @@ interface AppProps {
     onShellReviewShown?: (command: string, cwd?: string | null, timeoutMs?: number | null) => void;
     onShellReviewDecision?: (decision: "run" | "always" | "deny", command: string) => void;
     onShellRunStart?: (command: string, cwd?: string | null, timeoutMs?: number | null) => void;
-    onShellRunComplete?: (command: string, exitCode: number, durationMs: number, stdoutBytes: number, stderrBytes: number) => void;
+    onShellRunComplete?: (
+        command: string,
+        exitCode: number,
+        durationMs: number,
+        stdoutBytes: number,
+        stderrBytes: number
+    ) => void;
 }
 
 export function App({
@@ -100,6 +106,7 @@ export function App({
             orch.stop();
             disposeAllShellServices();
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -211,9 +218,9 @@ export function App({
                 />
             </Box>
             <Box paddingX={1} marginBottom={1}>
-                <StatusLine 
-                    model={currentModel} 
-                    projectPath={projectPath} 
+                <StatusLine
+                    model={currentModel}
+                    projectPath={projectPath}
                     contextUsage={contextUsage}
                     mode={nextMode}
                 />

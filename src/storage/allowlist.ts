@@ -62,4 +62,3 @@ export function getAllowedCommands(repoRoot: string): string[] {
     const data = loadAllowlistData(repoRoot);
     return [...data.allowedCommands];
 }
-

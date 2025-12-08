@@ -28,7 +28,9 @@ function findReadme(repoRoot: string): string | null {
                     if (stat.isFile()) {
                         return entry;
                     }
-                } catch { }
+                } catch {
+                    // File stat failed, skip this entry
+                }
             }
         }
     }
@@ -56,7 +58,7 @@ export const readReadmeTool: ToolDefinition<void, ReadReadmeOutput> = {
 
         try {
             content = readFileSync(fullPath, "utf-8");
-        } catch (err) {
+        } catch {
             return { ok: false, error: `Cannot read README: ${readmeName}` };
         }
 
@@ -76,4 +78,3 @@ export const readReadmeTool: ToolDefinition<void, ReadReadmeOutput> = {
         };
     },
 };
-

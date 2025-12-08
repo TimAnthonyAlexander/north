@@ -1,4 +1,12 @@
-import type { ToolDefinition, ToolContext, ToolResult, EditBatchInput, EditPrepareResult, FileDiff, EditOperation } from "./types";
+import type {
+    ToolDefinition,
+    ToolContext,
+    ToolResult,
+    EditBatchInput,
+    EditPrepareResult,
+    FileDiff,
+    EditOperation,
+} from "./types";
 import { editReplaceExactTool } from "./edit_replace_exact";
 import { editInsertAtLineTool } from "./edit_insert_at_line";
 import { editCreateFileTool } from "./edit_create_file";
@@ -11,7 +19,8 @@ const EDIT_TOOLS: Record<string, ToolDefinition> = {
 
 export const editApplyBatchTool: ToolDefinition<EditBatchInput, EditPrepareResult> = {
     name: "edit_apply_batch",
-    description: "Apply multiple edits as a single atomic operation. All edits are validated first; if any fails, none are applied. Use for coordinated multi-file changes.",
+    description:
+        "Apply multiple edits as a single atomic operation. All edits are validated first; if any fails, none are applied. Use for coordinated multi-file changes.",
     approvalPolicy: "write",
     inputSchema: {
         type: "object",
@@ -24,7 +33,8 @@ export const editApplyBatchTool: ToolDefinition<EditBatchInput, EditPrepareResul
                     properties: {
                         toolName: {
                             type: "string",
-                            description: "Name of the edit tool: edit_replace_exact, edit_insert_at_line, or edit_create_file",
+                            description:
+                                "Name of the edit tool: edit_replace_exact, edit_insert_at_line, or edit_create_file",
                         },
                         args: {
                             type: "object",
@@ -51,7 +61,9 @@ export const editApplyBatchTool: ToolDefinition<EditBatchInput, EditPrepareResul
             const tool = EDIT_TOOLS[edit.toolName];
 
             if (!tool) {
-                errors.push(`Edit ${i + 1}: Unknown tool "${edit.toolName}". Use edit_replace_exact, edit_insert_at_line, or edit_create_file.`);
+                errors.push(
+                    `Edit ${i + 1}: Unknown tool "${edit.toolName}". Use edit_replace_exact, edit_insert_at_line, or edit_create_file.`
+                );
                 continue;
             }
 

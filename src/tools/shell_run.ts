@@ -1,8 +1,15 @@
-import type { ToolDefinition, ToolContext, ToolResult, ShellRunInput, ShellRunOutput } from "./types";
+import type {
+    ToolDefinition,
+    ToolContext,
+    ToolResult,
+    ShellRunInput,
+    ShellRunOutput,
+} from "./types";
 
 export const shellRunTool: ToolDefinition<ShellRunInput, ShellRunOutput> = {
     name: "shell_run",
-    description: "Execute a shell command in a persistent PTY session. The session maintains state (working directory, environment) across calls. Commands that require user interaction or run indefinitely should be avoided. Note: stderr is merged into stdout in the PTY output.",
+    description:
+        "Execute a shell command in a persistent PTY session. The session maintains state (working directory, environment) across calls. Commands that require user interaction or run indefinitely should be avoided. Note: stderr is merged into stdout in the PTY output.",
     inputSchema: {
         type: "object",
         properties: {
@@ -12,11 +19,13 @@ export const shellRunTool: ToolDefinition<ShellRunInput, ShellRunOutput> = {
             },
             cwd: {
                 type: ["string", "null"],
-                description: "Working directory override for this command (optional, defaults to repo root)",
+                description:
+                    "Working directory override for this command (optional, defaults to repo root)",
             },
             timeoutMs: {
                 type: ["number", "null"],
-                description: "Timeout in milliseconds (optional, defaults to 60000). On timeout, the PTY session is destroyed and recreated.",
+                description:
+                    "Timeout in milliseconds (optional, defaults to 60000). On timeout, the PTY session is destroyed and recreated.",
             },
         },
         required: ["command"],

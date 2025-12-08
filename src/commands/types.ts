@@ -47,7 +47,11 @@ export interface CommandContext {
     generateSummary: () => Promise<StructuredSummary | null>;
     trimTranscript: (keepLast: number) => void;
     requestExit: () => void;
-    showPicker: (commandName: string, prompt: string, options: PickerOption[]) => Promise<string | null>;
+    showPicker: (
+        commandName: string,
+        prompt: string,
+        options: PickerOption[]
+    ) => Promise<string | null>;
     getTranscript: () => unknown[];
     listCommands: () => CommandDefinition[];
 }
@@ -85,4 +89,3 @@ export interface CommandExecutedEntry {
     commandName: string;
     summary: string;
 }
-

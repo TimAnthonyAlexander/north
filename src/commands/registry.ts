@@ -10,24 +10,24 @@ export interface CommandRegistry {
 
 export function createCommandRegistry(): CommandRegistry {
     const commands = new Map<string, CommandDefinition>();
-    
+
     return {
         register(command: CommandDefinition): void {
             commands.set(command.name, command);
         },
-        
+
         get(name: string): CommandDefinition | undefined {
             return commands.get(name);
         },
-        
+
         has(name: string): boolean {
             return commands.has(name);
         },
-        
+
         list(): CommandDefinition[] {
             return Array.from(commands.values());
         },
-        
+
         async execute(name: string, ctx: CommandContext, args: ParsedArgs): Promise<CommandResult> {
             const command = commands.get(name);
             if (!command) {
@@ -42,4 +42,3 @@ export function createCommandRegistry(): CommandRegistry {
         },
     };
 }
-

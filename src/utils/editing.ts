@@ -1,4 +1,12 @@
-import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, copyFileSync, unlinkSync } from "fs";
+import {
+    existsSync,
+    readFileSync,
+    writeFileSync,
+    renameSync,
+    mkdirSync,
+    copyFileSync,
+    unlinkSync,
+} from "fs";
 import { join, isAbsolute, normalize, dirname } from "path";
 import { tmpdir } from "os";
 import type { EditOperation, FileDiff } from "../tools/types";
@@ -15,7 +23,10 @@ export function resolveSafePath(repoRoot: string, filePath: string): string | nu
     return normalized;
 }
 
-export function readFileContent(repoRoot: string, filePath: string): { ok: true; content: string } | { ok: false; error: string } {
+export function readFileContent(
+    repoRoot: string,
+    filePath: string
+): { ok: true; content: string } | { ok: false; error: string } {
     const resolved = resolveSafePath(repoRoot, filePath);
     if (!resolved) {
         return { ok: false, error: `Path escapes repository root: ${filePath}` };
@@ -57,7 +68,6 @@ export function computeUnifiedDiff(original: string, modified: string, path: str
     let linesAdded = 0;
     let linesRemoved = 0;
 
-    const maxLen = Math.max(originalLines.length, modifiedLines.length);
     let hunkStart = -1;
     let hunkOriginalStart = 0;
     let hunkModifiedStart = 0;
@@ -67,7 +77,9 @@ export function computeUnifiedDiff(original: string, modified: string, path: str
 
     function flushHunk() {
         if (hunkLines.length > 0) {
-            diffLines.push(`@@ -${hunkOriginalStart + 1},${hunkOriginalCount} +${hunkModifiedStart + 1},${hunkModifiedCount} @@`);
+            diffLines.push(
+                `@@ -${hunkOriginalStart + 1},${hunkOriginalCount} +${hunkModifiedStart + 1},${hunkModifiedCount} @@`
+            );
             diffLines.push(...hunkLines);
             hunkLines = [];
         }
@@ -110,12 +122,18 @@ export function computeUnifiedDiff(original: string, modified: string, path: str
                 }
             }
 
-            if (origLine !== undefined && (modLine === undefined || !modifiedLines.slice(j).includes(origLine))) {
+            if (
+                origLine !== undefined &&
+                (modLine === undefined || !modifiedLines.slice(j).includes(origLine))
+            ) {
                 hunkLines.push(`-${origLine}`);
                 hunkOriginalCount++;
                 linesRemoved++;
                 i++;
-            } else if (modLine !== undefined && (origLine === undefined || !originalLines.slice(i).includes(modLine))) {
+            } else if (
+                modLine !== undefined &&
+                (origLine === undefined || !originalLines.slice(i).includes(modLine))
+            ) {
                 hunkLines.push(`+${modLine}`);
                 hunkModifiedCount++;
                 linesAdded++;
@@ -182,7 +200,10 @@ export function applyEditsAtomically(repoRoot: string, operations: EditOperation
                 mkdirSync(dir, { recursive: true });
             }
 
-            const tempPath = join(tmpdir(), `north-edit-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+            const tempPath = join(
+                tmpdir(),
+                `north-edit-${Date.now()}-${Math.random().toString(36).slice(2)}`
+            );
             writeFileSync(tempPath, op.content, "utf-8");
             tempFiles.push({ tempPath, finalPath });
         }
@@ -191,7 +212,7 @@ export function applyEditsAtomically(repoRoot: string, operations: EditOperation
             try {
                 renameSync(tempPath, finalPath);
             } catch (err: any) {
-                if (err.code === 'EXDEV') {
+                if (err.code === "EXDEV") {
                     copyFileSync(tempPath, finalPath);
                     unlinkSync(tempPath);
                 } else {
@@ -207,7 +228,9 @@ export function applyEditsAtomically(repoRoot: string, operations: EditOperation
                 if (existsSync(tempPath)) {
                     unlinkSync(tempPath);
                 }
-            } catch { }
+            } catch {
+                // Cleanup failed, ignore
+            }
         }
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }

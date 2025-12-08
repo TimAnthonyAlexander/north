@@ -2,14 +2,16 @@ import type { ToolDefinition, ToolContext, ToolResult, PlanUpdateInput, PlanOutp
 
 export const planUpdateTool: ToolDefinition<PlanUpdateInput, PlanOutput> = {
     name: "plan_update",
-    description: "Update an existing plan with revised changes. The updated plan will require user approval again before any write operations proceed. Use this when the user requests revisions or when you need to adjust the plan during execution.",
+    description:
+        "Update an existing plan with revised changes. The updated plan will require user approval again before any write operations proceed. Use this when the user requests revisions or when you need to adjust the plan during execution.",
     approvalPolicy: "plan",
     inputSchema: {
         type: "object",
         properties: {
             planId: {
                 type: "string",
-                description: "The ID of the plan to update (from previous plan_create or plan_update call)",
+                description:
+                    "The ID of the plan to update (from previous plan_create or plan_update call)",
             },
             planText: {
                 type: "string",
@@ -36,7 +38,7 @@ export const planUpdateTool: ToolDefinition<PlanUpdateInput, PlanOutput> = {
         const newVersion = currentVersion + 1;
 
         const newPlanId = args.planId.replace(/(-v\d+)?$/, `-v${newVersion}`);
-        
+
         return {
             ok: true,
             data: {
@@ -46,4 +48,3 @@ export const planUpdateTool: ToolDefinition<PlanUpdateInput, PlanOutput> = {
         };
     },
 };
-

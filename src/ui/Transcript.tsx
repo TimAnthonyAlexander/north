@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { Box, Text } from "ink";
-import type { TranscriptEntry, ShellReviewStatus, CommandReviewStatus, PlanReviewStatus } from "../orchestrator/index";
+import type {
+    TranscriptEntry,
+    ShellReviewStatus,
+    CommandReviewStatus,
+    PlanReviewStatus,
+} from "../orchestrator/index";
 import { DiffReview } from "./DiffReview";
 import { ShellReview } from "./ShellReview";
 import { CommandReview } from "./CommandReview";
@@ -11,27 +16,27 @@ const PULSE_COLORS = ["magenta", "#ff6ec7", "#ff8fd5", "#ffa0dc", "#ff8fd5", "#f
 
 function useSpinner(interval = 80) {
     const [frame, setFrame] = useState(0);
-    
+
     useEffect(() => {
         const timer = setInterval(() => {
             setFrame((prev) => (prev + 1) % SPINNER_FRAMES.length);
         }, interval);
         return () => clearInterval(timer);
     }, [interval]);
-    
+
     return SPINNER_FRAMES[frame];
 }
 
 function usePulse(colors: readonly string[], interval = 500) {
     const [colorIndex, setColorIndex] = useState(0);
-    
+
     useEffect(() => {
         const timer = setInterval(() => {
             setColorIndex((prev) => (prev + 1) % colors.length);
         }, interval);
         return () => clearInterval(timer);
     }, [colors, interval]);
-    
+
     return colors[colorIndex];
 }
 
@@ -261,7 +266,9 @@ export function Transcript({
                         onShellRun={isActive ? () => onShellRun?.(entry.id) : undefined}
                         onShellAlways={isActive ? () => onShellAlways?.(entry.id) : undefined}
                         onShellDeny={isActive ? () => onShellDeny?.(entry.id) : undefined}
-                        onCommandSelect={isActive ? (id) => onCommandSelect?.(entry.id, id) : undefined}
+                        onCommandSelect={
+                            isActive ? (id) => onCommandSelect?.(entry.id, id) : undefined
+                        }
                         onCommandCancel={isActive ? () => onCommandCancel?.(entry.id) : undefined}
                         onPlanAccept={isActive ? () => onPlanAccept?.(entry.id) : undefined}
                         onPlanRevise={isActive ? () => onPlanRevise?.(entry.id) : undefined}

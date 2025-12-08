@@ -52,4 +52,3 @@ export function enableEditsAutoAccept(repoRoot: string): void {
 export function disableEditsAutoAccept(repoRoot: string): void {
     saveAutoAcceptData(repoRoot, { editsAutoAccept: false });
 }
-

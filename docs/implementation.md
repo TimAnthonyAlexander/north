@@ -809,6 +809,51 @@ Truncation is always explicit with `truncated: true` in results.
 | `ink` | ^5.1.0 | Terminal UI framework |
 | `react` | ^18.3.1 | UI component model |
 
+### Dev Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `eslint` | ^9.17.0 | Code linting |
+| `typescript-eslint` | ^8.18.1 | TypeScript ESLint support |
+| `eslint-plugin-react` | ^7.37.2 | React-specific linting |
+| `eslint-plugin-react-hooks` | ^5.1.0 | React Hooks linting |
+| `prettier` | ^3.4.2 | Code formatting |
+| `typescript` | ^5.7.2 | Type checking |
+
+## Code Quality
+
+The project uses ESLint and Prettier for code quality enforcement.
+
+### Scripts
+
+```bash
+bun run lint          # Run ESLint
+bun run lint:fix      # Run ESLint with auto-fix
+bun run format        # Format code with Prettier
+bun run format:check  # Check Prettier formatting
+bun run typecheck     # Run TypeScript type checking
+bun run check         # Run all checks (typecheck + lint + format:check)
+```
+
+### ESLint Configuration
+
+- Uses flat config format (`eslint.config.js`)
+- TypeScript support via `typescript-eslint`
+- React and React Hooks plugins
+- Key rules:
+  - `@typescript-eslint/consistent-type-imports`: Enforces `type` imports
+  - `@typescript-eslint/no-unused-vars`: Errors on unused variables (allows `_` prefix)
+  - `@typescript-eslint/no-explicit-any`: Warns on `any` type usage
+  - `react-hooks/exhaustive-deps`: Enforces correct hook dependencies
+
+### Prettier Configuration
+
+- 4-space indentation
+- Double quotes
+- Semicolons required
+- 100 character line width
+- ES5 trailing commas
+
 ## Running
 
 ```bash

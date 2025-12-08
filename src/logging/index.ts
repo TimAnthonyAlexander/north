@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, appendFileSync } from "fs";
-import { join, dirname } from "path";
+import { join } from "path";
 import { homedir } from "os";
 
 export type LogLevel = "info" | "debug" | "error";
@@ -78,10 +78,7 @@ function writeLog(
     }
 }
 
-export function initLogger(options: {
-    projectPath: string;
-    logLevel?: LogLevel;
-}): Logger {
+export function initLogger(options: { projectPath: string; logLevel?: LogLevel }): Logger {
     currentLogLevel = options.logLevel || "info";
     ensureLogDir();
     logFilePath = join(getLogDir(), "north.log");
@@ -110,4 +107,3 @@ export function initLogger(options: {
 export function getLogFilePath(): string | null {
     return logFilePath;
 }
-

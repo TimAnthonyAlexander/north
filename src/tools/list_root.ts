@@ -3,7 +3,8 @@ import { createIgnoreChecker, listRootEntries } from "../utils/ignore";
 
 export const listRootTool: ToolDefinition<void, ListRootOutput> = {
     name: "list_root",
-    description: "List root-level entries of the repository, respecting .gitignore. Returns files and directories at the top level.",
+    description:
+        "List root-level entries of the repository, respecting .gitignore. Returns files and directories at the top level.",
     inputSchema: {
         type: "object",
         properties: {},
@@ -23,4 +24,3 @@ export const listRootTool: ToolDefinition<void, ListRootOutput> = {
         };
     },
 };
-

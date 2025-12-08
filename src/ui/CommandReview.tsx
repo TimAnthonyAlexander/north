@@ -66,7 +66,7 @@ export function CommandReview({
         { isActive: isActive && status === "pending" }
     );
 
-    const selectedOption = selectedId ? options.find(o => o.id === selectedId) : null;
+    const selectedOption = selectedId ? options.find((o) => o.id === selectedId) : null;
 
     return (
         <Box
@@ -89,13 +89,17 @@ export function CommandReview({
                     <Box flexDirection="column" marginBottom={1}>
                         {options.map((option, i) => (
                             <Box key={option.id}>
-                                <Text color={i === highlightedIndex ? "cyan" : "white"} bold={i === highlightedIndex}>
+                                <Text
+                                    color={i === highlightedIndex ? "cyan" : "white"}
+                                    bold={i === highlightedIndex}
+                                >
                                     {i === highlightedIndex ? "› " : "  "}
                                     {option.label}
                                 </Text>
                                 {option.hint && (
                                     <Text color="gray" dimColor>
-                                        {" "}({option.hint})
+                                        {" "}
+                                        ({option.hint})
                                     </Text>
                                 )}
                             </Box>
@@ -111,17 +115,20 @@ export function CommandReview({
 
             {status === "selected" && selectedOption && (
                 <Box>
-                    <Text color="green" bold>✓ Selected: </Text>
+                    <Text color="green" bold>
+                        ✓ Selected:{" "}
+                    </Text>
                     <Text>{selectedOption.label}</Text>
                 </Box>
             )}
 
             {status === "cancelled" && (
                 <Box>
-                    <Text color="red" bold>✗ Cancelled</Text>
+                    <Text color="red" bold>
+                        ✗ Cancelled
+                    </Text>
                 </Box>
             )}
         </Box>
     );
 }
-

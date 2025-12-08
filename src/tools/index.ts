@@ -42,17 +42,7 @@ const READ_ONLY_TOOLS = [
     "hotfiles",
 ];
 
-const WRITE_TOOLS = [
-    "edit_replace_exact",
-    "edit_insert_at_line",
-    "edit_create_file",
-    "edit_apply_batch",
-];
-
-const PLAN_TOOLS = [
-    "plan_create",
-    "plan_update",
-];
+const PLAN_TOOLS = ["plan_create", "plan_update"];
 
 export function createToolRegistryWithAllTools(): ToolRegistry {
     const registry = createToolRegistry();
@@ -75,17 +65,19 @@ export function createToolRegistryWithAllTools(): ToolRegistry {
     return registry;
 }
 
-export function filterToolsForMode(mode: Mode, allSchemas: Array<{ name: string; description: string; input_schema: unknown }>) {
+export function filterToolsForMode(
+    mode: Mode,
+    allSchemas: Array<{ name: string; description: string; input_schema: unknown }>
+) {
     switch (mode) {
         case "ask":
-            return allSchemas.filter(tool => READ_ONLY_TOOLS.includes(tool.name));
+            return allSchemas.filter((tool) => READ_ONLY_TOOLS.includes(tool.name));
         case "plan":
-            return allSchemas.filter(tool => 
-                READ_ONLY_TOOLS.includes(tool.name) || PLAN_TOOLS.includes(tool.name)
+            return allSchemas.filter(
+                (tool) => READ_ONLY_TOOLS.includes(tool.name) || PLAN_TOOLS.includes(tool.name)
             );
         case "agent":
         default:
             return allSchemas;
     }
 }
-

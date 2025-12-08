@@ -8,7 +8,10 @@ export interface ShellRunResult {
 }
 
 export interface ShellService {
-    run(command: string, options?: { cwd?: string | null; timeoutMs?: number }): Promise<ShellRunResult>;
+    run(
+        command: string,
+        options?: { cwd?: string | null; timeoutMs?: number }
+    ): Promise<ShellRunResult>;
     dispose(): void;
 }
 
@@ -21,7 +24,10 @@ export function createShellService(options: ShellServiceOptions): ShellService {
     const { repoRoot, logger } = options;
 
     return {
-        async run(command: string, runOptions?: { cwd?: string | null; timeoutMs?: number }): Promise<ShellRunResult> {
+        async run(
+            command: string,
+            runOptions?: { cwd?: string | null; timeoutMs?: number }
+        ): Promise<ShellRunResult> {
             const cwd = runOptions?.cwd || repoRoot;
             const timeoutMs = runOptions?.timeoutMs ?? 60000;
             const startTime = Date.now();
@@ -80,8 +86,7 @@ export function createShellService(options: ShellServiceOptions): ShellService {
             }
         },
 
-        dispose(): void {
-        },
+        dispose(): void {},
     };
 }
 

@@ -1,6 +1,6 @@
 import { spawnSync } from "child_process";
 import { existsSync, statSync } from "fs";
-import { join, relative } from "path";
+import { join } from "path";
 import type {
     ToolDefinition,
     ToolContext,
@@ -170,4 +170,3 @@ export const hotfilesTool: ToolDefinition<HotfilesInput, HotfilesOutput> = {
         };
     },
 };
-

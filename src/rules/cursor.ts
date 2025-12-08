@@ -128,4 +128,3 @@ export async function loadCursorRules(repoRoot: string): Promise<LoadedCursorRul
         truncated,
     };
 }
-

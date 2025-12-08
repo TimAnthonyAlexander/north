@@ -11,7 +11,7 @@ interface StatusLineProps {
 }
 
 function getContextColor(usage: number): string {
-    if (usage < 0.60) return "green";
+    if (usage < 0.6) return "green";
     if (usage < 0.85) return "yellow";
     return "red";
 }
@@ -57,7 +57,9 @@ export function StatusLine({ model, projectPath, contextUsage, mode }: StatusLin
                 </Text>
             </Box>
             <Box flexDirection="row" gap={1}>
-                <Text color={modeColor} bold>[{modeLabel}]</Text>
+                <Text color={modeColor} bold>
+                    [{modeLabel}]
+                </Text>
                 <Text color="#999999">•</Text>
                 <Text color="magenta">{model}</Text>
                 <Text color="#999999">•</Text>
@@ -66,4 +68,3 @@ export function StatusLine({ model, projectPath, contextUsage, mode }: StatusLin
         </Box>
     );
 }
-

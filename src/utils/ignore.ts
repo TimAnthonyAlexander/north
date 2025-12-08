@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync, readdirSync } from "fs";
-import { join, relative, basename, dirname } from "path";
+import { join, relative, basename } from "path";
 
 const ALWAYS_IGNORED = [
     ".git",
@@ -131,7 +131,9 @@ export function createIgnoreChecker(repoRoot: string): IgnoreChecker {
         try {
             const content = readFileSync(gitignorePath, "utf-8");
             patterns.push(...parseGitignoreContent(content));
-        } catch { }
+        } catch {
+            // Gitignore read failed, continue with default patterns
+        }
     }
 
     return {
@@ -259,4 +261,3 @@ export function listRootEntries(repoRoot: string, checker: IgnoreChecker): WalkE
         return a.relativePath.localeCompare(b.relativePath);
     });
 }
-

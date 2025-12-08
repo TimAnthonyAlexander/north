@@ -33,17 +33,16 @@ function findPrecedingCommand(value: string, cursorPos: number): string | null {
 
 function getModelSuggestions(prefix: string): Suggestion[] {
     const normalizedPrefix = prefix.toLowerCase();
-    return MODELS
-        .filter(m =>
+    return MODELS.filter(
+        (m) =>
             m.alias.toLowerCase().startsWith(normalizedPrefix) ||
             m.display.toLowerCase().startsWith(normalizedPrefix) ||
             m.pinned.toLowerCase().includes(normalizedPrefix)
-        )
-        .map(m => ({
-            value: m.alias,
-            label: m.display,
-            hint: m.alias,
-        }));
+    ).map((m) => ({
+        value: m.alias,
+        label: m.display,
+        hint: m.alias,
+    }));
 }
 
 function getSuggestions(
@@ -61,8 +60,8 @@ function getSuggestions(
         const commands = registry.list();
 
         const filtered = commands
-            .filter(cmd => cmd.name.toLowerCase().startsWith(prefix))
-            .map(cmd => ({
+            .filter((cmd) => cmd.name.toLowerCase().startsWith(prefix))
+            .map((cmd) => ({
                 value: `/${cmd.name}`,
                 label: `/${cmd.name}`,
                 hint: cmd.description,
@@ -125,7 +124,13 @@ function getModeLabel(mode: Mode): string {
     }
 }
 
-export function Composer({ onSubmit, disabled, commandRegistry, mode, onModeChange }: ComposerProps) {
+export function Composer({
+    onSubmit,
+    disabled,
+    commandRegistry,
+    mode,
+    onModeChange,
+}: ComposerProps) {
     const [value, setValue] = useState("");
     const [cursorPos, setCursorPos] = useState(0);
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -167,7 +172,10 @@ export function Composer({ onSubmit, disabled, commandRegistry, mode, onModeChan
                         const needsSpace = after.length === 0 || !/^\s/.test(after);
                         const spacing = needsSpace ? " " : "";
                         const newValue = before + suggestion.value + spacing + after;
-                        const newCursor = suggestionState.tokenStart + suggestion.value.length + (needsSpace ? 1 : 0);
+                        const newCursor =
+                            suggestionState.tokenStart +
+                            suggestion.value.length +
+                            (needsSpace ? 1 : 0);
                         setValue(newValue);
                         setCursorPos(newCursor);
                         setSelectedIndex(0);
@@ -200,7 +208,10 @@ export function Composer({ onSubmit, disabled, commandRegistry, mode, onModeChan
                         const needsSpace = after.length === 0 || !/^\s/.test(after);
                         const spacing = needsSpace ? " " : "";
                         const newValue = before + suggestion.value + spacing + after;
-                        const newCursor = suggestionState.tokenStart + suggestion.value.length + (needsSpace ? 1 : 0);
+                        const newCursor =
+                            suggestionState.tokenStart +
+                            suggestion.value.length +
+                            (needsSpace ? 1 : 0);
                         setValue(newValue);
                         setCursorPos(newCursor);
                         setSelectedIndex(0);
@@ -249,7 +260,8 @@ export function Composer({ onSubmit, disabled, commandRegistry, mode, onModeChan
                     const currentLineStart = cursorPos - lines[lines.length - 1].length;
                     const prevLineStart = currentLineStart - 1 - lines[lines.length - 2].length;
                     const colInCurrentLine = cursorPos - currentLineStart;
-                    const newPos = prevLineStart + Math.min(colInCurrentLine, lines[lines.length - 2].length);
+                    const newPos =
+                        prevLineStart + Math.min(colInCurrentLine, lines[lines.length - 2].length);
                     setCursorPos(Math.max(0, newPos));
                 }
                 return;
@@ -267,7 +279,8 @@ export function Composer({ onSubmit, disabled, commandRegistry, mode, onModeChan
                     const linesBefore = beforeCursor.split("\n");
                     const colInCurrentLine = linesBefore[linesBefore.length - 1].length;
                     const currentLineEnd = cursorPos + linesAfter[0].length;
-                    const newPos = currentLineEnd + 1 + Math.min(colInCurrentLine, linesAfter[1].length);
+                    const newPos =
+                        currentLineEnd + 1 + Math.min(colInCurrentLine, linesAfter[1].length);
                     setCursorPos(Math.min(value.length, newPos));
                 }
                 return;
@@ -295,14 +308,22 @@ export function Composer({ onSubmit, disabled, commandRegistry, mode, onModeChan
     const modeLabel = getModeLabel(mode);
 
     return (
-        <Box flexDirection="column" borderStyle="round" borderColor={disabled ? "gray" : "green"} paddingX={1} width="100%">
+        <Box
+            flexDirection="column"
+            borderStyle="round"
+            borderColor={disabled ? "gray" : "green"}
+            paddingX={1}
+            width="100%"
+        >
             <Box>
                 <Text color="green" bold>
                     {"› "}
                 </Text>
                 <Box flexDirection="column" flexGrow={1}>
                     {showPlaceholder ? (
-                        <Text color="#999999">Type a message... (Ctrl+J for newline, Tab to switch mode)</Text>
+                        <Text color="#999999">
+                            Type a message... (Ctrl+J for newline, Tab to switch mode)
+                        </Text>
                     ) : (
                         lines.map((line, i) => (
                             <Text key={i} wrap="wrap">
@@ -318,16 +339,26 @@ export function Composer({ onSubmit, disabled, commandRegistry, mode, onModeChan
                 </Box>
             </Box>
             {hasSuggestions && !disabled && (
-                <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
+                <Box
+                    flexDirection="column"
+                    marginTop={1}
+                    borderStyle="single"
+                    borderColor="gray"
+                    paddingX={1}
+                >
                     {suggestions.slice(0, 6).map((s, i) => (
                         <Box key={s.value}>
-                            <Text color={i === selectedIndex ? "cyan" : "white"} bold={i === selectedIndex}>
+                            <Text
+                                color={i === selectedIndex ? "cyan" : "white"}
+                                bold={i === selectedIndex}
+                            >
                                 {i === selectedIndex ? "› " : "  "}
                                 {s.label}
                             </Text>
                             {s.hint && (
                                 <Text color="gray" dimColor>
-                                    {" - "}{s.hint}
+                                    {" - "}
+                                    {s.hint}
                                 </Text>
                             )}
                         </Box>

@@ -1,6 +1,6 @@
 import { spawnSync } from "child_process";
 import { existsSync, readFileSync, statSync } from "fs";
-import { join, isAbsolute, relative } from "path";
+import { join, relative } from "path";
 import type {
     ToolDefinition,
     ToolContext,
@@ -78,7 +78,9 @@ function searchWithRipgrep(
                     preview,
                 });
             }
-        } catch { }
+        } catch {
+            // JSON parsing failed for ripgrep output line, skip
+        }
     }
 
     return matches;
@@ -164,11 +166,13 @@ export const searchTextTool: ToolDefinition<SearchTextInput, SearchTextOutput> =
             },
             path: {
                 type: "string",
-                description: "Optional subdirectory to search in (relative to repo root). Defaults to entire repo.",
+                description:
+                    "Optional subdirectory to search in (relative to repo root). Defaults to entire repo.",
             },
             regex: {
                 type: "boolean",
-                description: "If true, treat query as a regex pattern. Defaults to false (literal search).",
+                description:
+                    "If true, treat query as a regex pattern. Defaults to false (literal search).",
             },
             limit: {
                 type: "number",
@@ -214,4 +218,3 @@ export const searchTextTool: ToolDefinition<SearchTextInput, SearchTextOutput> =
         };
     },
 };
-

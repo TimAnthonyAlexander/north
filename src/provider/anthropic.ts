@@ -54,11 +54,7 @@ export interface StreamOptions {
 export interface Provider {
     defaultModel: string;
     systemPrompt: string;
-    stream(
-        messages: Message[],
-        callbacks: StreamCallbacks,
-        options?: StreamOptions
-    ): Promise<void>;
+    stream(messages: Message[], callbacks: StreamCallbacks, options?: StreamOptions): Promise<void>;
     buildToolResultMessage(results: ToolResultInput[]): Message;
     buildAssistantMessage(text: string, toolCalls: ToolCall[]): Message;
 }
@@ -125,22 +121,29 @@ export function createProvider(options?: { model?: string }): Provider {
                     return { role: m.role, content: m.content as MessageParam["content"] };
                 });
 
-                const stream = await client.messages.stream({
-                    model: modelToUse,
-                    max_tokens: 8192,
-                    system: systemPrompt,
-                    messages: apiMessages,
-                    tools: options?.tools?.map((t) => ({
-                        name: t.name,
-                        description: t.description,
-                        input_schema: t.input_schema as Anthropic.Tool["input_schema"],
-                    })),
-                }, { signal: options?.signal });
+                const stream = await client.messages.stream(
+                    {
+                        model: modelToUse,
+                        max_tokens: 8192,
+                        system: systemPrompt,
+                        messages: apiMessages,
+                        tools: options?.tools?.map((t) => ({
+                            name: t.name,
+                            description: t.description,
+                            input_schema: t.input_schema as Anthropic.Tool["input_schema"],
+                        })),
+                    },
+                    { signal: options?.signal }
+                );
 
                 for await (const event of stream) {
                     if (options?.signal?.aborted) {
                         stream.controller.abort();
-                        callbacks.onComplete({ text: fullText, toolCalls, stopReason: "cancelled" });
+                        callbacks.onComplete({
+                            text: fullText,
+                            toolCalls,
+                            stopReason: "cancelled",
+                        });
                         return;
                     }
                     if (event.type === "content_block_start") {
@@ -162,7 +165,9 @@ export function createProvider(options?: { model?: string }): Provider {
                             let parsedInput: unknown = {};
                             try {
                                 parsedInput = JSON.parse(currentToolInput || "{}");
-                            } catch { }
+                            } catch {
+                                // JSON parsing failed, use empty object
+                            }
                             const toolCall: ToolCall = {
                                 id: currentToolId,
                                 name: currentToolName,

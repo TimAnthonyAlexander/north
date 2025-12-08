@@ -1,4 +1,10 @@
-import type { ToolDefinition, ToolContext, ToolResult, DetectLanguagesOutput, LanguageEntry } from "./types";
+import type {
+    ToolDefinition,
+    ToolContext,
+    ToolResult,
+    DetectLanguagesOutput,
+    LanguageEntry,
+} from "./types";
 import { createIgnoreChecker, walkDirectory } from "../utils/ignore";
 import { extname } from "path";
 
@@ -152,4 +158,3 @@ export const detectLanguagesTool: ToolDefinition<void, DetectLanguagesOutput> = 
         };
     },
 };
-

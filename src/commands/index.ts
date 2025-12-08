@@ -16,7 +16,14 @@ export type {
 
 export { createCommandRegistry, type CommandRegistry } from "./registry";
 export { parseCommandInvocations, getTokenAtCursor, type TokenAtCursor } from "./parse";
-export { MODELS, DEFAULT_MODEL, resolveModelId, getModelDisplay, getModelAliases, type ModelInfo } from "./models";
+export {
+    MODELS,
+    DEFAULT_MODEL,
+    resolveModelId,
+    getModelDisplay,
+    getModelAliases,
+    type ModelInfo,
+} from "./models";
 
 import { createCommandRegistry, type CommandRegistry } from "./registry";
 import { quitCommand } from "./commands/quit";
@@ -36,4 +43,3 @@ export function createCommandRegistryWithAllCommands(): CommandRegistry {
     registry.register(modeCommand);
     return registry;
 }
-

@@ -9,15 +9,18 @@ export interface ToolContext {
 
 export interface ToolInputSchema {
     type: "object";
-    properties: Record<string, {
-        type: string | string[];
-        description: string;
-        items?: {
-            type: string;
-            properties?: Record<string, { type: string; description: string }>;
-        };
-        properties?: Record<string, unknown>;
-    }>;
+    properties: Record<
+        string,
+        {
+            type: string | string[];
+            description: string;
+            items?: {
+                type: string;
+                properties?: Record<string, { type: string; description: string }>;
+            };
+            properties?: Record<string, unknown>;
+        }
+    >;
     required?: string[];
 }
 
@@ -189,4 +192,3 @@ export interface PlanOutput {
     planId: string;
     version: number;
 }
-

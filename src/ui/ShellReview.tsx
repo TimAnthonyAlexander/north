@@ -7,16 +7,16 @@ const BORDER_PULSE_COLORS = ["yellow", "#ffff87", "#ffffaf", "#ffff87"] as const
 
 function useBorderPulse(isPending: boolean, interval = 600) {
     const [colorIndex, setColorIndex] = useState(0);
-    
+
     useEffect(() => {
         if (!isPending) return;
-        
+
         const timer = setInterval(() => {
             setColorIndex((prev) => (prev + 1) % BORDER_PULSE_COLORS.length);
         }, interval);
         return () => clearInterval(timer);
     }, [isPending, interval]);
-    
+
     return isPending ? BORDER_PULSE_COLORS[colorIndex] : "yellow";
 }
 
@@ -52,7 +52,7 @@ export function ShellReview({
     isActive,
 }: ShellReviewProps) {
     const borderPulse = useBorderPulse(status === "pending", 600);
-    
+
     useInput(
         (input) => {
             if (!isActive || status !== "pending") return;
@@ -67,7 +67,7 @@ export function ShellReview({
         },
         { isActive: isActive && status === "pending" }
     );
-    
+
     const finalBorderColor = status === "pending" ? borderPulse : getBorderColor(status);
 
     return (
@@ -100,35 +100,46 @@ export function ShellReview({
 
             {status === "pending" && (
                 <Box>
-                    <Text color="green" bold>[r]</Text>
+                    <Text color="green" bold>
+                        [r]
+                    </Text>
                     <Text color="green"> Run </Text>
                     <Text color="gray"> | </Text>
-                    <Text color="blue" bold>[a]</Text>
+                    <Text color="blue" bold>
+                        [a]
+                    </Text>
                     <Text color="blue"> Always </Text>
                     <Text color="gray"> | </Text>
-                    <Text color="red" bold>[d]</Text>
+                    <Text color="red" bold>
+                        [d]
+                    </Text>
                     <Text color="red"> Deny</Text>
                 </Box>
             )}
 
             {status === "ran" && (
                 <Box>
-                    <Text color="green" bold>✓ Executed</Text>
+                    <Text color="green" bold>
+                        ✓ Executed
+                    </Text>
                 </Box>
             )}
 
             {status === "always" && (
                 <Box>
-                    <Text color="green" bold>✓ Executed (added to allowlist)</Text>
+                    <Text color="green" bold>
+                        ✓ Executed (added to allowlist)
+                    </Text>
                 </Box>
             )}
 
             {status === "denied" && (
                 <Box>
-                    <Text color="red" bold>✗ Denied</Text>
+                    <Text color="red" bold>
+                        ✗ Denied
+                    </Text>
                 </Box>
             )}
         </Box>
     );
 }
-

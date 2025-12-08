@@ -106,7 +106,11 @@ function parseArgs(
                 }
             }
             flags[flagName] = true;
-        } else if (token.value.startsWith("-") && token.value.length === 2 && !/^-\d$/.test(token.value)) {
+        } else if (
+            token.value.startsWith("-") &&
+            token.value.length === 2 &&
+            !/^-\d$/.test(token.value)
+        ) {
             flags[token.value.slice(1)] = true;
         } else {
             positional.push(token.value);
@@ -195,4 +199,3 @@ export function getTokenAtCursor(value: string, cursorPos: number): TokenAtCurso
 
     return { token, tokenStart, tokenEnd, prefix, isCommand };
 }
-

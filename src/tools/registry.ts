@@ -1,4 +1,10 @@
-import type { ToolDefinition, ToolContext, ToolResult, ToolInputSchema, ApprovalPolicy } from "./types";
+import type {
+    ToolDefinition,
+    ToolContext,
+    ToolResult,
+    ToolInputSchema,
+    ApprovalPolicy,
+} from "./types";
 
 export interface ToolRegistry {
     register(tool: ToolDefinition): void;
@@ -60,4 +66,3 @@ export function createToolRegistry(): ToolRegistry {
         },
     };
 }
-

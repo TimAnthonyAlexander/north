@@ -1,4 +1,10 @@
-import type { CommandDefinition, CommandContext, CommandResult, ParsedArgs, PickerOption } from "../types";
+import type {
+    CommandDefinition,
+    CommandContext,
+    CommandResult,
+    ParsedArgs,
+    PickerOption,
+} from "../types";
 
 const MODE_OPTIONS: PickerOption[] = [
     { id: "ask", label: "Ask", hint: "Read-only mode - no edits or commands" },
@@ -42,4 +48,3 @@ export const modeCommand: CommandDefinition = {
         };
     },
 };
-

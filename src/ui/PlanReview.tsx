@@ -7,14 +7,14 @@ const BORDER_PULSE_COLORS = ["yellow", "#ffff87", "#ffffaf", "#ffff87"] as const
 
 function useBorderPulse(colors: readonly string[], interval = 600) {
     const [colorIndex, setColorIndex] = useState(0);
-    
+
     useEffect(() => {
         const timer = setInterval(() => {
             setColorIndex((prev) => (prev + 1) % colors.length);
         }, interval);
         return () => clearInterval(timer);
     }, [colors, interval]);
-    
+
     return colors[colorIndex];
 }
 
@@ -58,7 +58,13 @@ export function PlanReview({
     const statusBadge = getStatusBadge(status);
 
     return (
-        <Box flexDirection="column" marginBottom={1} borderStyle="round" borderColor={borderColor} paddingX={1}>
+        <Box
+            flexDirection="column"
+            marginBottom={1}
+            borderStyle="round"
+            borderColor={borderColor}
+            paddingX={1}
+        >
             <Box justifyContent="space-between" marginBottom={1}>
                 <Text bold color="yellow">
                     📋 Plan Review (v{planVersion})
@@ -71,7 +77,18 @@ export function PlanReview({
             {status === "pending" && isActive && (
                 <Box flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1}>
                     <Text color="gray" dimColor>
-                        <Text color="green" bold>a</Text> accept  <Text color="yellow" bold>r</Text> revise  <Text color="red" bold>x</Text> reject
+                        <Text color="green" bold>
+                            a
+                        </Text>{" "}
+                        accept{" "}
+                        <Text color="yellow" bold>
+                            r
+                        </Text>{" "}
+                        revise{" "}
+                        <Text color="red" bold>
+                            x
+                        </Text>{" "}
+                        reject
                     </Text>
                 </Box>
             )}
@@ -120,4 +137,3 @@ function getStatusBadge(status: PlanReviewStatus) {
             );
     }
 }
-

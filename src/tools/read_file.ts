@@ -1,6 +1,12 @@
 import { existsSync, readFileSync, statSync } from "fs";
 import { join, isAbsolute, normalize } from "path";
-import type { ToolDefinition, ToolContext, ToolResult, ReadFileInput, ReadFileOutput } from "./types";
+import type {
+    ToolDefinition,
+    ToolContext,
+    ToolResult,
+    ReadFileInput,
+    ReadFileOutput,
+} from "./types";
 
 const MAX_FILE_SIZE = 100_000;
 const MAX_LINES = 500;
@@ -18,7 +24,8 @@ function resolvePath(repoRoot: string, filePath: string): string | null {
 
 export const readFileTool: ToolDefinition<ReadFileInput, ReadFileOutput> = {
     name: "read_file",
-    description: "Read file content. Can read the entire file or a specific line range. Large files are truncated.",
+    description:
+        "Read file content. Can read the entire file or a specific line range. Large files are truncated.",
     inputSchema: {
         type: "object",
         properties: {
@@ -28,7 +35,8 @@ export const readFileTool: ToolDefinition<ReadFileInput, ReadFileOutput> = {
             },
             range: {
                 type: "object",
-                description: "Optional line range (1-indexed). If not provided, reads the entire file.",
+                description:
+                    "Optional line range (1-indexed). If not provided, reads the entire file.",
                 properties: {
                     start: { type: "number", description: "Start line (1-indexed, inclusive)" },
                     end: { type: "number", description: "End line (1-indexed, inclusive)" },
@@ -50,7 +58,7 @@ export const readFileTool: ToolDefinition<ReadFileInput, ReadFileOutput> = {
         let stat;
         try {
             stat = statSync(resolvedPath);
-        } catch (err) {
+        } catch {
             return { ok: false, error: `Cannot access file: ${args.path}` };
         }
 
@@ -61,7 +69,7 @@ export const readFileTool: ToolDefinition<ReadFileInput, ReadFileOutput> = {
         let content: string;
         try {
             content = readFileSync(resolvedPath, "utf-8");
-        } catch (err) {
+        } catch {
             return { ok: false, error: `Cannot read file: ${args.path}` };
         }
 
@@ -112,4 +120,3 @@ export const readFileTool: ToolDefinition<ReadFileInput, ReadFileOutput> = {
         };
     },
 };
-

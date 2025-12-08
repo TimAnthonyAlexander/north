@@ -13,7 +13,12 @@
     "build:binary:mac-arm": "bun build src/index.ts --compile --target=bun-darwin-arm64 --outfile north-darwin-arm64",
     "build:binary:mac-x64": "bun build src/index.ts --compile --target=bun-darwin-x64 --outfile north-darwin-x64",
     "typecheck": "tsc --noEmit",
-    "link": "bun link"
+    "link": "bun link",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",
+    "check": "bun run typecheck && bun run lint && bun run format:check"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -21,9 +26,15 @@
     "react": "^18.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
     "@types/bun": "^1.1.14",
     "@types/react": "^18.3.14",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "prettier": "^3.4.2",
     "react-devtools-core": "^7.0.1",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1"
   }
 }

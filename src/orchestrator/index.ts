@@ -1,5 +1,10 @@
-import { createProvider, type Provider, type Message, type ToolCall } from "../provider/anthropic";
-import { createToolRegistryWithAllTools, filterToolsForMode, type ToolRegistry } from "../tools/index";
+import {
+    createProvider,
+    type Message,
+    type ToolCall,
+    type ToolSchema,
+} from "../provider/anthropic";
+import { createToolRegistryWithAllTools, filterToolsForMode } from "../tools/index";
 import type { Logger } from "../logging/index";
 import type { FileDiff, EditPrepareResult, ShellRunInput } from "../tools/types";
 import { applyEditsAtomically } from "../utils/editing";
@@ -28,7 +33,15 @@ export type { CommandReviewStatus };
 
 export interface TranscriptEntry {
     id: string;
-    role: "user" | "assistant" | "tool" | "diff_review" | "shell_review" | "command_review" | "command_executed" | "plan_review";
+    role:
+        | "user"
+        | "assistant"
+        | "tool"
+        | "diff_review"
+        | "shell_review"
+        | "command_review"
+        | "command_executed"
+        | "plan_review";
     content: string;
     ts: number;
     isStreaming?: boolean;
@@ -73,7 +86,13 @@ export interface OrchestratorCallbacks {
     onShellReviewShown?: (command: string, cwd?: string | null, timeoutMs?: number | null) => void;
     onShellReviewDecision?: (decision: "run" | "always" | "deny", command: string) => void;
     onShellRunStart?: (command: string, cwd?: string | null, timeoutMs?: number | null) => void;
-    onShellRunComplete?: (command: string, exitCode: number, durationMs: number, stdoutBytes: number, stderrBytes: number) => void;
+    onShellRunComplete?: (
+        command: string,
+        exitCode: number,
+        durationMs: number,
+        stdoutBytes: number,
+        stderrBytes: number
+    ) => void;
     onExit?: () => void;
 }
 
@@ -143,7 +162,7 @@ function generateId(): string {
 
 function formatToolNameForDisplay(toolName: string, args: unknown): string {
     const basename = (filePath: string) => path.basename(filePath);
-    
+
     switch (toolName) {
         case "read_file": {
             const { path: filePath } = args as { path?: string };
@@ -173,27 +192,27 @@ function formatToolNameForDisplay(toolName: string, args: unknown): string {
 
 function formatSummaryForContext(summary: StructuredSummary): string {
     const lines: string[] = ["## Conversation Summary (authoritative, replace older context)"];
-    
+
     if (summary.goal) {
         lines.push(`**Goal:** ${summary.goal}`);
     }
     if (summary.decisions.length > 0) {
         lines.push("**Decisions:**");
-        summary.decisions.forEach(d => lines.push(`- ${d}`));
+        summary.decisions.forEach((d) => lines.push(`- ${d}`));
     }
     if (summary.constraints.length > 0) {
         lines.push("**Constraints:**");
-        summary.constraints.forEach(c => lines.push(`- ${c}`));
+        summary.constraints.forEach((c) => lines.push(`- ${c}`));
     }
     if (summary.openTasks.length > 0) {
         lines.push("**Open Tasks:**");
-        summary.openTasks.forEach(t => lines.push(`- ${t}`));
+        summary.openTasks.forEach((t) => lines.push(`- ${t}`));
     }
     if (summary.importantFiles.length > 0) {
         lines.push("**Important Files:**");
-        summary.importantFiles.forEach(f => lines.push(`- ${f}`));
+        summary.importantFiles.forEach((f) => lines.push(`- ${f}`));
     }
-    
+
     return lines.join("\n");
 }
 
@@ -216,7 +235,7 @@ export function createOrchestratorWithTools(
     let currentModel: string = DEFAULT_MODEL;
     let rollingSummary: StructuredSummary | null = null;
     let acceptedPlan: AcceptedPlan | null = null;
-    
+
     let contextUsedTokens = 0;
     let contextLimitTokens = getModelContextLimit(currentModel);
     let contextUsage = 0;
@@ -280,7 +299,8 @@ export function createOrchestratorWithTools(
 
     function buildMessagesForClaude(): Message[] {
         const messages: Message[] = [];
-        let pendingToolResults: Array<{ toolCallId: string; result: string; isError?: boolean }> = [];
+        let pendingToolResults: Array<{ toolCallId: string; result: string; isError?: boolean }> =
+            [];
 
         if (context.cursorRulesText) {
             messages.push({
@@ -289,7 +309,8 @@ export function createOrchestratorWithTools(
             });
             messages.push({
                 role: "assistant",
-                content: "I understand these project rules and will follow them throughout our conversation.",
+                content:
+                    "I understand these project rules and will follow them throughout our conversation.",
             });
         }
 
@@ -300,7 +321,8 @@ export function createOrchestratorWithTools(
             });
             messages.push({
                 role: "assistant",
-                content: "I understand. I'll use this summary as context for our ongoing conversation.",
+                content:
+                    "I understand. I'll use this summary as context for our ongoing conversation.",
             });
         }
 
@@ -325,7 +347,12 @@ export function createOrchestratorWithTools(
                 }
             } else if (entry.role === "tool" && entry.toolResult) {
                 const toolCallId = (entry as any).toolCallId;
-                if (toolCallId && !writeToolCallIds.has(toolCallId) && !shellToolCallIds.has(toolCallId) && !planToolCallIds.has(toolCallId)) {
+                if (
+                    toolCallId &&
+                    !writeToolCallIds.has(toolCallId) &&
+                    !shellToolCallIds.has(toolCallId) &&
+                    !planToolCallIds.has(toolCallId)
+                ) {
                     pendingToolResults.push({
                         toolCallId,
                         result: JSON.stringify(entry.toolResult),
@@ -363,14 +390,15 @@ export function createOrchestratorWithTools(
                 if (toolCallId) {
                     const accepted = entry.reviewStatus === "accepted";
                     const revised = entry.reviewStatus === "revised";
-                    const resultData: Record<string, unknown> = { 
-                        ok: true, 
+                    const resultData: Record<string, unknown> = {
+                        ok: true,
                         accepted,
                         planId: entry.planId,
                         version: entry.planVersion,
                     };
                     if (entry.reviewStatus === "accepted") {
-                        resultData.message = "Plan accepted by user. You now have access to all write tools. Begin implementing the plan immediately. Do not ask for permission - start making the changes outlined in your plan.";
+                        resultData.message =
+                            "Plan accepted by user. You now have access to all write tools. Begin implementing the plan immediately. Do not ask for permission - start making the changes outlined in your plan.";
                     } else if (entry.reviewStatus === "rejected") {
                         resultData.reason = "User rejected the plan";
                     } else if (revised) {
@@ -397,7 +425,11 @@ export function createOrchestratorWithTools(
         return toolCallsMap.get(assistantId) || [];
     }
 
-    async function executeShellCommand(command: string, cwd?: string | null, timeoutMs?: number | null): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+    async function executeShellCommand(
+        command: string,
+        cwd?: string | null,
+        timeoutMs?: number | null
+    ): Promise<{ ok: boolean; data?: unknown; error?: string }> {
         const cwdOrUndefined = cwd || undefined;
         const timeoutOrUndefined = timeoutMs ?? undefined;
         callbacks.onShellRunStart?.(command, cwdOrUndefined, timeoutOrUndefined);
@@ -405,7 +437,10 @@ export function createOrchestratorWithTools(
 
         try {
             const shellService = getShellService(context.repoRoot, context.logger);
-            const result = await shellService.run(command, { cwd: cwdOrUndefined, timeoutMs: timeoutOrUndefined });
+            const result = await shellService.run(command, {
+                cwd: cwdOrUndefined,
+                timeoutMs: timeoutOrUndefined,
+            });
             const durationMs = Date.now() - startTime;
 
             callbacks.onShellRunComplete?.(
@@ -437,7 +472,6 @@ export function createOrchestratorWithTools(
     ): Promise<{ needsReview: boolean; entry: TranscriptEntry }> {
         const args = toolCall.input as { planText?: string; planId?: string };
         const planText = args.planText || "";
-        const planId = (args as { planId?: string }).planId;
 
         planToolCallIds.add(toolCall.id);
 
@@ -545,8 +579,12 @@ export function createOrchestratorWithTools(
 
     async function executeToolCall(
         toolCall: ToolCall,
-        assistantId: string
-    ): Promise<{ needsReview: boolean; entry: TranscriptEntry; reviewType?: "write" | "shell" | "plan" }> {
+        _assistantId: string
+    ): Promise<{
+        needsReview: boolean;
+        entry: TranscriptEntry;
+        reviewType?: "write" | "shell" | "plan";
+    }> {
         const toolName = toolCall.name;
         const args = toolCall.input;
         const policy = toolRegistry.getApprovalPolicy(toolName);
@@ -671,7 +709,9 @@ export function createOrchestratorWithTools(
         return { needsReview: false, entry: toolEntry };
     }
 
-    async function waitForWriteReviewDecision(reviewEntry: TranscriptEntry): Promise<WriteDecision> {
+    async function waitForWriteReviewDecision(
+        reviewEntry: TranscriptEntry
+    ): Promise<WriteDecision> {
         pendingReviewId = reviewEntry.id;
         emitState();
 
@@ -685,7 +725,9 @@ export function createOrchestratorWithTools(
         });
     }
 
-    async function waitForShellReviewDecision(reviewEntry: TranscriptEntry): Promise<ShellDecision> {
+    async function waitForShellReviewDecision(
+        reviewEntry: TranscriptEntry
+    ): Promise<ShellDecision> {
         pendingReviewId = reviewEntry.id;
         emitState();
 
@@ -699,7 +741,9 @@ export function createOrchestratorWithTools(
         });
     }
 
-    async function waitForCommandReviewDecision(reviewEntry: TranscriptEntry): Promise<CommandDecision> {
+    async function waitForCommandReviewDecision(
+        reviewEntry: TranscriptEntry
+    ): Promise<CommandDecision> {
         pendingReviewId = reviewEntry.id;
         emitState();
 
@@ -750,7 +794,9 @@ export function createOrchestratorWithTools(
             const durationMs = Date.now() - startTime;
             callbacks.onWriteApplyComplete?.(durationMs, applyResult.ok);
 
-            updateEntry(reviewEntry.id, { reviewStatus: decision === "always" ? "always" : "accepted" });
+            updateEntry(reviewEntry.id, {
+                reviewStatus: decision === "always" ? "always" : "accepted",
+            });
         } else {
             updateEntry(reviewEntry.id, { reviewStatus: "rejected" });
         }
@@ -860,8 +906,8 @@ export function createOrchestratorWithTools(
             },
             async generateSummary(): Promise<StructuredSummary | null> {
                 const transcriptText = transcript
-                    .filter(e => e.role === "user" || e.role === "assistant")
-                    .map(e => `${e.role}: ${e.content}`)
+                    .filter((e) => e.role === "user" || e.role === "assistant")
+                    .map((e) => `${e.role}: ${e.content}`)
                     .join("\n\n");
 
                 const summaryPrompt = `Analyze this conversation and produce a JSON summary with these exact fields:
@@ -878,11 +924,12 @@ ${transcriptText}
 
 Respond with ONLY the JSON, no other text.`;
 
-                const SUMMARY_SYSTEM = "You are a conversation summarizer. Respond with valid JSON only. Do not request any tools.";
+                const SUMMARY_SYSTEM =
+                    "You are a conversation summarizer. Respond with valid JSON only. Do not request any tools.";
 
                 return new Promise((resolve) => {
                     let summaryText = "";
-                    
+
                     provider.stream(
                         [{ role: "user", content: summaryPrompt }],
                         {
@@ -896,10 +943,18 @@ Respond with ONLY the JSON, no other text.`;
                                         const parsed = JSON.parse(jsonMatch[0]);
                                         const summary: StructuredSummary = {
                                             goal: parsed.goal || "",
-                                            decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
-                                            constraints: Array.isArray(parsed.constraints) ? parsed.constraints : [],
-                                            openTasks: Array.isArray(parsed.openTasks) ? parsed.openTasks : [],
-                                            importantFiles: Array.isArray(parsed.importantFiles) ? parsed.importantFiles : [],
+                                            decisions: Array.isArray(parsed.decisions)
+                                                ? parsed.decisions
+                                                : [],
+                                            constraints: Array.isArray(parsed.constraints)
+                                                ? parsed.constraints
+                                                : [],
+                                            openTasks: Array.isArray(parsed.openTasks)
+                                                ? parsed.openTasks
+                                                : [],
+                                            importantFiles: Array.isArray(parsed.importantFiles)
+                                                ? parsed.importantFiles
+                                                : [],
                                         };
                                         resolve(summary);
                                     } else {
@@ -914,7 +969,7 @@ Respond with ONLY the JSON, no other text.`;
                             },
                             onToolCall() {},
                         },
-                        { 
+                        {
                             tools: [],
                             model: currentModel,
                             systemOverride: SUMMARY_SYSTEM,
@@ -923,30 +978,37 @@ Respond with ONLY the JSON, no other text.`;
                 });
             },
             trimTranscript(keepLast: number) {
-                const userAssistantEntries = transcript.filter(e => 
-                    e.role === "user" || e.role === "assistant"
+                const userAssistantEntries = transcript.filter(
+                    (e) => e.role === "user" || e.role === "assistant"
                 );
                 const idsToKeepFromUA = new Set(
-                    userAssistantEntries.slice(-keepLast).map(e => e.id)
+                    userAssistantEntries.slice(-keepLast).map((e) => e.id)
                 );
-                
-                transcript = transcript.filter(e => {
+
+                transcript = transcript.filter((e) => {
                     if (e.role === "user" || e.role === "assistant") {
                         return idsToKeepFromUA.has(e.id);
                     }
-                    if ((e.role === "diff_review" || e.role === "shell_review") && e.reviewStatus !== "pending") {
+                    if (
+                        (e.role === "diff_review" || e.role === "shell_review") &&
+                        e.reviewStatus !== "pending"
+                    ) {
                         return true;
                     }
                     return false;
                 });
-                
+
                 emitState();
             },
             requestExit() {
                 stopped = true;
                 callbacks.onExit?.();
             },
-            async showPicker(commandName: string, prompt: string, options: PickerOption[]): Promise<string | null> {
+            async showPicker(
+                commandName: string,
+                prompt: string,
+                options: PickerOption[]
+            ): Promise<string | null> {
                 const reviewId = generateId();
                 const reviewEntry: TranscriptEntry = {
                     id: reviewId,
@@ -962,16 +1024,16 @@ Respond with ONLY the JSON, no other text.`;
                 emitState();
 
                 const decision = await waitForCommandReviewDecision(reviewEntry);
-                
+
                 updateEntry(reviewId, {
                     reviewStatus: decision ? "selected" : "cancelled",
                     commandSelectedId: decision || undefined,
                 });
-                
+
                 pendingReviewId = null;
                 pendingCommandReview = null;
                 emitState();
-                
+
                 return decision;
             },
             getTranscript() {
@@ -985,35 +1047,37 @@ Respond with ONLY the JSON, no other text.`;
 
     async function executeCommands(content: string): Promise<string> {
         const { invocations, remainingText } = parseCommandInvocations(content, commandRegistry);
-        
+
         if (invocations.length === 0) {
             return content;
         }
 
         const ctx = createCommandContext();
-        
+
         for (const invocation of invocations) {
             const result = await commandRegistry.execute(invocation.name, ctx, invocation.args);
-            
+
             const executedEntry: TranscriptEntry = {
                 id: generateId(),
                 role: "command_executed",
-                content: result.ok ? (result.message || `/${invocation.name} executed`) : (result.error || "Command failed"),
+                content: result.ok
+                    ? result.message || `/${invocation.name} executed`
+                    : result.error || "Command failed",
                 ts: Date.now(),
                 commandName: invocation.name,
             };
             transcript.push(executedEntry);
             emitState();
-            
+
             if (stopped) break;
         }
-        
+
         return remainingText;
     }
 
     async function runConversationLoop(mode: Mode): Promise<void> {
         let currentMode = mode;
-        
+
         while (!stopped && !cancelled) {
             const requestId = generateId();
             const requestStart = Date.now();
@@ -1039,20 +1103,21 @@ Respond with ONLY the JSON, no other text.`;
             const allToolSchemas = toolRegistry.getSchemas();
             const toolSchemas = filterToolsForMode(currentMode, allToolSchemas);
             const signal = currentAbortController.signal;
-            
+
             const systemPrompt = provider.systemPrompt;
             const estimate = estimatePromptTokens(systemPrompt, messages);
             contextUsedTokens = estimate.estimatedTokens;
             contextLimitTokens = getModelContextLimit(currentModel);
             contextUsage = contextUsedTokens / contextLimitTokens;
             emitState();
-            
+
             const COMPACT_THRESHOLD = 0.92;
             if (contextUsage >= COMPACT_THRESHOLD) {
-                const summary = await commandContext.generateSummary();
+                const ctx = createCommandContext();
+                const summary = await ctx.generateSummary();
                 if (summary) {
-                    commandContext.setRollingSummary(summary);
-                    commandContext.trimTranscript(10);
+                    ctx.setRollingSummary(summary);
+                    ctx.trimTranscript(10);
                     messages = buildMessagesForClaude();
                     const newEstimate = estimatePromptTokens(systemPrompt, messages);
                     contextUsedTokens = newEstimate.estimatedTokens;
@@ -1062,29 +1127,35 @@ Respond with ONLY the JSON, no other text.`;
             }
 
             type StreamResult = { text: string; toolCalls: ToolCall[]; stopReason: string | null };
-            const streamOutcome = await new Promise<{ result: StreamResult } | { error: Error }>((resolve) => {
-                provider.stream(
-                    messages,
-                    {
-                        onChunk(chunk: string) {
-                            streamBuffer += chunk;
-                            scheduleStreamFlush();
+            const streamOutcome = await new Promise<{ result: StreamResult } | { error: Error }>(
+                (resolve) => {
+                    provider.stream(
+                        messages,
+                        {
+                            onChunk(chunk: string) {
+                                streamBuffer += chunk;
+                                scheduleStreamFlush();
+                            },
+                            onToolCall(toolCall: ToolCall) {
+                                const calls = toolCallsMap.get(assistantId) || [];
+                                calls.push(toolCall);
+                                toolCallsMap.set(assistantId, calls);
+                            },
+                            onComplete(result) {
+                                resolve({ result });
+                            },
+                            onError(error: Error) {
+                                resolve({ error });
+                            },
                         },
-                        onToolCall(toolCall: ToolCall) {
-                            const calls = toolCallsMap.get(assistantId) || [];
-                            calls.push(toolCall);
-                            toolCallsMap.set(assistantId, calls);
-                        },
-                        onComplete(result) {
-                            resolve({ result });
-                        },
-                        onError(error: Error) {
-                            resolve({ error });
-                        },
-                    },
-                    { tools: toolSchemas, model: currentModel, signal }
-                );
-            });
+                        {
+                            tools: toolSchemas as ToolSchema[],
+                            model: currentModel,
+                            signal,
+                        }
+                    );
+                }
+            );
 
             flushStreamBuffer();
             currentAssistantId = null;
@@ -1137,7 +1208,10 @@ Respond with ONLY the JSON, no other text.`;
             for (const toolCall of result.toolCalls) {
                 if (stopped) break;
 
-                const { needsReview, entry, reviewType } = await executeToolCall(toolCall, assistantId);
+                const { needsReview, entry, reviewType } = await executeToolCall(
+                    toolCall,
+                    assistantId
+                );
 
                 if (needsReview) {
                     if (reviewType === "write") {
@@ -1149,7 +1223,7 @@ Respond with ONLY the JSON, no other text.`;
                     } else if (reviewType === "plan") {
                         const decision = await waitForPlanReviewDecision(entry);
                         await applyPlanDecision(entry, decision);
-                        
+
                         if (decision === "accept") {
                             currentMode = "agent";
                         }
@@ -1171,7 +1245,7 @@ Respond with ONLY the JSON, no other text.`;
 
             try {
                 const remainingText = await executeCommands(content);
-                
+
                 if (stopped) {
                     isProcessing = false;
                     emitState();
@@ -1195,7 +1269,10 @@ Respond with ONLY the JSON, no other text.`;
 
                 await runConversationLoop(mode);
             } catch (err) {
-                context.logger.error("conversation_loop_error", err);
+                context.logger.error(
+                    "conversation_loop_error",
+                    err instanceof Error ? err : new Error(String(err))
+                );
             } finally {
                 isProcessing = false;
                 emitState();
@@ -1236,13 +1313,13 @@ Respond with ONLY the JSON, no other text.`;
 
         cancel() {
             if (!isProcessing) return;
-            
+
             cancelled = true;
-            
+
             if (currentAbortController) {
                 currentAbortController.abort();
             }
-            
+
             if (pendingWriteReview) {
                 pendingWriteReview.resolve("reject");
                 pendingWriteReview = null;
@@ -1259,18 +1336,18 @@ Respond with ONLY the JSON, no other text.`;
                 pendingPlanReview.resolve("reject");
                 pendingPlanReview = null;
             }
-            
+
             pendingReviewId = null;
         },
 
         stop() {
             stopped = true;
             cancelled = true;
-            
+
             if (currentAbortController) {
                 currentAbortController.abort();
             }
-            
+
             if (pendingWriteReview) {
                 pendingWriteReview.resolve("reject");
             }

@@ -19,4 +19,3 @@ export function detectRepoRoot(startPath: string): string {
 
     return resolve(startPath);
 }
-
