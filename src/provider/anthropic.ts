@@ -48,6 +48,7 @@ export interface StreamOptions {
     tools?: ToolSchema[];
     model?: string;
     systemOverride?: string;
+    signal?: AbortSignal;
 }
 
 export interface Provider {
@@ -132,9 +133,14 @@ export function createProvider(options?: { model?: string }): Provider {
                         description: t.description,
                         input_schema: t.input_schema as Anthropic.Tool["input_schema"],
                     })),
-                });
+                }, { signal: options?.signal });
 
                 for await (const event of stream) {
+                    if (options?.signal?.aborted) {
+                        stream.controller.abort();
+                        callbacks.onComplete({ text: fullText, toolCalls, stopReason: "cancelled" });
+                        return;
+                    }
                     if (event.type === "content_block_start") {
                         if (event.content_block.type === "tool_use") {
                             currentToolId = event.content_block.id;

@@ -98,9 +98,13 @@ export function App({
 
     useEffect(() => {
         const handleSigint = () => {
-            orchestrator?.stop();
-            disposeAllShellServices();
-            exit();
+            if (orchestrator?.isProcessing()) {
+                orchestrator.cancel();
+            } else {
+                orchestrator?.stop();
+                disposeAllShellServices();
+                exit();
+            }
         };
         process.on("SIGINT", handleSigint);
         return () => {

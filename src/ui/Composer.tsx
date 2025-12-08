@@ -153,14 +153,25 @@ export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps)
                     setValue(result.value);
                     setCursorPos(result.cursor);
                     setShowSuggestions(true);
-                } else {
-                    if (value.trim().length > 0) {
-                        onSubmit(value);
-                        setValue("");
-                        setCursorPos(0);
+                } else if (hasSuggestions) {
+                    const suggestion = suggestions[selectedIndex];
+                    if (suggestion && suggestionState) {
+                        const before = value.slice(0, suggestionState.tokenStart);
+                        const after = value.slice(suggestionState.tokenEnd);
+                        const needsSpace = after.length === 0 || !/^\s/.test(after);
+                        const spacing = needsSpace ? " " : "";
+                        const newValue = before + suggestion.value + spacing + after;
+                        const newCursor = suggestionState.tokenStart + suggestion.value.length + (needsSpace ? 1 : 0);
+                        setValue(newValue);
+                        setCursorPos(newCursor);
                         setSelectedIndex(0);
-                        setShowSuggestions(true);
                     }
+                } else if (value.trim().length > 0) {
+                    onSubmit(value);
+                    setValue("");
+                    setCursorPos(0);
+                    setSelectedIndex(0);
+                    setShowSuggestions(true);
                 }
                 return;
             }
@@ -284,7 +295,7 @@ export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps)
             {disabled && (
                 <Box marginTop={0}>
                     <Text color="gray" dimColor>
-                        Waiting for response...
+                        Waiting for response... (Ctrl+C to cancel)
                     </Text>
                 </Box>
             )}

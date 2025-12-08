@@ -81,7 +81,9 @@ export interface Orchestrator {
     resolveCommandReview(reviewId: string, decision: CommandDecision): void;
     getModel(): string;
     getCommandRegistry(): CommandRegistry;
+    cancel(): void;
     stop(): void;
+    isProcessing(): boolean;
 }
 
 interface PendingWriteReview {
@@ -156,6 +158,8 @@ export function createOrchestratorWithTools(
     let streamBuffer = "";
     let streamTimer: ReturnType<typeof setTimeout> | null = null;
     let currentAssistantId: string | null = null;
+    let currentAbortController: AbortController | null = null;
+    let cancelled = false;
 
     function emitState() {
         callbacks.onStateChange({
@@ -757,13 +761,15 @@ Respond with ONLY the JSON, no other text.`;
     }
 
     async function runConversationLoop(): Promise<void> {
-        while (!stopped) {
+        while (!stopped && !cancelled) {
             const requestId = generateId();
             const requestStart = Date.now();
             callbacks.onRequestStart?.(requestId, currentModel);
 
             const assistantId = generateId();
             currentAssistantId = assistantId;
+
+            currentAbortController = new AbortController();
 
             const assistantEntry: TranscriptEntry = {
                 id: assistantId,
@@ -778,6 +784,7 @@ Respond with ONLY the JSON, no other text.`;
 
             const messages = buildMessagesForClaude();
             const toolSchemas = toolRegistry.getSchemas();
+            const signal = currentAbortController.signal;
 
             type StreamResult = { text: string; toolCalls: ToolCall[]; stopReason: string | null };
             const streamOutcome = await new Promise<{ result: StreamResult } | { error: Error }>((resolve) => {
@@ -800,17 +807,26 @@ Respond with ONLY the JSON, no other text.`;
                             resolve({ error });
                         },
                     },
-                    { tools: toolSchemas, model: currentModel }
+                    { tools: toolSchemas, model: currentModel, signal }
                 );
             });
 
             flushStreamBuffer();
             currentAssistantId = null;
+            currentAbortController = null;
 
             const requestDuration = Date.now() - requestStart;
 
             if ("error" in streamOutcome) {
                 const err = streamOutcome.error;
+                if (err.name === "AbortError" || cancelled) {
+                    updateEntry(assistantId, {
+                        isStreaming: false,
+                        content: findEntry(assistantId)?.content + " [Cancelled]",
+                    });
+                    emitState();
+                    break;
+                }
                 callbacks.onRequestComplete?.(requestId, requestDuration, err);
                 updateEntry(assistantId, {
                     isStreaming: false,
@@ -821,6 +837,16 @@ Respond with ONLY the JSON, no other text.`;
             }
 
             const result = streamOutcome.result;
+
+            if (result.stopReason === "cancelled" || cancelled) {
+                updateEntry(assistantId, {
+                    isStreaming: false,
+                    content: result.text + " [Cancelled]",
+                });
+                emitState();
+                break;
+            }
+
             callbacks.onRequestComplete?.(requestId, requestDuration);
 
             updateEntry(assistantId, {
@@ -858,6 +884,7 @@ Respond with ONLY the JSON, no other text.`;
             if (isProcessing || stopped) return;
 
             isProcessing = true;
+            cancelled = false;
             emitState();
 
             try {
@@ -919,8 +946,39 @@ Respond with ONLY the JSON, no other text.`;
             return commandRegistry;
         },
 
+        cancel() {
+            if (!isProcessing) return;
+            
+            cancelled = true;
+            
+            if (currentAbortController) {
+                currentAbortController.abort();
+            }
+            
+            if (pendingWriteReview) {
+                pendingWriteReview.resolve("reject");
+                pendingWriteReview = null;
+            }
+            if (pendingShellReview) {
+                pendingShellReview.resolve("deny");
+                pendingShellReview = null;
+            }
+            if (pendingCommandReview) {
+                pendingCommandReview.resolve(null);
+                pendingCommandReview = null;
+            }
+            
+            pendingReviewId = null;
+        },
+
         stop() {
             stopped = true;
+            cancelled = true;
+            
+            if (currentAbortController) {
+                currentAbortController.abort();
+            }
+            
             if (pendingWriteReview) {
                 pendingWriteReview.resolve("reject");
             }
@@ -930,6 +988,10 @@ Respond with ONLY the JSON, no other text.`;
             if (pendingCommandReview) {
                 pendingCommandReview.resolve(null);
             }
+        },
+
+        isProcessing() {
+            return isProcessing;
         },
     };
 }
