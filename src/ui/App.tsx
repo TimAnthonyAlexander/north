@@ -175,15 +175,15 @@ export function App({
                     onCommandCancel={handleCommandCancel}
                 />
             </Box>
-            <Box paddingX={1} marginBottom={1}>
-                <StatusLine model={currentModel} projectPath={projectPath} contextUsage={contextUsage} />
-            </Box>
             <Box paddingX={1}>
                 <Composer
                     onSubmit={handleSubmit}
                     disabled={composerDisabled}
                     commandRegistry={commandRegistry}
                 />
+            </Box>
+            <Box paddingX={1} marginBottom={1}>
+                <StatusLine model={currentModel} projectPath={projectPath} contextUsage={contextUsage} />
             </Box>
         </Box>
     );
