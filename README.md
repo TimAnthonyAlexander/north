@@ -40,9 +40,16 @@ Or point at a specific repo (works anywhere tbh):
 bun run dev --path /path/to/repo
 ```
 
-## Build a Binary
+## Build for Distribution
 
-Ship it anywhere:
+For local linking (recommended for development):
+
+```bash
+bun run build      # builds JS + bundles native library to dist/
+bun run link       # makes 'north' command available globally
+```
+
+For standalone binaries:
 
 ```bash
 bun run build:binary              # current platform
@@ -50,6 +57,8 @@ bun run build:binary:mac-arm      # Apple Silicon
 bun run build:binary:mac-x64      # Intel Mac
 bun run build:binary:linux        # Linux x64
 ```
+
+Note: The `build` script automatically bundles the bun-pty native library to `dist/lib/` for shell support.
 
 ## Input
 

@@ -196,6 +196,11 @@ Span-based tokenizer for reliable command extraction:
 
 - Creates and manages one PTY session per project root
 - Uses `bun-pty` for cross-platform PTY support (hardcoded to `/bin/bash` to avoid zsh flag issues)
+- **Lazy loading**: `bun-pty` is dynamically imported only when first shell command runs
+- **Native library bundling**: The bun-pty native library (.dylib/.so/.dll) is bundled at build time:
+  - `scripts/postbuild.ts` copies the native library to `dist/lib/`
+  - `src/index.ts` sets `BUN_PTY_LIB` environment variable at startup to point to bundled library
+  - Allows north to run from any directory without requiring node_modules
 - Single-flight commands: rejects if a command is already running
 - Sentinel-based output parsing:
   - Uses `printf` with newline-framed markers for robustness
@@ -292,7 +297,7 @@ All tools follow the pattern:
 - Renders conversation history
 - User messages: cyan label
 - Assistant messages: magenta label
-- Tool messages: yellow ⚡ icon, gray text
+- Tool messages: yellow ⚡ icon, gray text, human-readable formatting
 - Command executed messages: blue ⚙ icon with result
 - Diff review entries: bordered box with diff content
 - Shell review entries: command approval prompt
@@ -571,6 +576,18 @@ Implementation details:
 - Provider stream loop checks `signal.aborted` and exits gracefully
 - Pending write/shell/command reviews auto-resolve on cancel
 
+### Tool Display Formatting
+
+The orchestrator formats tool names for better readability in the TUI:
+- `read_file` → "Reading filename.ext"
+- `edit_replace_exact` → "Editing filename.ext"
+- `edit_insert_at_line` → "Editing filename.ext"
+- `edit_create_file` → "Creating filename.ext"
+- `edit_apply_batch` → "Editing N files" (or single file name if batch contains only one edit)
+- Other tools: shown as-is
+
+Implementation in `formatToolNameForDisplay()` which extracts the filename from tool arguments and formats the display text accordingly.
+
 ### Gitignore Handling
 
 The ignore checker:
@@ -615,9 +632,26 @@ bun run dev
 # With options
 bun run dev --path /some/repo --log-level debug
 
-# Build
-bun run build
+# Build for distribution
+bun run build         # builds to dist/ and bundles native library
+bun run link          # symlinks for global 'north' command
+
+# Build standalone binaries
+bun run build:binary       # current platform
+bun run build:binary:mac-arm
+bun run build:binary:linux
 ```
+
+## Build Process
+
+The build process includes special handling for the bun-pty native library:
+
+1. **JavaScript bundling**: `bun build` compiles TypeScript to `dist/index.js`
+2. **Native library bundling**: `scripts/postbuild.ts` copies the platform-specific native library (`.dylib`/`.so`/`.dll`) from `node_modules/bun-pty/rust-pty/target/release/` to `dist/lib/`
+3. **Runtime setup**: `src/index.ts` detects the bundled library at startup and sets the `BUN_PTY_LIB` environment variable before any imports
+4. **Lazy loading**: The shell module dynamically imports `bun-pty` only when needed, allowing graceful error handling if the library is unavailable
+
+This approach allows north to run from any directory without requiring node_modules to be present, while still supporting shell commands when properly installed.
 
 ## Environment
 

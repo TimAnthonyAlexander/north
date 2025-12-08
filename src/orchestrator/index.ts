@@ -15,6 +15,7 @@ import {
     type CommandReviewStatus,
 } from "../commands/index";
 import { DEFAULT_MODEL } from "../commands/models";
+import * as path from "node:path";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "denied";
 export type WriteReviewStatus = "pending" | "accepted" | "rejected";
@@ -110,6 +111,36 @@ const STREAM_THROTTLE_MS = 32;
 
 function generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function formatToolNameForDisplay(toolName: string, args: unknown): string {
+    const basename = (filePath: string) => path.basename(filePath);
+    
+    switch (toolName) {
+        case "read_file": {
+            const { path: filePath } = args as { path?: string };
+            return filePath ? `Reading ${basename(filePath)}` : "Reading file";
+        }
+        case "edit_replace_exact":
+        case "edit_insert_at_line": {
+            const { path: filePath } = args as { path?: string };
+            return filePath ? `Editing ${basename(filePath)}` : "Editing file";
+        }
+        case "edit_create_file": {
+            const { path: filePath } = args as { path?: string };
+            return filePath ? `Creating ${basename(filePath)}` : "Creating file";
+        }
+        case "edit_apply_batch": {
+            const { edits } = args as { edits?: Array<{ toolName: string; args: unknown }> };
+            const count = edits?.length || 0;
+            if (count === 1 && edits?.[0]) {
+                return formatToolNameForDisplay(edits[0].toolName, edits[0].args);
+            }
+            return count > 1 ? `Editing ${count} files` : "Editing files";
+        }
+        default:
+            return toolName;
+    }
 }
 
 function formatSummaryForContext(summary: StructuredSummary): string {
@@ -419,7 +450,7 @@ export function createOrchestratorWithTools(
         const toolEntry: TranscriptEntry = {
             id: toolEntryId,
             role: "tool",
-            content: `${toolName}`,
+            content: formatToolNameForDisplay(toolName, args),
             ts: Date.now(),
             toolName,
             toolResult: undefined,

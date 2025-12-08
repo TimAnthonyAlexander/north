@@ -175,9 +175,9 @@ export function App({
                 />
             </Box>
             <Box paddingX={1}>
-                <Composer 
-                    onSubmit={handleSubmit} 
-                    disabled={composerDisabled} 
+                <Composer
+                    onSubmit={handleSubmit}
+                    disabled={composerDisabled}
                     commandRegistry={commandRegistry}
                 />
             </Box>

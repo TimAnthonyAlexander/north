@@ -1,6 +1,25 @@
-import { spawn, type IPty } from "bun-pty";
 import { randomUUID } from "crypto";
 import type { Logger } from "../logging/index";
+
+let bunPtyModule: any = null;
+let bunPtyLoadError: Error | null = null;
+
+async function loadBunPty() {
+    if (bunPtyModule) return bunPtyModule;
+    if (bunPtyLoadError) throw bunPtyLoadError;
+    
+    try {
+        bunPtyModule = await import("bun-pty");
+        return bunPtyModule;
+    } catch (error) {
+        bunPtyLoadError = new Error(
+            "Shell commands are not available. The bun-pty native library could not be loaded. " +
+            "Ensure north is properly installed with 'bun install' or 'npm install'. " +
+            `Details: ${error instanceof Error ? error.message : String(error)}`
+        );
+        throw bunPtyLoadError;
+    }
+}
 
 export interface ShellRunResult {
     stdout: string;
@@ -20,7 +39,7 @@ interface PendingCommand {
 }
 
 interface PtySession {
-    pty: IPty;
+    pty: any;
     buffer: string;
     pending: PendingCommand | null;
     disposed: boolean;
@@ -108,10 +127,12 @@ export function createShellService(options: ShellServiceOptions): ShellService {
         }
     }
 
-    function createSession(): PtySession {
+    async function createSession(): Promise<PtySession> {
         destroySession();
 
-        const pty = spawn("/bin/bash", ["--norc", "--noprofile", "-i"], {
+        const bunPty = await loadBunPty();
+
+        const pty = bunPty.spawn("/bin/bash", ["--norc", "--noprofile", "-i"], {
             name: "xterm-256color",
             cols: 120,
             rows: 40,
@@ -176,16 +197,16 @@ export function createShellService(options: ShellServiceOptions): ShellService {
         return newSession;
     }
 
-    function getOrCreateSession(): PtySession {
+    async function getOrCreateSession(): Promise<PtySession> {
         if (session && !session.disposed) {
             return session;
         }
-        return createSession();
+        return await createSession();
     }
 
     return {
         async run(command: string, runOptions?: { cwd?: string | null; timeoutMs?: number }): Promise<ShellRunResult> {
-            let sess = getOrCreateSession();
+            let sess = await getOrCreateSession();
 
             if (sess.pending) {
                 throw new Error("A command is already running. Wait for it to complete or timeout.");

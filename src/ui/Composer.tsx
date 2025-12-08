@@ -32,7 +32,7 @@ function findPrecedingCommand(value: string, cursorPos: number): string | null {
 function getModelSuggestions(prefix: string): Suggestion[] {
     const normalizedPrefix = prefix.toLowerCase();
     return MODELS
-        .filter(m => 
+        .filter(m =>
             m.alias.toLowerCase().startsWith(normalizedPrefix) ||
             m.display.toLowerCase().startsWith(normalizedPrefix) ||
             m.pinned.toLowerCase().includes(normalizedPrefix)
@@ -45,19 +45,19 @@ function getModelSuggestions(prefix: string): Suggestion[] {
 }
 
 function getSuggestions(
-    value: string, 
-    cursorPos: number, 
+    value: string,
+    cursorPos: number,
     registry: CommandRegistry | undefined
 ): { suggestions: Suggestion[]; tokenStart: number; tokenEnd: number } | null {
     if (!registry) return null;
-    
+
     const token = getTokenAtCursor(value, cursorPos);
     if (!token) return null;
-    
+
     if (token.isCommand) {
         const prefix = token.prefix.slice(1).toLowerCase();
         const commands = registry.list();
-        
+
         const filtered = commands
             .filter(cmd => cmd.name.toLowerCase().startsWith(prefix))
             .map(cmd => ({
@@ -65,28 +65,28 @@ function getSuggestions(
                 label: `/${cmd.name}`,
                 hint: cmd.description,
             }));
-        
+
         if (filtered.length === 0) return null;
-        
+
         return {
             suggestions: filtered,
             tokenStart: token.tokenStart,
             tokenEnd: token.tokenEnd,
         };
     }
-    
+
     const precedingCommand = findPrecedingCommand(value, cursorPos);
     if (precedingCommand === "model") {
         const modelSuggestions = getModelSuggestions(token.prefix);
         if (modelSuggestions.length === 0) return null;
-        
+
         return {
             suggestions: modelSuggestions,
             tokenStart: token.tokenStart,
             tokenEnd: token.tokenEnd,
         };
     }
-    
+
     return null;
 }
 
