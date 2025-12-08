@@ -581,7 +581,8 @@ export function createOrchestratorWithTools(
 
     async function executeToolCall(
         toolCall: ToolCall,
-        _assistantId: string
+        _assistantId: string,
+        mode: Mode
     ): Promise<{
         needsReview: boolean;
         entry: TranscriptEntry;
@@ -622,7 +623,7 @@ export function createOrchestratorWithTools(
         }
 
         if (policy === "write") {
-            if (!acceptedPlan) {
+            if (mode === "plan" && !acceptedPlan) {
                 const planRequiredResult = {
                     ok: false,
                     error: "PLAN_REQUIRED: You must create and get approval for a plan before making changes. Use plan_create tool to create a plan describing what you want to do.",
@@ -1209,7 +1210,8 @@ Respond with ONLY the JSON, no other text.`;
 
                 const { needsReview, entry, reviewType } = await executeToolCall(
                     toolCall,
-                    assistantId
+                    assistantId,
+                    currentMode
                 );
 
                 if (needsReview) {

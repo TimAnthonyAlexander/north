@@ -8,8 +8,12 @@ import type {
 
 const MODE_OPTIONS: PickerOption[] = [
     { id: "ask", label: "Ask", hint: "Read-only mode - no edits or commands" },
-    { id: "agent", label: "Agent", hint: "Full mode with all tools (requires plan)" },
-    { id: "plan", label: "Plan", hint: "Create/update plans before execution" },
+    { id: "agent", label: "Agent", hint: "Full mode with all tools" },
+    {
+        id: "plan",
+        label: "Plan",
+        hint: "Create/update plans before execution (plan required for writes)",
+    },
 ];
 
 export const modeCommand: CommandDefinition = {

@@ -163,7 +163,7 @@ Span-based tokenizer for reliable command extraction:
 - Owns command registry via `createCommandRegistryWithAllCommands()`
 - Preprocesses user input for slash commands before sending to Claude
 - Accepts mode parameter in `sendMessage(content, mode)` to filter available tools
-- Enforces plan requirement: write tools blocked until plan is accepted
+- In Plan mode only: enforces plan requirement (write tools blocked until plan is accepted)
 - Implements tool call loop:
   1. Parse and execute any slash commands in input
   2. Add `command_executed` entry for each command
@@ -548,8 +548,8 @@ North supports three conversation modes that control tool availability:
 
 **Mode Types:**
 - **Ask Mode**: Read-only - only read tools available (read_file, search_text, find_files, list_root, read_readme, detect_languages, hotfiles)
-- **Agent Mode**: Full access - all tools available, but write tools require an accepted plan
-- **Plan Mode**: Planning - read tools + plan_create/plan_update tools available
+- **Agent Mode**: Full access - all tools available, write tools work directly without requiring a plan
+- **Plan Mode**: Planning - read tools + plan_create/plan_update tools available; write tools require an accepted plan
 
 **Mode Selection:**
 - Mode is per-request, not global state
@@ -563,11 +563,12 @@ North supports three conversation modes that control tool availability:
 - Tools filtered via `filterToolsForMode(mode, allSchemas)` before sending to Claude
 - Only tools allowed by current mode are included in API request
 
-**Plan Requirement:**
-- All write tools (edit_*) require an accepted plan before execution
-- If no plan exists, write tools return `PLAN_REQUIRED` error
+**Plan Requirement (Plan Mode Only):**
+- In Plan mode, write tools require an accepted plan before execution
+- If no plan exists in Plan mode, write tools return `PLAN_REQUIRED` error
 - Plan must be created via `plan_create` tool and accepted by user
 - Plan persists until `/new` command (chat reset)
+- In Agent mode, write tools work directly without a plan
 
 ### Plan Review Flow
 
@@ -648,7 +649,7 @@ When Claude requests tools:
 ### Write Approval Flow
 
 When Claude requests an edit tool (approvalPolicy: "write"):
-1. Orchestrator checks if `acceptedPlan` exists - if not, returns `PLAN_REQUIRED` error
+1. In Plan mode only: Orchestrator checks if `acceptedPlan` exists - if not, returns `PLAN_REQUIRED` error
 2. Orchestrator checks if auto-accept is enabled (`.north/autoaccept.json`)
 3. **If auto-accept enabled**: edits applied immediately, status set to "always", Claude continues
 4. **If auto-accept disabled**:
