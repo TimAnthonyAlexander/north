@@ -1,5 +1,5 @@
 import type { ToolDefinition, ToolContext, ToolResult, EditReplaceExactInput, EditPrepareResult } from "./types";
-import { readFileContent, computeUnifiedDiff } from "../utils/editing";
+import { readFileContent, computeUnifiedDiff, preserveTrailingNewline } from "../utils/editing";
 
 export const editReplaceExactTool: ToolDefinition<EditReplaceExactInput, EditPrepareResult> = {
   name: "edit_replace_exact",
@@ -51,7 +51,8 @@ export const editReplaceExactTool: ToolDefinition<EditReplaceExactInput, EditPre
       };
     }
 
-    const modified = original.split(args.old).join(args.new);
+    const rawModified = original.split(args.old).join(args.new);
+    const modified = preserveTrailingNewline(original, rawModified);
     const fileDiff = computeUnifiedDiff(original, modified, args.path);
 
     return {

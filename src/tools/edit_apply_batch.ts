@@ -114,4 +114,3 @@ function consolidateDiffsByFile(diffs: FileDiff[]): FileDiff[] {
 
   return Array.from(byPath.values());
 }
-

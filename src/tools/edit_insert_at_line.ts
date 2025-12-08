@@ -1,5 +1,5 @@
 import type { ToolDefinition, ToolContext, ToolResult, EditInsertAtLineInput, EditPrepareResult } from "./types";
-import { readFileContent, computeUnifiedDiff } from "../utils/editing";
+import { readFileContent, computeUnifiedDiff, preserveTrailingNewline } from "../utils/editing";
 
 export const editInsertAtLineTool: ToolDefinition<EditInsertAtLineInput, EditPrepareResult> = {
   name: "edit_insert_at_line",
@@ -48,7 +48,8 @@ export const editInsertAtLineTool: ToolDefinition<EditInsertAtLineInput, EditPre
       ...lines.slice(args.line - 1),
     ];
 
-    const modified = newLines.join("\n");
+    const rawModified = newLines.join("\n");
+    const modified = preserveTrailingNewline(original, rawModified);
     const fileDiff = computeUnifiedDiff(original, modified, args.path);
 
     return {
@@ -57,7 +58,7 @@ export const editInsertAtLineTool: ToolDefinition<EditInsertAtLineInput, EditPre
         diffsByFile: [fileDiff],
         applyPayload: [
           {
-            type: "insert",
+            type: "replace",
             path: args.path,
             content: modified,
             originalContent: original,

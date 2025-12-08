@@ -300,7 +300,7 @@ export function createOrchestratorWithTools(
 
       return {
         result: {
-          ok: reviewOutcome.decision === "accept",
+          ok: reviewOutcome.applied,
           data: toolResultData,
           error: reviewOutcome.decision === "reject" ? "User rejected the changes" : reviewOutcome.error,
         },

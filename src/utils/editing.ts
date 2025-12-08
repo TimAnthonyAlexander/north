@@ -191,4 +191,3 @@ export function applyEditsAtomically(repoRoot: string, operations: EditOperation
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
-
