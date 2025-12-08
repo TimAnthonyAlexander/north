@@ -10,6 +10,7 @@ This document describes the current implementation state and module architecture
 | 2: Read/search tools | ✅ Complete |
 | 3: Deterministic edits + diff review | ✅ Complete |
 | 4: Persistent PTY shell + approvals | ✅ Complete |
+| 4.5: Slash commands + model switching | ✅ Complete |
 | 5: Memory + project card cache | Not started |
 | 6: UX polish | Not started |
 
@@ -20,10 +21,22 @@ This document describes the current implementation state and module architecture
 ```
 src/
 ├── index.ts              # CLI entry point, arg parsing, app bootstrap
+├── commands/
+│   ├── index.ts          # Command exports and registry factory
+│   ├── types.ts          # Command type definitions
+│   ├── models.ts         # Shared model list (alias, pinned, display)
+│   ├── registry.ts       # Command registry implementation
+│   ├── parse.ts          # Span-based command tokenizer
+│   └── commands/
+│       ├── quit.ts       # /quit - exit application
+│       ├── new.ts        # /new - reset chat
+│       ├── help.ts       # /help - list commands
+│       ├── model.ts      # /model - switch Claude model
+│       └── summarize.ts  # /summarize - summarize and trim transcript
 ├── logging/
 │   └── index.ts          # Append-only JSON-lines logger
 ├── orchestrator/
-│   └── index.ts          # Conversation state, message flow, tool loop, write/shell approval
+│   └── index.ts          # Conversation state, message flow, tool loop, commands, reviews
 ├── provider/
 │   └── anthropic.ts      # Claude streaming client with tool support
 ├── shell/
@@ -48,11 +61,12 @@ src/
 │   └── shell_run.ts      # Shell command execution (requires approval)
 ├── ui/
 │   ├── App.tsx           # Root Ink component, SIGINT handling, review wiring
-│   ├── Composer.tsx      # Multiline input with Ctrl+J newline
+│   ├── Composer.tsx      # Multiline input with slash command autocomplete
+│   ├── CommandReview.tsx # Interactive picker for commands (e.g., model selection)
 │   ├── DiffReview.tsx    # Inline diff viewer with accept/reject
 │   ├── ShellReview.tsx   # Shell command approval with run/always/deny
 │   ├── StatusLine.tsx    # Model name, project path display
-│   └── Transcript.tsx    # User/assistant/tool/diff_review/shell_review rendering
+│   └── Transcript.tsx    # User/assistant/tool/review/command entry rendering
 └── utils/
     ├── repo.ts           # Repo root detection
     ├── ignore.ts         # Gitignore parsing and file walking
@@ -70,6 +84,59 @@ src/
 - Handles clean exit via `waitUntilExit()`
 - Wires tool logging callbacks
 
+### commands/ (Slash Command System)
+
+Registry-driven command system with span-based parsing, cursor-aware autocomplete, and interactive pickers.
+
+#### commands/types.ts
+
+Defines core types:
+- `CommandDefinition`: name, description, usage, execute function
+- `CommandContext`: orchestrator methods available to commands
+- `ParsedArgs`: positional args and flags from parsing
+- `StructuredSummary`: goal, decisions, constraints, openTasks, importantFiles
+- `PickerOption`: id, label, hint for interactive selection
+- `CommandReviewStatus`: "pending" | "selected" | "cancelled"
+
+#### commands/models.ts
+
+Centralized model list shared by `/model` command and Composer autocomplete:
+- `MODELS`: array of `{ alias, pinned, display }`
+- `resolveModelId(input)`: maps alias or pinned ID to pinned ID
+- `getModelDisplay(modelId)`: returns human-readable name
+- `DEFAULT_MODEL`: default pinned model ID
+
+#### commands/registry.ts
+
+- In-process registry mapping command name -> definition
+- `register(command)`: add command to registry
+- `has(name)`: check if command exists (used by parser)
+- `list()`: get all commands (used by /help and autocomplete)
+- `execute(name, ctx, args)`: run command with error handling
+
+#### commands/parse.ts
+
+Span-based tokenizer for reliable command extraction:
+- `parseCommandInvocations(input, registry)`: returns `{ invocations, remainingText }`
+- Each invocation has `name`, `args`, `span` (start/end indices)
+- Parsing rules:
+  - `/name` must be preceded by start-of-line or whitespace
+  - Args stop at next `/name` token (unless inside quotes)
+  - Supports `--flag value` and `-f` short flags
+  - Quoted strings preserve whitespace
+- `remainingText` computed by slicing out spans in reverse order
+- `getTokenAtCursor(value, cursorPos)`: for autocomplete
+
+#### commands/commands/*.ts
+
+| Command | Usage | Purpose |
+|---------|-------|---------|
+| `/quit` | `/quit` | Exit North cleanly |
+| `/new` | `/new` | Reset chat (clears transcript + summary, keeps PTY) |
+| `/help` | `/help` | List available commands |
+| `/model` | `/model [alias]` | Switch model (with picker if no arg) |
+| `/summarize` | `/summarize [--keep-last N]` | Summarize conversation, trim transcript |
+
 ### logging/index.ts
 
 - Writes to `~/.local/state/north/north.log`
@@ -80,23 +147,31 @@ src/
 ### orchestrator/index.ts
 
 - Owns `transcript` (array of `TranscriptEntry`)
-- Owns `isProcessing` and `pendingReviewId` flags
+- Owns `isProcessing`, `pendingReviewId`, `currentModel`, `rollingSummary`
+- Owns command registry via `createCommandRegistryWithAllCommands()`
+- Preprocesses user input for slash commands before sending to Claude
 - Implements tool call loop:
-  1. Append user entry to transcript
-  2. Create assistant entry with `isStreaming: true`
-  3. Send messages to Claude with tool schemas
-  4. Stream response text (throttled at ~32ms)
-  5. If `stopReason === "tool_use"`:
+  1. Parse and execute any slash commands in input
+  2. Add `command_executed` entry for each command
+  3. If `remainingText` non-empty, append user entry to transcript
+  4. Create assistant entry with `isStreaming: true`
+  5. Send messages to Claude with tool schemas and current model
+  6. Stream response text (throttled at ~32ms)
+  7. If `stopReason === "tool_use"`:
      - Execute each tool via registry
      - For `approvalPolicy: "write"`: create `diff_review` entry, block for user decision
      - For `approvalPolicy: "shell"`: check allowlist, create `shell_review` if not allowed
      - On accept/run: apply edits or execute command, send result to Claude
      - On reject/deny: send rejection/denial to Claude
-  6. Continue until Claude stops requesting tools
+  8. Continue until Claude stops requesting tools
 - Streaming throttle: buffer chunks, flush every 32ms or on complete
-- Emits state changes via `onStateChange` callback
+- Emits state changes via `onStateChange` callback (includes `currentModel`)
+- `buildMessagesForClaude()`: excludes `command_review` and `command_executed` entries
+- Prepends `rollingSummary` as context block if present
 - Exposes `resolveWriteReview(reviewId, decision)` for UI to signal accept/reject
 - Exposes `resolveShellReview(reviewId, decision)` for UI to signal run/always/deny
+- Exposes `resolveCommandReview(reviewId, decision)` for UI to signal selection/cancel
+- Exposes `getCommandRegistry()` for Composer autocomplete
 - Exposes `stop()` for clean SIGINT handling
 
 ### shell/index.ts
@@ -127,6 +202,8 @@ src/
 - Default model: `claude-sonnet-4-20250514`
 - Streaming via `client.messages.stream()`
 - Supports tool definitions and tool_use blocks
+- Per-request options: `model`, `tools`, `systemOverride`
+- `systemOverride` replaces default system prompt (used for summarization)
 - Callbacks: `onChunk`, `onToolCall`, `onComplete`, `onError`
 - Helpers for building tool result messages
 
@@ -168,15 +245,40 @@ All tools follow the pattern:
 - `walkDirectory()` recursively walks repo respecting ignores
 - `listRootEntries()` lists root level entries
 
+### ui/Composer.tsx
+
+- Multiline input with Ctrl+J for newlines
+- Cursor-aware slash command autocomplete:
+  - Detects `/` tokens at cursor position
+  - Queries command registry for suggestions
+  - Shows dropdown with command name + description
+  - Tab to insert, Up/Down to navigate, Esc to close
+- Model argument autocomplete for `/model` command:
+  - Detects when cursor follows `/model `
+  - Shows model aliases with display names
+- Smart space insertion: only adds space after completion if needed
+- Clamps selection index when suggestions change
+
 ### ui/Transcript.tsx
 
 - Renders conversation history
 - User messages: cyan label
 - Assistant messages: magenta label
 - Tool messages: yellow ⚡ icon, gray text
+- Command executed messages: blue ⚙ icon with result
 - Diff review entries: bordered box with diff content
+- Shell review entries: command approval prompt
+- Command review entries: interactive picker
 - Error tool results: red text
 - Streaming indicator (●)
+
+### ui/CommandReview.tsx
+
+- Renders interactive picker for commands needing selection
+- Used by `/model` when no argument provided
+- Shows list of options with labels and hints
+- Keyboard shortcuts: Up/Down navigate, Enter select, Esc cancel
+- Status badges: pending (yellow), selected (green), cancelled (red)
 
 ### ui/DiffReview.tsx
 
@@ -205,8 +307,10 @@ All tools follow the pattern:
 
 ## Data Flow
 
+### User Input with Commands
+
 ```
-User Input
+User Input (may contain /commands)
     │
     ▼
 Composer.onSubmit(content)
@@ -219,10 +323,22 @@ App.handleSubmit(content)
     ▼
 orchestrator.sendMessage(content)
     │
+    ▼
+parseCommandInvocations(content, commandRegistry)
+    │
+    ├──► For each command invocation:
+    │       │
+    │       ├──► Execute command via registry
+    │       ├──► If picker needed: create command_review entry, block for selection
+    │       └──► Add command_executed entry with result
+    │
+    ▼
+If remainingText.trim() non-empty:
+    │
     ├──► Push user entry to transcript
     │
     ▼
-┌─► provider.stream(messages, { tools })
+┌─► provider.stream(messages, { tools, model })
 │       │
 │       ├──► onChunk: buffer chunks, throttled emit
 │       ├──► onToolCall: add tool intent to transcript
@@ -247,6 +363,41 @@ Transcript re-renders with all content
 ```
 
 ## Key Implementation Details
+
+### Slash Command Execution
+
+When user input contains slash commands:
+1. `parseCommandInvocations()` tokenizes input, finds registered commands
+2. Each command has `span` (start/end indices) for clean removal
+3. Commands execute sequentially via registry
+4. If command needs picker (e.g., `/model` without arg):
+   - Creates `command_review` transcript entry
+   - Blocks until user selects or cancels
+   - Updates entry with selection status
+5. After execution, `command_executed` entry added with result message
+6. `remainingText` (input with commands removed) sent to Claude if non-empty
+7. `command_review` and `command_executed` entries are excluded from `buildMessagesForClaude()`
+
+### Rolling Summary
+
+The `/summarize` command:
+1. Calls `generateSummary()` which prompts Claude for structured JSON
+2. Uses `systemOverride` with minimal prompt (no tool guidance noise)
+3. Returns `StructuredSummary` or null on failure
+4. On success: sets rolling summary, trims transcript
+5. `trimTranscript(keepLast)` preserves chronological order:
+   - Keeps last N user/assistant entries
+   - Preserves non-pending diff_review and shell_review outcomes
+   - Filters original array (no reordering)
+6. Rolling summary prepended to Claude context as structured block
+
+### Model Switching
+
+Model selection via `/model`:
+- With argument: `resolveModelId()` maps alias → pinned ID
+- Without argument: shows picker with all models
+- Provider accepts model per-request (no recreation)
+- `currentModel` stored in orchestrator state
 
 ### Tool Call Loop
 
