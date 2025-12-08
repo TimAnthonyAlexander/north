@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, copyFileSync, unlinkSync } from "fs";
 import { join, isAbsolute, normalize, dirname } from "path";
 import { tmpdir } from "os";
 import type { EditOperation, FileDiff } from "../tools/types";
@@ -188,7 +188,16 @@ export function applyEditsAtomically(repoRoot: string, operations: EditOperation
         }
 
         for (const { tempPath, finalPath } of tempFiles) {
-            renameSync(tempPath, finalPath);
+            try {
+                renameSync(tempPath, finalPath);
+            } catch (err: any) {
+                if (err.code === 'EXDEV') {
+                    copyFileSync(tempPath, finalPath);
+                    unlinkSync(tempPath);
+                } else {
+                    throw err;
+                }
+            }
         }
 
         return { ok: true };
@@ -196,8 +205,7 @@ export function applyEditsAtomically(repoRoot: string, operations: EditOperation
         for (const { tempPath } of tempFiles) {
             try {
                 if (existsSync(tempPath)) {
-                    const fs = require("fs");
-                    fs.unlinkSync(tempPath);
+                    unlinkSync(tempPath);
                 }
             } catch { }
         }

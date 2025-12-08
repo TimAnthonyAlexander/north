@@ -330,7 +330,7 @@ All tools follow the pattern:
 - `preserveTrailingNewline()`: ensures trailing newline consistency after edits
 - `computeUnifiedDiff()`: generates unified diff format
 - `computeCreateFileDiff()`: generates diff for new files
-- `applyEditsAtomically()`: writes to temp files then renames for safety
+- `applyEditsAtomically()`: writes to temp files then renames for safety; handles cross-filesystem scenarios (EXDEV) via copy+unlink fallback
 
 ## Data Flow
 
