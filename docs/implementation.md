@@ -172,7 +172,9 @@ Span-based tokenizer for reliable command extraction:
 - Exposes `resolveShellReview(reviewId, decision)` for UI to signal run/always/deny
 - Exposes `resolveCommandReview(reviewId, decision)` for UI to signal selection/cancel
 - Exposes `getCommandRegistry()` for Composer autocomplete
-- Exposes `stop()` for clean SIGINT handling
+- Exposes `cancel()` for interrupting ongoing operations (CTRL+C during processing)
+- Exposes `stop()` for clean exit (CTRL+C when idle)
+- Exposes `isProcessing()` for checking if an operation is in progress
 
 ### shell/index.ts
 
@@ -202,9 +204,10 @@ Span-based tokenizer for reliable command extraction:
 - Default model: `claude-sonnet-4-20250514`
 - Streaming via `client.messages.stream()`
 - Supports tool definitions and tool_use blocks
-- Per-request options: `model`, `tools`, `systemOverride`
+- Per-request options: `model`, `tools`, `systemOverride`, `signal` (AbortSignal)
 - `systemOverride` replaces default system prompt (used for summarization)
 - Callbacks: `onChunk`, `onToolCall`, `onComplete`, `onError`
+- Abort support: checks signal during stream loop, returns `stopReason: "cancelled"`
 - Helpers for building tool result messages
 
 ### tools/registry.ts
@@ -245,9 +248,17 @@ All tools follow the pattern:
 - `walkDirectory()` recursively walks repo respecting ignores
 - `listRootEntries()` lists root level entries
 
+### ui/App.tsx
+
+- Root Ink component, wires orchestrator to UI state
+- SIGINT handling: cancel if processing, exit if idle
+- Delegates review decisions to orchestrator methods
+- Tracks `isProcessing` and `pendingReviewId` for UI state
+
 ### ui/Composer.tsx
 
 - Multiline input with Ctrl+J for newlines
+- Shows "Ctrl+C to cancel" hint when disabled/waiting
 - Cursor-aware slash command autocomplete:
   - Detects `/` tokens at cursor position
   - Queries command registry for suggestions
@@ -362,6 +373,33 @@ If remainingText.trim() non-empty:
 Transcript re-renders with all content
 ```
 
+### CTRL+C Signal Flow
+
+```
+SIGINT (Ctrl+C)
+    │
+    ▼
+App.handleSigint()
+    │
+    ├──► If orchestrator.isProcessing():
+    │       │
+    │       ▼
+    │   orchestrator.cancel()
+    │       │
+    │       ├──► currentAbortController.abort()
+    │       ├──► Resolve pending reviews (reject/deny/cancel)
+    │       ├──► Set cancelled = true
+    │       └──► Return to input
+    │
+    └──► If not processing:
+            │
+            ▼
+        orchestrator.stop()
+            │
+            ├──► disposeAllShellServices()
+            └──► exit()
+```
+
 ## Key Implementation Details
 
 ### Slash Command Execution
@@ -434,6 +472,29 @@ When Claude requests `shell_run` (approvalPolicy: "shell"):
 9. On Deny: return `{ denied: true }` to Claude, status set to "denied"
 10. Tool result sent to Claude with outcome
 11. Claude continues processing
+
+### Cancellation Flow (CTRL+C)
+
+The app handles CTRL+C (SIGINT) contextually:
+
+1. **During processing** (`isProcessing() === true`):
+   - Calls `orchestrator.cancel()`
+   - Aborts the current AbortController (stops API streaming)
+   - Resolves any pending reviews as rejected/denied/cancelled
+   - Appends `[Cancelled]` to the assistant's message
+   - Returns control to the input field
+   - App remains running
+
+2. **When idle** (`isProcessing() === false`):
+   - Calls `orchestrator.stop()`
+   - Disposes all shell services
+   - Exits the application
+
+Implementation details:
+- `currentAbortController` tracks the active API request
+- `cancelled` flag checked in conversation loop
+- Provider stream loop checks `signal.aborted` and exits gracefully
+- Pending write/shell/command reviews auto-resolve on cancel
 
 ### Gitignore Handling
 

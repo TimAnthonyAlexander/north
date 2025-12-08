@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+When making changes, at the end, check out docs/implementation.md if you need to expand it by what you just changed/implemented.
