@@ -2,6 +2,8 @@
 
 North is a Claude-only, Bun-compiled, self-contained CLI for macOS and Linux.
 
+![North in action](screenshot.png)
+
 It is a "chat + tools" terminal app:
 - Minimal UI (Ink) with a strong diff review experience
 - Persistent PTY shell session

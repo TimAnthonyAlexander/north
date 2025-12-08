@@ -7,22 +7,29 @@ import {
 } from "../provider/anthropic";
 import { createToolRegistryWithAllTools } from "../tools/index";
 import type { ToolRegistry } from "../tools/registry";
-import type { ToolContext, ToolResult } from "../tools/types";
+import type { ToolContext, ToolResult, EditPrepareResult, EditOperation, FileDiff } from "../tools/types";
 import type { Logger } from "../logging/index";
+import { applyEditsAtomically } from "../utils/editing";
 
 export interface TranscriptEntry {
   id: string;
-  role: "user" | "assistant" | "tool";
+  role: "user" | "assistant" | "tool" | "diff_review";
   content: string;
   isStreaming: boolean;
   toolName?: string;
   toolInput?: unknown;
   toolResult?: ToolResult;
+  diffContent?: FileDiff[];
+  filesCount?: number;
+  applyPayload?: EditOperation[];
+  reviewStatus?: "pending" | "accepted" | "rejected";
+  toolCallId?: string;
 }
 
 export interface OrchestratorState {
   transcript: TranscriptEntry[];
   isProcessing: boolean;
+  pendingReviewId: string | null;
 }
 
 export interface OrchestratorCallbacks {
@@ -31,6 +38,10 @@ export interface OrchestratorCallbacks {
   onRequestComplete: (requestId: string, durationMs: number, error?: Error) => void;
   onToolCallStart?: (toolName: string, args: unknown) => void;
   onToolCallComplete?: (toolName: string, durationMs: number, ok: boolean) => void;
+  onWriteReviewShown?: (filesCount: number, toolName: string) => void;
+  onWriteReviewDecision?: (decision: "accept" | "reject", filesCount: number) => void;
+  onWriteApplyStart?: () => void;
+  onWriteApplyComplete?: (durationMs: number, ok: boolean) => void;
 }
 
 export interface OrchestratorOptions {
@@ -42,6 +53,7 @@ export interface Orchestrator {
   getState(): OrchestratorState;
   sendMessage(content: string): void;
   getModel(): string;
+  resolveWriteReview(entryId: string, decision: "accept" | "reject"): void;
 }
 
 const STREAM_THROTTLE_MS = 32;
@@ -72,6 +84,14 @@ function formatToolIntent(toolName: string, input: unknown): string {
       return "Detecting language composition...";
     case "hotfiles":
       return `Finding hotfiles (limit: ${args.limit || 10})...`;
+    case "edit_replace_exact":
+      return `Preparing edit: replace in ${args.path}`;
+    case "edit_insert_at_line":
+      return `Preparing edit: insert at line ${args.line} in ${args.path}`;
+    case "edit_create_file":
+      return `Preparing edit: create ${args.path}`;
+    case "edit_apply_batch":
+      return `Preparing batch edit: ${(args.edits as unknown[])?.length || 0} operations`;
     default:
       return `Tool: ${toolName}`;
   }
@@ -128,6 +148,13 @@ function formatToolResultForTranscript(toolName: string, result: ToolResult): st
       if (files.length === 0) return "No hotfiles found";
       return `${files.length} files (${method}): ${files.slice(0, 3).map((f) => f.path).join(", ")}`;
     }
+    case "edit_replace_exact":
+    case "edit_insert_at_line":
+    case "edit_create_file":
+    case "edit_apply_batch": {
+      const stats = data.stats as { filesChanged: number; totalLinesAdded: number; totalLinesRemoved: number };
+      return `${stats.filesChanged} file(s), +${stats.totalLinesAdded}/-${stats.totalLinesRemoved} lines`;
+    }
     default:
       return "Done";
   }
@@ -143,6 +170,7 @@ export function createOrchestratorWithTools(
   const state: OrchestratorState = {
     transcript: [],
     isProcessing: false,
+    pendingReviewId: null,
   };
 
   const toolContext: ToolContext = {
@@ -153,6 +181,8 @@ export function createOrchestratorWithTools(
   let pendingEmit: ReturnType<typeof setTimeout> | null = null;
   let streamBuffer = "";
   let currentAssistantEntryId: string | null = null;
+
+  let pendingReviewResolve: ((decision: "accept" | "reject") => void) | null = null;
 
   function emitState(): void {
     callbacks.onStateChange({ ...state, transcript: [...state.transcript] });
@@ -176,14 +206,109 @@ export function createOrchestratorWithTools(
     }
   }
 
-  async function executeToolCall(toolCall: ToolCall): Promise<ToolResult> {
+  async function waitForWriteReview(
+    entryId: string,
+    toolName: string,
+    prepareResult: EditPrepareResult,
+    toolCallId: string
+  ): Promise<{ decision: "accept" | "reject"; applied: boolean; error?: string }> {
+    const reviewEntry: TranscriptEntry = {
+      id: entryId,
+      role: "diff_review",
+      content: "",
+      isStreaming: false,
+      toolName,
+      diffContent: prepareResult.diffsByFile,
+      filesCount: prepareResult.stats.filesChanged,
+      applyPayload: prepareResult.applyPayload,
+      reviewStatus: "pending",
+      toolCallId,
+    };
+
+    state.transcript.push(reviewEntry);
+    state.pendingReviewId = entryId;
+    emitState();
+
+    callbacks.onWriteReviewShown?.(prepareResult.stats.filesChanged, toolName);
+
+    const decision = await new Promise<"accept" | "reject">((resolve) => {
+      pendingReviewResolve = resolve;
+    });
+
+    pendingReviewResolve = null;
+    callbacks.onWriteReviewDecision?.(decision, prepareResult.stats.filesChanged);
+
+    const entry = state.transcript.find((e) => e.id === entryId);
+    if (!entry) {
+      return { decision, applied: false, error: "Review entry not found" };
+    }
+
+    if (decision === "reject") {
+      entry.reviewStatus = "rejected";
+      state.pendingReviewId = null;
+      emitState();
+      return { decision, applied: false };
+    }
+
+    callbacks.onWriteApplyStart?.();
+    const applyStartTime = Date.now();
+
+    const applyResult = applyEditsAtomically(options.repoRoot, prepareResult.applyPayload);
+
+    const applyDuration = Date.now() - applyStartTime;
+    callbacks.onWriteApplyComplete?.(applyDuration, applyResult.ok);
+
+    entry.reviewStatus = applyResult.ok ? "accepted" : "rejected";
+    state.pendingReviewId = null;
+    emitState();
+
+    return {
+      decision,
+      applied: applyResult.ok,
+      error: applyResult.error,
+    };
+  }
+
+  async function executeToolCall(toolCall: ToolCall): Promise<{ result: ToolResult; reviewEntryId?: string }> {
     const startTime = Date.now();
     callbacks.onToolCallStart?.(toolCall.name, toolCall.input);
+
+    const approvalPolicy = registry.getApprovalPolicy(toolCall.name);
 
     const result = await registry.execute(toolCall.name, toolCall.input, toolContext);
 
     callbacks.onToolCallComplete?.(toolCall.name, Date.now() - startTime, result.ok);
-    return result;
+
+    if (approvalPolicy === "write" && result.ok) {
+      const prepareResult = result.data as EditPrepareResult;
+      const reviewEntryId = generateEntryId();
+
+      const reviewOutcome = await waitForWriteReview(
+        reviewEntryId,
+        toolCall.name,
+        prepareResult,
+        toolCall.id
+      );
+
+      const toolResultData = {
+        ok: reviewOutcome.applied,
+        applied: reviewOutcome.applied,
+        decision: reviewOutcome.decision,
+        stats: prepareResult.stats,
+        error: reviewOutcome.error,
+      };
+
+      return {
+        result: {
+          ok: reviewOutcome.decision === "accept",
+          data: toolResultData,
+          error: reviewOutcome.decision === "reject" ? "User rejected the changes" : reviewOutcome.error,
+        },
+        reviewEntryId,
+      };
+    }
+
+    return { result };
   }
 
   async function processUserMessage(userContent: string): Promise<void> {
@@ -201,6 +326,7 @@ export function createOrchestratorWithTools(
     for (const entry of state.transcript) {
       if (entry.isStreaming) continue;
       if (entry.role === "tool") continue;
+      if (entry.role === "diff_review") continue;
       if (entry.role === "user") {
         conversationMessages.push({ role: "user", content: entry.content });
       } else if (entry.role === "assistant") {
@@ -301,7 +427,7 @@ export function createOrchestratorWithTools(
         const toolResults: Array<{ toolCallId: string; result: string; isError?: boolean }> = [];
 
         for (const toolCall of result.toolCalls) {
-          const toolResult = await executeToolCall(toolCall);
+          const { result: toolResult } = await executeToolCall(toolCall);
 
           const toolEntry = state.transcript.find(
             (e) =>
@@ -352,6 +478,13 @@ export function createOrchestratorWithTools(
 
     getModel(): string {
       return provider.model;
+    },
+
+    resolveWriteReview(entryId: string, decision: "accept" | "reject"): void {
+      if (state.pendingReviewId !== entryId) return;
+      if (pendingReviewResolve) {
+        pendingReviewResolve(decision);
+      }
     },
   };
 }

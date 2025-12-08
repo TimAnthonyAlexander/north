@@ -7,6 +7,10 @@ export { findFilesTool } from "./find_files";
 export { readReadmeTool } from "./read_readme";
 export { detectLanguagesTool } from "./detect_languages";
 export { hotfilesTool } from "./hotfiles";
+export { editReplaceExactTool } from "./edit_replace_exact";
+export { editInsertAtLineTool } from "./edit_insert_at_line";
+export { editCreateFileTool } from "./edit_create_file";
+export { editApplyBatchTool } from "./edit_apply_batch";
 
 import { createToolRegistry, type ToolRegistry } from "./registry";
 import { listRootTool } from "./list_root";
@@ -16,6 +20,10 @@ import { findFilesTool } from "./find_files";
 import { readReadmeTool } from "./read_readme";
 import { detectLanguagesTool } from "./detect_languages";
 import { hotfilesTool } from "./hotfiles";
+import { editReplaceExactTool } from "./edit_replace_exact";
+import { editInsertAtLineTool } from "./edit_insert_at_line";
+import { editCreateFileTool } from "./edit_create_file";
+import { editApplyBatchTool } from "./edit_apply_batch";
 
 export function createToolRegistryWithAllTools(): ToolRegistry {
   const registry = createToolRegistry();
@@ -27,6 +35,10 @@ export function createToolRegistryWithAllTools(): ToolRegistry {
   registry.register(readReadmeTool);
   registry.register(detectLanguagesTool);
   registry.register(hotfilesTool);
+  registry.register(editReplaceExactTool);
+  registry.register(editInsertAtLineTool);
+  registry.register(editCreateFileTool);
+  registry.register(editApplyBatchTool);
 
   return registry;
 }

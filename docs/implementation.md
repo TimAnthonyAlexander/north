@@ -8,7 +8,7 @@ This document describes the current implementation state and module architecture
 |-----------|--------|
 | 1: Chat UI + streaming | ✅ Complete |
 | 2: Read/search tools | ✅ Complete |
-| 3: Deterministic edits + diff review | Not started |
+| 3: Deterministic edits + diff review | ✅ Complete |
 | 4: Persistent PTY shell + approvals | Not started |
 | 5: Memory + project card cache | Not started |
 | 6: UX polish | Not started |
@@ -21,28 +21,34 @@ src/
 ├── logging/
 │   └── index.ts          # Append-only JSON-lines logger
 ├── orchestrator/
-│   └── index.ts          # Conversation state, message flow, tool loop
+│   └── index.ts          # Conversation state, message flow, tool loop, write approval
 ├── provider/
 │   └── anthropic.ts      # Claude streaming client with tool support
 ├── tools/
 │   ├── index.ts          # Tool exports and registry factory
-│   ├── types.ts          # Tool type definitions
-│   ├── registry.ts       # Tool registry implementation
+│   ├── types.ts          # Tool type definitions (including edit types)
+│   ├── registry.ts       # Tool registry implementation with approval policy
 │   ├── list_root.ts      # List repo root entries
 │   ├── find_files.ts     # Glob pattern file search
 │   ├── search_text.ts    # Text/regex search (ripgrep or fallback)
 │   ├── read_file.ts      # File content reader with ranges
 │   ├── read_readme.ts    # README finder and reader
 │   ├── detect_languages.ts # Language composition detector
-│   └── hotfiles.ts       # Frequently modified files (git or fallback)
+│   ├── hotfiles.ts       # Frequently modified files (git or fallback)
+│   ├── edit_replace_exact.ts  # Exact text replacement
+│   ├── edit_insert_at_line.ts # Insert at line number
+│   ├── edit_create_file.ts    # Create or overwrite file
+│   └── edit_apply_batch.ts    # Atomic batch edits
 ├── ui/
-│   ├── App.tsx           # Root Ink component, SIGINT handling
+│   ├── App.tsx           # Root Ink component, SIGINT handling, review wiring
 │   ├── Composer.tsx      # Multiline input with Ctrl+J newline
+│   ├── DiffReview.tsx    # Inline diff viewer with accept/reject
 │   ├── StatusLine.tsx    # Model name, project path display
-│   └── Transcript.tsx    # User/assistant/tool message rendering
+│   └── Transcript.tsx    # User/assistant/tool/diff_review message rendering
 └── utils/
     ├── repo.ts           # Repo root detection
-    └── ignore.ts         # Gitignore parsing and file walking
+    ├── ignore.ts         # Gitignore parsing and file walking
+    └── editing.ts        # Diff computation and atomic file writes
 ```
 
 ## Module Responsibilities
@@ -60,21 +66,23 @@ src/
 
 - Writes to `~/.local/state/north/north.log`
 - JSON-lines format (one JSON object per line)
-- Events: `app_start`, `user_prompt`, `model_request_start`, `model_request_complete`, `tool_call_start`, `tool_call_complete`, `app_exit`
+- Events: `app_start`, `user_prompt`, `model_request_start`, `model_request_complete`, `tool_call_start`, `tool_call_complete`, `write_review_shown`, `write_review_decision`, `write_apply_start`, `write_apply_complete`, `app_exit`
 - Silent fail on write errors (logging must not crash the app)
 
 ### orchestrator/index.ts
 
 - Owns `transcript` (array of `TranscriptEntry`)
-- Owns `isProcessing` flag
+- Owns `isProcessing` and `pendingReviewId` flags
 - Implements tool call loop:
   1. Send message to Claude
   2. Stream response text
   3. If Claude requests tools, execute them
-  4. Feed tool results back to Claude
-  5. Continue until Claude stops requesting tools
+  4. For write tools: block and wait for user approval
+  5. Feed tool results back to Claude
+  6. Continue until Claude stops requesting tools
 - Throttles streaming updates (~32ms) to prevent UI thrashing
 - Emits state changes via callback
+- Exposes `resolveWriteReview()` for UI to signal accept/reject
 
 ### provider/anthropic.ts
 
@@ -88,8 +96,9 @@ src/
 ### tools/registry.ts
 
 - In-process registry mapping tool name -> definition
-- Each tool has: name, description, inputSchema, execute()
+- Each tool has: name, description, inputSchema, approvalPolicy, execute()
 - `getSchemas()` returns tool definitions for Claude API
+- `getApprovalPolicy()` returns "none", "write", or "shell" for a tool
 - `execute()` runs tool and returns structured result
 
 ### tools/*.ts (Tool Implementations)
@@ -108,6 +117,10 @@ All tools follow the pattern:
 | `read_readme` | Read README | Auto-detect README.* |
 | `detect_languages` | Language composition | By extension and size |
 | `hotfiles` | Important files | Git history or fallback |
+| `edit_replace_exact` | Replace exact text | Requires user approval |
+| `edit_insert_at_line` | Insert at line | 1-based, requires approval |
+| `edit_create_file` | Create/overwrite file | Requires approval |
+| `edit_apply_batch` | Atomic batch edits | All-or-nothing, requires approval |
 
 ### utils/ignore.ts
 
@@ -123,8 +136,26 @@ All tools follow the pattern:
 - User messages: cyan label
 - Assistant messages: magenta label
 - Tool messages: yellow ⚡ icon, gray text
+- Diff review entries: bordered box with diff content
 - Error tool results: red text
 - Streaming indicator (●)
+
+### ui/DiffReview.tsx
+
+- Renders inline diff with syntax highlighting
+- Green for additions, red for deletions, cyan for hunk headers
+- Truncates diffs over 100 lines with indicator
+- Shows file stats (+lines/-lines)
+- Keyboard shortcuts: `a` accept, `r` reject
+- Status badges: pending (yellow border), accepted (green), rejected (red)
+
+### utils/editing.ts
+
+- `resolveSafePath()`: validates paths stay within repo root
+- `readFileContent()`: safe file reading with error handling
+- `computeUnifiedDiff()`: generates unified diff format
+- `computeCreateFileDiff()`: generates diff for new files
+- `applyEditsAtomically()`: writes to temp files then renames for safety
 
 ## Data Flow
 
@@ -178,6 +209,19 @@ When Claude requests tools:
 2. Orchestrator executes each tool via registry
 3. Results are JSON-stringified and sent back as `tool_result` blocks
 4. Claude processes results and may request more tools or respond
+
+### Write Approval Flow
+
+When Claude requests an edit tool (approvalPolicy: "write"):
+1. Tool executes in "prepare" mode - computes diff but doesn't write
+2. Orchestrator creates a `diff_review` transcript entry with status "pending"
+3. Tool loop blocks, waiting for user decision
+4. DiffReview component renders inline diff with Accept/Reject options
+5. User presses `a` (accept) or `r` (reject)
+6. On Accept: edits applied atomically (temp files then rename)
+7. On Reject: nothing written, status set to "rejected"
+8. Tool result sent to Claude with outcome (applied: true/false)
+9. Claude continues processing
 
 ### Gitignore Handling
 

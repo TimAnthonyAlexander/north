@@ -66,12 +66,25 @@ You have access to tools for exploring repositories:
 - detect_languages: See the language composition of the repo
 - hotfiles: Find the most frequently modified files
 
+You have access to tools for editing files:
+- edit_replace_exact: Replace exact text in a file (must match exactly including whitespace)
+- edit_insert_at_line: Insert content at a specific line number (1-based)
+- edit_create_file: Create a new file or overwrite an existing file
+- edit_apply_batch: Apply multiple edits as a single atomic operation
+
 Guidelines:
 - Use tools to gather context before answering questions about code
 - Be concise and direct
 - When you need more context, use tools rather than asking the user
 - Prefer showing relevant code snippets over verbose explanations
-- If a tool fails, explain what went wrong and try an alternative approach`;
+- If a tool fails, explain what went wrong and try an alternative approach
+
+Editing guidelines:
+- ALWAYS use read_file first to get the exact content before attempting edits
+- Use edit_replace_exact with the exact text from read_file output
+- All file edits require user approval via diff review before being applied
+- If an edit fails because text wasn't found, re-read the file and try again with the exact content
+- For multiple related changes, use edit_apply_batch for atomic application`;
 
 export function createProvider(options?: { model?: string }): Provider {
   const client = new Anthropic();

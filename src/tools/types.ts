@@ -1,5 +1,7 @@
 import type { Logger } from "../logging/index";
 
+export type ApprovalPolicy = "none" | "write" | "shell";
+
 export interface ToolContext {
   repoRoot: string;
   logger: Logger;
@@ -10,7 +12,10 @@ export interface ToolInputSchema {
   properties: Record<string, {
     type: string;
     description: string;
-    items?: { type: string };
+    items?: {
+      type: string;
+      properties?: Record<string, { type: string; description: string }>;
+    };
     properties?: Record<string, unknown>;
   }>;
   required?: string[];
@@ -26,6 +31,7 @@ export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
   name: string;
   description: string;
   inputSchema: ToolInputSchema;
+  approvalPolicy?: ApprovalPolicy;
   execute(args: TInput, ctx: ToolContext): Promise<ToolResult<TOutput>>;
 }
 
@@ -104,5 +110,55 @@ export interface HotfileEntry {
 export interface HotfilesOutput {
   files: HotfileEntry[];
   method: "git" | "fallback";
+}
+
+export interface EditOperation {
+  type: "replace" | "insert" | "create";
+  path: string;
+  content: string;
+  originalContent?: string;
+}
+
+export interface FileDiff {
+  path: string;
+  diff: string;
+  linesAdded: number;
+  linesRemoved: number;
+}
+
+export interface EditPrepareResult {
+  diffsByFile: FileDiff[];
+  applyPayload: EditOperation[];
+  stats: {
+    filesChanged: number;
+    totalLinesAdded: number;
+    totalLinesRemoved: number;
+  };
+}
+
+export interface EditReplaceExactInput {
+  path: string;
+  old: string;
+  new: string;
+  expectedOccurrences?: number;
+}
+
+export interface EditInsertAtLineInput {
+  path: string;
+  line: number;
+  content: string;
+}
+
+export interface EditCreateFileInput {
+  path: string;
+  content: string;
+  overwrite?: boolean;
+}
+
+export interface EditBatchInput {
+  edits: Array<{
+    toolName: string;
+    args: unknown;
+  }>;
 }
 

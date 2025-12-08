@@ -1,9 +1,13 @@
 import React from "react";
 import { Box, Text } from "ink";
 import type { TranscriptEntry } from "../orchestrator/index";
+import { DiffReview } from "./DiffReview";
 
 interface TranscriptProps {
   entries: TranscriptEntry[];
+  pendingReviewId: string | null;
+  onAcceptReview?: (entryId: string) => void;
+  onRejectReview?: (entryId: string) => void;
 }
 
 function UserMessage({ entry }: { entry: TranscriptEntry }) {
@@ -58,7 +62,14 @@ function ToolMessage({ entry }: { entry: TranscriptEntry }) {
   );
 }
 
-function MessageBlock({ entry }: { entry: TranscriptEntry }) {
+interface MessageBlockProps {
+  entry: TranscriptEntry;
+  isActiveReview: boolean;
+  onAccept?: () => void;
+  onReject?: () => void;
+}
+
+function MessageBlock({ entry, isActiveReview, onAccept, onReject }: MessageBlockProps) {
   if (entry.role === "user") {
     return <UserMessage entry={entry} />;
   }
@@ -67,10 +78,29 @@ function MessageBlock({ entry }: { entry: TranscriptEntry }) {
     return <ToolMessage entry={entry} />;
   }
 
+  if (entry.role === "diff_review" && entry.diffContent) {
+    return (
+      <DiffReview
+        diffs={entry.diffContent}
+        filesCount={entry.filesCount || 0}
+        toolName={entry.toolName || "edit"}
+        reviewStatus={entry.reviewStatus || "pending"}
+        onAccept={onAccept}
+        onReject={onReject}
+        isActive={isActiveReview}
+      />
+    );
+  }
+
   return <AssistantMessage entry={entry} />;
 }
 
-export function Transcript({ entries }: TranscriptProps) {
+export function Transcript({
+  entries,
+  pendingReviewId,
+  onAcceptReview,
+  onRejectReview,
+}: TranscriptProps) {
   if (entries.length === 0) {
     return (
       <Box marginBottom={1}>
@@ -82,7 +112,13 @@ export function Transcript({ entries }: TranscriptProps) {
   return (
     <Box flexDirection="column">
       {entries.map((entry) => (
-        <MessageBlock key={entry.id} entry={entry} />
+        <MessageBlock
+          key={entry.id}
+          entry={entry}
+          isActiveReview={entry.id === pendingReviewId}
+          onAccept={entry.id === pendingReviewId ? () => onAcceptReview?.(entry.id) : undefined}
+          onReject={entry.id === pendingReviewId ? () => onRejectReview?.(entry.id) : undefined}
+        />
       ))}
     </Box>
   );

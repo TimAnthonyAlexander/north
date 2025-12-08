@@ -1,10 +1,11 @@
-import type { ToolDefinition, ToolContext, ToolResult, ToolInputSchema } from "./types";
+import type { ToolDefinition, ToolContext, ToolResult, ToolInputSchema, ApprovalPolicy } from "./types";
 
 export interface ToolRegistry {
   register(tool: ToolDefinition): void;
   get(name: string): ToolDefinition | undefined;
   list(): ToolDefinition[];
   execute(name: string, args: unknown, ctx: ToolContext): Promise<ToolResult>;
+  getApprovalPolicy(name: string): ApprovalPolicy;
   getSchemas(): Array<{
     name: string;
     description: string;
@@ -26,6 +27,11 @@ export function createToolRegistry(): ToolRegistry {
 
     list(): ToolDefinition[] {
       return Array.from(tools.values());
+    },
+
+    getApprovalPolicy(name: string): ApprovalPolicy {
+      const tool = tools.get(name);
+      return tool?.approvalPolicy ?? "none";
     },
 
     async execute(name: string, args: unknown, ctx: ToolContext): Promise<ToolResult> {

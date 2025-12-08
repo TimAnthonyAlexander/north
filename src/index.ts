@@ -78,6 +78,18 @@ function main() {
           ok,
         });
       },
+      onWriteReviewShown(filesCount: number, toolName: string) {
+        logger.info("write_review_shown", { filesCount, toolName });
+      },
+      onWriteReviewDecision(decision: "accept" | "reject", filesCount: number) {
+        logger.info("write_review_decision", { decision, filesCount });
+      },
+      onWriteApplyStart() {
+        logger.info("write_apply_start", {});
+      },
+      onWriteApplyComplete(durationMs: number, ok: boolean) {
+        logger.info("write_apply_complete", { durationMs, ok });
+      },
     })
   );
 
