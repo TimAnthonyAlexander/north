@@ -2,15 +2,16 @@ export interface ModelInfo {
     alias: string;
     pinned: string;
     display: string;
+    contextLimitTokens: number;
 }
 
 export const MODELS: readonly ModelInfo[] = [
-    { alias: "sonnet-4", pinned: "claude-sonnet-4-20250514", display: "Claude Sonnet 4" },
-    { alias: "opus-4", pinned: "claude-opus-4-20250514", display: "Claude Opus 4" },
-    { alias: "opus-4-1", pinned: "claude-opus-4-1-20250805", display: "Claude Opus 4.1" },
-    { alias: "sonnet-4-5", pinned: "claude-sonnet-4-5-20250929", display: "Claude Sonnet 4.5" },
-    { alias: "haiku-4-5", pinned: "claude-haiku-4-5-20251001", display: "Claude Haiku 4.5" },
-    { alias: "opus-4-5", pinned: "claude-opus-4-5-20251101", display: "Claude Opus 4.5" },
+    { alias: "sonnet-4", pinned: "claude-sonnet-4-20250514", display: "Claude Sonnet 4", contextLimitTokens: 200_000 },
+    { alias: "opus-4", pinned: "claude-opus-4-20250514", display: "Claude Opus 4", contextLimitTokens: 200_000 },
+    { alias: "opus-4-1", pinned: "claude-opus-4-1-20250805", display: "Claude Opus 4.1", contextLimitTokens: 200_000 },
+    { alias: "sonnet-4-5", pinned: "claude-sonnet-4-5-20250929", display: "Claude Sonnet 4.5", contextLimitTokens: 200_000 },
+    { alias: "haiku-4-5", pinned: "claude-haiku-4-5-20251001", display: "Claude Haiku 4.5", contextLimitTokens: 200_000 },
+    { alias: "opus-4-5", pinned: "claude-opus-4-5-20251101", display: "Claude Opus 4.5", contextLimitTokens: 200_000 },
 ] as const;
 
 export const DEFAULT_MODEL = MODELS[0].pinned;
@@ -49,5 +50,14 @@ export function getModelDisplay(modelId: string): string {
 
 export function getModelAliases(): string[] {
     return MODELS.map(m => m.alias);
+}
+
+export function getModelContextLimit(modelId: string): number {
+    for (const model of MODELS) {
+        if (model.pinned === modelId) {
+            return model.contextLimitTokens;
+        }
+    }
+    return 200_000;
 }
 

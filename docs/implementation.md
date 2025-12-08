@@ -73,7 +73,8 @@ src/
 └── utils/
     ├── repo.ts           # Repo root detection
     ├── ignore.ts         # Gitignore parsing and file walking
-    └── editing.ts        # Diff computation and atomic file writes
+    ├── editing.ts        # Diff computation and atomic file writes
+    └── tokens.ts         # Token estimation for context tracking
 ```
 
 ## Module Responsibilities
@@ -104,9 +105,10 @@ Defines core types:
 #### commands/models.ts
 
 Centralized model list shared by `/model` command and Composer autocomplete:
-- `MODELS`: array of `{ alias, pinned, display }`
+- `MODELS`: array of `{ alias, pinned, display, contextLimitTokens }`
 - `resolveModelId(input)`: maps alias or pinned ID to pinned ID
 - `getModelDisplay(modelId)`: returns human-readable name
+- `getModelContextLimit(modelId)`: returns context limit in tokens
 - `DEFAULT_MODEL`: default pinned model ID
 
 #### commands/registry.ts
@@ -151,6 +153,7 @@ Span-based tokenizer for reliable command extraction:
 
 - Owns `transcript` (array of `TranscriptEntry`)
 - Owns `isProcessing`, `pendingReviewId`, `currentModel`, `rollingSummary`
+- Owns `contextUsedTokens`, `contextLimitTokens`, `contextUsage` for context tracking
 - Receives `cursorRulesText` in context (loaded once at startup)
 - Owns command registry via `createCommandRegistryWithAllCommands()`
 - Preprocesses user input for slash commands before sending to Claude
@@ -159,15 +162,17 @@ Span-based tokenizer for reliable command extraction:
   2. Add `command_executed` entry for each command
   3. If `remainingText` non-empty, append user entry to transcript
   4. Create assistant entry with `isStreaming: true`
-  5. Send messages to Claude with tool schemas and current model
-  6. Stream response text (throttled at ~32ms)
-  7. If `stopReason === "tool_use"`:
+  5. Build messages and estimate token usage
+  6. If context usage >= 92%, auto-summarize conversation
+  7. Send messages to Claude with tool schemas and current model
+  8. Stream response text (throttled at ~32ms)
+  9. If `stopReason === "tool_use"`:
      - Execute each tool via registry
      - For `approvalPolicy: "write"`: create `diff_review` entry, block for user decision
      - For `approvalPolicy: "shell"`: check allowlist, create `shell_review` if not allowed
      - On accept/run: apply edits or execute command, send result to Claude
      - On reject/deny: send rejection/denial to Claude
-  8. Continue until Claude stops requesting tools
+  10. Continue until Claude stops requesting tools
 - Streaming throttle: buffer chunks, flush every 32ms or on complete
 - Emits state changes via `onStateChange` callback (includes `currentModel`)
 - `buildMessagesForClaude()`: excludes `command_review` and `command_executed` entries
@@ -336,6 +341,15 @@ All tools follow the pattern:
 - `computeCreateFileDiff()`: generates diff for new files
 - `applyEditsAtomically()`: writes to temp files then renames for safety; handles cross-filesystem scenarios (EXDEV) via copy+unlink fallback
 
+### utils/tokens.ts
+
+Token estimation for context tracking:
+- `estimatePromptTokens(systemPrompt, messages)`: estimates total tokens in request
+- Uses character-based heuristic (3.5 chars per token)
+- Applies 10% safety margin to reduce overflow risk
+- Returns structured breakdown: system, messages, overhead
+- Handles both string and structured message content (tool results, etc.)
+
 ## Data Flow
 
 ### Startup Flow
@@ -480,6 +494,36 @@ Model selection via `/model`:
 - Without argument: shows picker with all models
 - Provider accepts model per-request (no recreation)
 - `currentModel` stored in orchestrator state
+- Context limit updates automatically on model change
+
+### Context Tracking & Auto-Summarization
+
+North tracks context usage in real-time to prevent overflow:
+
+1. **Token Estimation** (before each request):
+   - Builds outgoing messages payload (system + transcript + injected rules)
+   - Estimates tokens using character-based heuristic (3.5 chars/token)
+   - Applies 10% safety margin
+   - Updates `contextUsedTokens`, `contextLimitTokens`, `contextUsage`
+
+2. **Visual Indicator** (StatusLine):
+   - Green circle: < 60% usage
+   - Yellow circle: 60-85% usage
+   - Red circle: > 85% usage
+   - Shows numeric percentage
+
+3. **Auto-Summarization** (at 92% threshold):
+   - Automatically calls `generateSummary()` before sending request
+   - Replaces older transcript with structured summary
+   - Keeps last 10 messages verbatim
+   - Preserves injected rules and context
+   - Recomputes usage after compaction
+   - Proceeds with request normally
+
+4. **Per-Model Limits**:
+   - All current Claude models: 200K tokens
+   - Limit updates automatically on model switch
+   - Usage recalculated with new limit
 
 ### Tool Call Loop
 

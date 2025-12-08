@@ -55,6 +55,7 @@ export function App({
     const [isProcessing, setIsProcessing] = useState(false);
     const [pendingReviewId, setPendingReviewId] = useState<string | null>(null);
     const [currentModel, setCurrentModel] = useState<string>("claude-sonnet-4-20250514");
+    const [contextUsage, setContextUsage] = useState<number>(0);
     const [orchestrator, setOrchestrator] = useState<Orchestrator | null>(null);
     const [commandRegistry, setCommandRegistry] = useState<CommandRegistry | undefined>(undefined);
 
@@ -66,6 +67,7 @@ export function App({
                     setIsProcessing(state.isProcessing);
                     setPendingReviewId(state.pendingReviewId);
                     setCurrentModel(state.currentModel);
+                    setContextUsage(state.contextUsage);
                 },
                 onRequestStart,
                 onRequestComplete,
@@ -160,7 +162,7 @@ export function App({
 
     return (
         <Box flexDirection="column" height="100%">
-            <StatusLine model={currentModel} projectPath={projectPath} />
+            <StatusLine model={currentModel} projectPath={projectPath} contextUsage={contextUsage} />
             <Box flexDirection="column" flexGrow={1} paddingX={1} marginY={1}>
                 <Transcript
                     entries={transcript}

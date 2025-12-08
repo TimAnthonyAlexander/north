@@ -14,7 +14,8 @@ import {
     type PickerOption,
     type CommandReviewStatus,
 } from "../commands/index";
-import { DEFAULT_MODEL } from "../commands/models";
+import { DEFAULT_MODEL, getModelContextLimit } from "../commands/models";
+import { estimatePromptTokens } from "../utils/tokens";
 import * as path from "node:path";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "denied";
@@ -48,6 +49,9 @@ export interface OrchestratorState {
     isProcessing: boolean;
     pendingReviewId: string | null;
     currentModel: string;
+    contextUsedTokens: number;
+    contextLimitTokens: number;
+    contextUsage: number;
 }
 
 export interface OrchestratorCallbacks {
@@ -186,6 +190,10 @@ export function createOrchestratorWithTools(
     let stopped = false;
     let currentModel: string = DEFAULT_MODEL;
     let rollingSummary: StructuredSummary | null = null;
+    
+    let contextUsedTokens = 0;
+    let contextLimitTokens = getModelContextLimit(currentModel);
+    let contextUsage = 0;
 
     let streamBuffer = "";
     let streamTimer: ReturnType<typeof setTimeout> | null = null;
@@ -199,6 +207,9 @@ export function createOrchestratorWithTools(
             isProcessing,
             pendingReviewId,
             currentModel,
+            contextUsedTokens,
+            contextLimitTokens,
+            contextUsage,
         });
     }
 
@@ -627,6 +638,10 @@ export function createOrchestratorWithTools(
             repoRoot: context.repoRoot,
             setModel(modelId: string) {
                 currentModel = modelId;
+                contextLimitTokens = getModelContextLimit(modelId);
+                if (contextUsedTokens > 0) {
+                    contextUsage = contextUsedTokens / contextLimitTokens;
+                }
                 emitState();
             },
             getModel() {
@@ -825,9 +840,30 @@ Respond with ONLY the JSON, no other text.`;
             toolCallsMap.set(assistantId, []);
             emitState();
 
-            const messages = buildMessagesForClaude();
+            let messages = buildMessagesForClaude();
             const toolSchemas = toolRegistry.getSchemas();
             const signal = currentAbortController.signal;
+            
+            const systemPrompt = provider.systemPrompt;
+            const estimate = estimatePromptTokens(systemPrompt, messages);
+            contextUsedTokens = estimate.estimatedTokens;
+            contextLimitTokens = getModelContextLimit(currentModel);
+            contextUsage = contextUsedTokens / contextLimitTokens;
+            emitState();
+            
+            const COMPACT_THRESHOLD = 0.92;
+            if (contextUsage >= COMPACT_THRESHOLD) {
+                const summary = await commandContext.generateSummary();
+                if (summary) {
+                    commandContext.setRollingSummary(summary);
+                    commandContext.trimTranscript(10);
+                    messages = buildMessagesForClaude();
+                    const newEstimate = estimatePromptTokens(systemPrompt, messages);
+                    contextUsedTokens = newEstimate.estimatedTokens;
+                    contextUsage = contextUsedTokens / contextLimitTokens;
+                    emitState();
+                }
+            }
 
             type StreamResult = { text: string; toolCalls: ToolCall[]; stopReason: string | null };
             const streamOutcome = await new Promise<{ result: StreamResult } | { error: Error }>((resolve) => {

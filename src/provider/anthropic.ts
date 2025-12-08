@@ -53,6 +53,7 @@ export interface StreamOptions {
 
 export interface Provider {
     defaultModel: string;
+    systemPrompt: string;
     stream(
         messages: Message[],
         callbacks: StreamCallbacks,
@@ -99,6 +100,7 @@ export function createProvider(options?: { model?: string }): Provider {
 
     return {
         defaultModel,
+        systemPrompt: SYSTEM_PROMPT,
 
         async stream(
             messages: Message[],
