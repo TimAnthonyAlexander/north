@@ -5,14 +5,28 @@ import type { FileDiff, EditPrepareResult, ShellRunInput } from "../tools/types"
 import { applyEditsAtomically } from "../utils/editing";
 import { isCommandAllowed, allowCommand } from "../storage/allowlist";
 import { getShellService } from "../shell/index";
+import {
+    createCommandRegistryWithAllCommands,
+    parseCommandInvocations,
+    type CommandRegistry,
+    type CommandContext,
+    type CommandDefinition,
+    type StructuredSummary,
+    type PickerOption,
+    type CommandReviewEntry,
+    type CommandExecutedEntry,
+    type CommandReviewStatus,
+} from "../commands/index";
+import { DEFAULT_MODEL } from "../commands/models";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "denied";
 export type WriteReviewStatus = "pending" | "accepted" | "rejected";
 export type ReviewStatus = WriteReviewStatus | ShellReviewStatus;
+export type { CommandReviewStatus };
 
 export interface TranscriptEntry {
     id: string;
-    role: "user" | "assistant" | "tool" | "diff_review" | "shell_review";
+    role: "user" | "assistant" | "tool" | "diff_review" | "shell_review" | "command_review" | "command_executed";
     content: string;
     ts: number;
     isStreaming?: boolean;
@@ -20,17 +34,22 @@ export interface TranscriptEntry {
     diffContent?: FileDiff[];
     filesCount?: number;
     toolName?: string;
-    reviewStatus?: ReviewStatus;
+    reviewStatus?: ReviewStatus | CommandReviewStatus;
     applyPayload?: unknown;
     shellCommand?: string;
     shellCwd?: string | null;
     shellTimeoutMs?: number | null;
+    commandName?: string;
+    commandPrompt?: string;
+    commandOptions?: PickerOption[];
+    commandSelectedId?: string;
 }
 
 export interface OrchestratorState {
     transcript: TranscriptEntry[];
     isProcessing: boolean;
     pendingReviewId: string | null;
+    currentModel: string;
 }
 
 export interface OrchestratorCallbacks {
@@ -47,6 +66,7 @@ export interface OrchestratorCallbacks {
     onShellReviewDecision?: (decision: "run" | "always" | "deny", command: string) => void;
     onShellRunStart?: (command: string, cwd?: string | null, timeoutMs?: number | null) => void;
     onShellRunComplete?: (command: string, exitCode: number, durationMs: number, stdoutBytes: number, stderrBytes: number) => void;
+    onExit?: () => void;
 }
 
 export interface OrchestratorContext {
@@ -55,12 +75,15 @@ export interface OrchestratorContext {
 }
 
 export type ShellDecision = "run" | "always" | "deny";
+export type CommandDecision = string | null;
 
 export interface Orchestrator {
     sendMessage(content: string): void;
     resolveWriteReview(reviewId: string, decision: "accept" | "reject"): void;
     resolveShellReview(reviewId: string, decision: ShellDecision): void;
+    resolveCommandReview(reviewId: string, decision: CommandDecision): void;
     getModel(): string;
+    getCommandRegistry(): CommandRegistry;
     stop(): void;
 }
 
@@ -78,10 +101,41 @@ interface PendingShellReview {
     cwd?: string;
 }
 
+interface PendingCommandReview {
+    id: string;
+    resolve: (decision: CommandDecision) => void;
+}
+
 const STREAM_THROTTLE_MS = 32;
 
 function generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function formatSummaryForContext(summary: StructuredSummary): string {
+    const lines: string[] = ["## Conversation Summary (authoritative, replace older context)"];
+    
+    if (summary.goal) {
+        lines.push(`**Goal:** ${summary.goal}`);
+    }
+    if (summary.decisions.length > 0) {
+        lines.push("**Decisions:**");
+        summary.decisions.forEach(d => lines.push(`- ${d}`));
+    }
+    if (summary.constraints.length > 0) {
+        lines.push("**Constraints:**");
+        summary.constraints.forEach(c => lines.push(`- ${c}`));
+    }
+    if (summary.openTasks.length > 0) {
+        lines.push("**Open Tasks:**");
+        summary.openTasks.forEach(t => lines.push(`- ${t}`));
+    }
+    if (summary.importantFiles.length > 0) {
+        lines.push("**Important Files:**");
+        summary.importantFiles.forEach(f => lines.push(`- ${f}`));
+    }
+    
+    return lines.join("\n");
 }
 
 export function createOrchestratorWithTools(
@@ -89,14 +143,18 @@ export function createOrchestratorWithTools(
     context: OrchestratorContext
 ): Orchestrator {
     const provider = createProvider();
-    const registry = createToolRegistryWithAllTools();
+    const toolRegistry = createToolRegistryWithAllTools();
+    const commandRegistry = createCommandRegistryWithAllCommands();
 
     let transcript: TranscriptEntry[] = [];
     let isProcessing = false;
     let pendingReviewId: string | null = null;
     let pendingWriteReview: PendingWriteReview | null = null;
     let pendingShellReview: PendingShellReview | null = null;
+    let pendingCommandReview: PendingCommandReview | null = null;
     let stopped = false;
+    let currentModel: string = DEFAULT_MODEL;
+    let rollingSummary: StructuredSummary | null = null;
 
     let streamBuffer = "";
     let streamTimer: ReturnType<typeof setTimeout> | null = null;
@@ -107,6 +165,7 @@ export function createOrchestratorWithTools(
             transcript: [...transcript],
             isProcessing,
             pendingReviewId,
+            currentModel,
         });
     }
 
@@ -151,6 +210,17 @@ export function createOrchestratorWithTools(
     function buildMessagesForClaude(): Message[] {
         const messages: Message[] = [];
         let pendingToolResults: Array<{ toolCallId: string; result: string; isError?: boolean }> = [];
+
+        if (rollingSummary) {
+            messages.push({
+                role: "user",
+                content: formatSummaryForContext(rollingSummary),
+            });
+            messages.push({
+                role: "assistant",
+                content: "I understand. I'll use this summary as context for our ongoing conversation.",
+            });
+        }
 
         for (const entry of transcript) {
             if (entry.role === "user") {
@@ -324,7 +394,7 @@ export function createOrchestratorWithTools(
     ): Promise<{ needsReview: boolean; entry: TranscriptEntry; reviewType?: "write" | "shell" }> {
         const toolName = toolCall.name;
         const args = toolCall.input;
-        const policy = registry.getApprovalPolicy(toolName);
+        const policy = toolRegistry.getApprovalPolicy(toolName);
 
         callbacks.onToolCallStart?.(toolName, args);
         const startTime = Date.now();
@@ -353,7 +423,7 @@ export function createOrchestratorWithTools(
             writeToolCallIds.add(toolCall.id);
         }
 
-        const result = await registry.execute(toolName, args, {
+        const result = await toolRegistry.execute(toolName, args, {
             repoRoot: context.repoRoot,
             logger: context.logger,
         });
@@ -419,6 +489,18 @@ export function createOrchestratorWithTools(
                 resolve,
                 command: reviewEntry.shellCommand || "",
                 cwd: reviewEntry.shellCwd || undefined,
+            };
+        });
+    }
+
+    async function waitForCommandReviewDecision(reviewEntry: TranscriptEntry): Promise<CommandDecision> {
+        pendingReviewId = reviewEntry.id;
+        emitState();
+
+        return new Promise((resolve) => {
+            pendingCommandReview = {
+                id: reviewEntry.id,
+                resolve,
             };
         });
     }
@@ -493,11 +575,213 @@ export function createOrchestratorWithTools(
         emitState();
     }
 
+    function createCommandContext(): CommandContext {
+        return {
+            repoRoot: context.repoRoot,
+            setModel(modelId: string) {
+                currentModel = modelId;
+                emitState();
+            },
+            getModel() {
+                return currentModel;
+            },
+            resetChat() {
+                transcript = [];
+                rollingSummary = null;
+                pendingReviewId = null;
+                pendingWriteReview = null;
+                pendingShellReview = null;
+                pendingCommandReview = null;
+                writeToolCallIds.clear();
+                shellToolCallIds.clear();
+                toolCallsMap.clear();
+                emitState();
+            },
+            setRollingSummary(summary: StructuredSummary | null) {
+                rollingSummary = summary;
+            },
+            getRollingSummary() {
+                return rollingSummary;
+            },
+            async requestInternalSummary(keepLast: number): Promise<StructuredSummary> {
+                const transcriptText = transcript
+                    .filter(e => e.role === "user" || e.role === "assistant")
+                    .map(e => `${e.role}: ${e.content}`)
+                    .join("\n\n");
+
+                const summaryPrompt = `Analyze this conversation and produce a JSON summary with these exact fields:
+{
+  "goal": "The current primary goal or task being worked on",
+  "decisions": ["List of key decisions made"],
+  "constraints": ["List of constraints or requirements mentioned"],
+  "openTasks": ["List of tasks still pending"],
+  "importantFiles": ["List of files mentioned or modified"]
+}
+
+Conversation:
+${transcriptText}
+
+Respond with ONLY the JSON, no other text.`;
+
+                return new Promise((resolve) => {
+                    let summaryText = "";
+                    
+                    provider.stream(
+                        [{ role: "user", content: summaryPrompt }],
+                        {
+                            onChunk(chunk) {
+                                summaryText += chunk;
+                            },
+                            onComplete() {
+                                try {
+                                    const jsonMatch = summaryText.match(/\{[\s\S]*\}/);
+                                    if (jsonMatch) {
+                                        const parsed = JSON.parse(jsonMatch[0]);
+                                        const summary: StructuredSummary = {
+                                            goal: parsed.goal || "",
+                                            decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
+                                            constraints: Array.isArray(parsed.constraints) ? parsed.constraints : [],
+                                            openTasks: Array.isArray(parsed.openTasks) ? parsed.openTasks : [],
+                                            importantFiles: Array.isArray(parsed.importantFiles) ? parsed.importantFiles : [],
+                                        };
+                                        
+                                        rollingSummary = summary;
+                                        
+                                        const reviewOutcomes = transcript.filter(e => 
+                                            (e.role === "diff_review" || e.role === "shell_review") && 
+                                            e.reviewStatus !== "pending"
+                                        );
+                                        
+                                        const userAssistantEntries = transcript.filter(e => 
+                                            e.role === "user" || e.role === "assistant"
+                                        );
+                                        const entriesToKeep = userAssistantEntries.slice(-keepLast);
+                                        
+                                        transcript = [...reviewOutcomes, ...entriesToKeep];
+                                        
+                                        const summaryEntry: TranscriptEntry = {
+                                            id: generateId(),
+                                            role: "command_executed",
+                                            content: "Conversation summarized",
+                                            ts: Date.now(),
+                                            commandName: "summarize",
+                                        };
+                                        transcript.push(summaryEntry);
+                                        
+                                        emitState();
+                                        resolve(summary);
+                                    } else {
+                                        resolve({
+                                            goal: "",
+                                            decisions: [],
+                                            constraints: [],
+                                            openTasks: [],
+                                            importantFiles: [],
+                                        });
+                                    }
+                                } catch {
+                                    resolve({
+                                        goal: "",
+                                        decisions: [],
+                                        constraints: [],
+                                        openTasks: [],
+                                        importantFiles: [],
+                                    });
+                                }
+                            },
+                            onError() {
+                                resolve({
+                                    goal: "",
+                                    decisions: [],
+                                    constraints: [],
+                                    openTasks: [],
+                                    importantFiles: [],
+                                });
+                            },
+                            onToolCall() {},
+                        },
+                        { 
+                            tools: [],
+                            model: currentModel,
+                            systemSuffix: "Do not request any tools. Respond with JSON only.",
+                        }
+                    );
+                });
+            },
+            requestExit() {
+                stopped = true;
+                callbacks.onExit?.();
+            },
+            async showPicker(commandName: string, prompt: string, options: PickerOption[]): Promise<string | null> {
+                const reviewId = generateId();
+                const reviewEntry: TranscriptEntry = {
+                    id: reviewId,
+                    role: "command_review",
+                    content: "",
+                    ts: Date.now(),
+                    commandName,
+                    commandPrompt: prompt,
+                    commandOptions: options,
+                    reviewStatus: "pending",
+                };
+                transcript.push(reviewEntry);
+                emitState();
+
+                const decision = await waitForCommandReviewDecision(reviewEntry);
+                
+                updateEntry(reviewId, {
+                    reviewStatus: decision ? "selected" : "cancelled",
+                    commandSelectedId: decision || undefined,
+                });
+                
+                pendingReviewId = null;
+                pendingCommandReview = null;
+                emitState();
+                
+                return decision;
+            },
+            getTranscript() {
+                return [...transcript];
+            },
+            listCommands() {
+                return commandRegistry.list();
+            },
+        };
+    }
+
+    async function executeCommands(content: string): Promise<string> {
+        const { invocations, remainingText } = parseCommandInvocations(content, commandRegistry);
+        
+        if (invocations.length === 0) {
+            return content;
+        }
+
+        const ctx = createCommandContext();
+        
+        for (const invocation of invocations) {
+            const result = await commandRegistry.execute(invocation.name, ctx, invocation.args);
+            
+            const executedEntry: TranscriptEntry = {
+                id: generateId(),
+                role: "command_executed",
+                content: result.ok ? (result.message || `/${invocation.name} executed`) : (result.error || "Command failed"),
+                ts: Date.now(),
+                commandName: invocation.name,
+            };
+            transcript.push(executedEntry);
+            emitState();
+            
+            if (stopped) break;
+        }
+        
+        return remainingText;
+    }
+
     async function runConversationLoop(): Promise<void> {
         while (!stopped) {
             const requestId = generateId();
             const requestStart = Date.now();
-            callbacks.onRequestStart?.(requestId, provider.model);
+            callbacks.onRequestStart?.(requestId, currentModel);
 
             const assistantId = generateId();
             currentAssistantId = assistantId;
@@ -514,7 +798,7 @@ export function createOrchestratorWithTools(
             emitState();
 
             const messages = buildMessagesForClaude();
-            const toolSchemas = registry.getSchemas();
+            const toolSchemas = toolRegistry.getSchemas();
 
             type StreamResult = { text: string; toolCalls: ToolCall[]; stopReason: string | null };
             const streamOutcome = await new Promise<{ result: StreamResult } | { error: Error }>((resolve) => {
@@ -537,7 +821,7 @@ export function createOrchestratorWithTools(
                             resolve({ error });
                         },
                     },
-                    { tools: toolSchemas }
+                    { tools: toolSchemas, model: currentModel }
                 );
             });
 
@@ -591,28 +875,43 @@ export function createOrchestratorWithTools(
     }
 
     return {
-        sendMessage(content: string) {
+        async sendMessage(content: string) {
             if (isProcessing || stopped) return;
 
             isProcessing = true;
-
-            const userEntry: TranscriptEntry = {
-                id: generateId(),
-                role: "user",
-                content,
-                ts: Date.now(),
-            };
-            transcript.push(userEntry);
             emitState();
 
-            runConversationLoop()
-                .catch((err) => {
-                    context.logger.error("conversation_loop_error", err);
-                })
-                .finally(() => {
+            try {
+                const remainingText = await executeCommands(content);
+                
+                if (stopped) {
                     isProcessing = false;
                     emitState();
-                });
+                    return;
+                }
+
+                if (remainingText.trim().length === 0) {
+                    isProcessing = false;
+                    emitState();
+                    return;
+                }
+
+                const userEntry: TranscriptEntry = {
+                    id: generateId(),
+                    role: "user",
+                    content: remainingText.trim(),
+                    ts: Date.now(),
+                };
+                transcript.push(userEntry);
+                emitState();
+
+                await runConversationLoop();
+            } catch (err) {
+                context.logger.error("conversation_loop_error", err);
+            } finally {
+                isProcessing = false;
+                emitState();
+            }
         },
 
         resolveWriteReview(reviewId: string, decision: "accept" | "reject") {
@@ -627,8 +926,18 @@ export function createOrchestratorWithTools(
             }
         },
 
+        resolveCommandReview(reviewId: string, decision: CommandDecision) {
+            if (pendingCommandReview && pendingCommandReview.id === reviewId) {
+                pendingCommandReview.resolve(decision);
+            }
+        },
+
         getModel() {
-            return provider.model;
+            return currentModel;
+        },
+
+        getCommandRegistry() {
+            return commandRegistry;
         },
 
         stop() {
@@ -638,6 +947,9 @@ export function createOrchestratorWithTools(
             }
             if (pendingShellReview) {
                 pendingShellReview.resolve("deny");
+            }
+            if (pendingCommandReview) {
+                pendingCommandReview.resolve(null);
             }
         },
     };

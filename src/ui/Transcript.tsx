@@ -1,8 +1,9 @@
 import React from "react";
 import { Box, Text } from "ink";
-import type { TranscriptEntry, ShellReviewStatus } from "../orchestrator/index";
+import type { TranscriptEntry, ShellReviewStatus, CommandReviewStatus } from "../orchestrator/index";
 import { DiffReview } from "./DiffReview";
 import { ShellReview } from "./ShellReview";
+import { CommandReview } from "./CommandReview";
 
 interface TranscriptProps {
     entries: TranscriptEntry[];
@@ -12,6 +13,8 @@ interface TranscriptProps {
     onShellRun?: (entryId: string) => void;
     onShellAlways?: (entryId: string) => void;
     onShellDeny?: (entryId: string) => void;
+    onCommandSelect?: (entryId: string, selectedId: string) => void;
+    onCommandCancel?: (entryId: string) => void;
 }
 
 function UserMessage({ entry }: { entry: TranscriptEntry }) {
@@ -66,6 +69,16 @@ function ToolMessage({ entry }: { entry: TranscriptEntry }) {
     );
 }
 
+function CommandExecutedMessage({ entry }: { entry: TranscriptEntry }) {
+    return (
+        <Box marginLeft={0} marginBottom={1}>
+            <Text color="blue">⚙</Text>
+            <Text color="gray"> /{entry.commandName}: </Text>
+            <Text color="white">{entry.content}</Text>
+        </Box>
+    );
+}
+
 interface MessageBlockProps {
     entry: TranscriptEntry;
     isActiveReview: boolean;
@@ -74,6 +87,8 @@ interface MessageBlockProps {
     onShellRun?: () => void;
     onShellAlways?: () => void;
     onShellDeny?: () => void;
+    onCommandSelect?: (selectedId: string) => void;
+    onCommandCancel?: () => void;
 }
 
 function MessageBlock({
@@ -84,6 +99,8 @@ function MessageBlock({
     onShellRun,
     onShellAlways,
     onShellDeny,
+    onCommandSelect,
+    onCommandCancel,
 }: MessageBlockProps) {
     if (entry.role === "user") {
         return <UserMessage entry={entry} />;
@@ -91,6 +108,10 @@ function MessageBlock({
 
     if (entry.role === "tool") {
         return <ToolMessage entry={entry} />;
+    }
+
+    if (entry.role === "command_executed") {
+        return <CommandExecutedMessage entry={entry} />;
     }
 
     if (entry.role === "diff_review" && entry.diffContent) {
@@ -123,6 +144,22 @@ function MessageBlock({
         );
     }
 
+    if (entry.role === "command_review" && entry.commandOptions) {
+        const commandStatus = (entry.reviewStatus || "pending") as CommandReviewStatus;
+        return (
+            <CommandReview
+                commandName={entry.commandName || "command"}
+                prompt={entry.commandPrompt || "Select an option"}
+                options={entry.commandOptions}
+                status={commandStatus}
+                selectedId={entry.commandSelectedId}
+                onSelect={onCommandSelect}
+                onCancel={onCommandCancel}
+                isActive={isActiveReview}
+            />
+        );
+    }
+
     return <AssistantMessage entry={entry} />;
 }
 
@@ -134,6 +171,8 @@ export function Transcript({
     onShellRun,
     onShellAlways,
     onShellDeny,
+    onCommandSelect,
+    onCommandCancel,
 }: TranscriptProps) {
     if (entries.length === 0) {
         return (
@@ -157,6 +196,8 @@ export function Transcript({
                         onShellRun={isActive ? () => onShellRun?.(entry.id) : undefined}
                         onShellAlways={isActive ? () => onShellAlways?.(entry.id) : undefined}
                         onShellDeny={isActive ? () => onShellDeny?.(entry.id) : undefined}
+                        onCommandSelect={isActive ? (id) => onCommandSelect?.(entry.id, id) : undefined}
+                        onCommandCancel={isActive ? () => onCommandCancel?.(entry.id) : undefined}
                     />
                 );
             })}

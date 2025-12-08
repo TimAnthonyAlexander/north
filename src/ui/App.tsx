@@ -11,6 +11,7 @@ import {
 } from "../orchestrator/index";
 import type { Logger } from "../logging/index";
 import { disposeAllShellServices } from "../shell/index";
+import type { CommandRegistry } from "../commands/index";
 
 interface AppProps {
     projectPath: string;
@@ -51,7 +52,9 @@ export function App({
     const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [pendingReviewId, setPendingReviewId] = useState<string | null>(null);
+    const [currentModel, setCurrentModel] = useState<string>("claude-sonnet-4-20250514");
     const [orchestrator, setOrchestrator] = useState<Orchestrator | null>(null);
+    const [commandRegistry, setCommandRegistry] = useState<CommandRegistry | undefined>(undefined);
 
     useEffect(() => {
         const orch = createOrchestratorWithTools(
@@ -60,6 +63,7 @@ export function App({
                     setTranscript(state.transcript);
                     setIsProcessing(state.isProcessing);
                     setPendingReviewId(state.pendingReviewId);
+                    setCurrentModel(state.currentModel);
                 },
                 onRequestStart,
                 onRequestComplete,
@@ -73,6 +77,10 @@ export function App({
                 onShellReviewDecision,
                 onShellRunStart,
                 onShellRunComplete,
+                onExit() {
+                    disposeAllShellServices();
+                    exit();
+                },
             },
             {
                 repoRoot: projectPath,
@@ -80,6 +88,7 @@ export function App({
             }
         );
         setOrchestrator(orch);
+        setCommandRegistry(orch.getCommandRegistry());
 
         return () => {
             orch.stop();
@@ -130,12 +139,21 @@ export function App({
         orchestrator.resolveShellReview(entryId, "deny");
     }
 
-    const model = orchestrator?.getModel() || "claude-sonnet-4-20250514";
+    function handleCommandSelect(entryId: string, selectedId: string) {
+        if (!orchestrator) return;
+        orchestrator.resolveCommandReview(entryId, selectedId);
+    }
+
+    function handleCommandCancel(entryId: string) {
+        if (!orchestrator) return;
+        orchestrator.resolveCommandReview(entryId, null);
+    }
+
     const composerDisabled = isProcessing || pendingReviewId !== null;
 
     return (
         <Box flexDirection="column" height="100%">
-            <StatusLine model={model} projectPath={projectPath} />
+            <StatusLine model={currentModel} projectPath={projectPath} />
             <Box flexDirection="column" flexGrow={1} paddingX={1} marginY={1}>
                 <Transcript
                     entries={transcript}
@@ -145,10 +163,16 @@ export function App({
                     onShellRun={handleShellRun}
                     onShellAlways={handleShellAlways}
                     onShellDeny={handleShellDeny}
+                    onCommandSelect={handleCommandSelect}
+                    onCommandCancel={handleCommandCancel}
                 />
             </Box>
             <Box paddingX={1}>
-                <Composer onSubmit={handleSubmit} disabled={composerDisabled} />
+                <Composer 
+                    onSubmit={handleSubmit} 
+                    disabled={composerDisabled} 
+                    commandRegistry={commandRegistry}
+                />
             </Box>
         </Box>
     );

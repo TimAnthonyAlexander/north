@@ -1,9 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Box, Text, useInput } from "ink";
+import { getTokenAtCursor, MODELS, type CommandRegistry } from "../commands/index";
+
+interface Suggestion {
+    value: string;
+    label: string;
+    hint?: string;
+}
 
 interface ComposerProps {
     onSubmit: (content: string) => void;
     disabled: boolean;
+    commandRegistry?: CommandRegistry;
 }
 
 function insertNewline(value: string, cursorPos: number): { value: string; cursor: number } {
@@ -12,18 +20,120 @@ function insertNewline(value: string, cursorPos: number): { value: string; curso
     return { value: before + "\n" + after, cursor: cursorPos + 1 };
 }
 
-export function Composer({ onSubmit, disabled }: ComposerProps) {
+function findPrecedingCommand(value: string, cursorPos: number): string | null {
+    const beforeCursor = value.slice(0, cursorPos);
+    const match = beforeCursor.match(/\/(\w+)\s+[^\s]*$/);
+    if (match) {
+        return match[1];
+    }
+    return null;
+}
+
+function getModelSuggestions(prefix: string): Suggestion[] {
+    const normalizedPrefix = prefix.toLowerCase();
+    return MODELS
+        .filter(m => 
+            m.alias.toLowerCase().startsWith(normalizedPrefix) ||
+            m.display.toLowerCase().startsWith(normalizedPrefix) ||
+            m.pinned.toLowerCase().includes(normalizedPrefix)
+        )
+        .map(m => ({
+            value: m.alias,
+            label: m.display,
+            hint: m.alias,
+        }));
+}
+
+function getSuggestions(
+    value: string, 
+    cursorPos: number, 
+    registry: CommandRegistry | undefined
+): { suggestions: Suggestion[]; tokenStart: number; tokenEnd: number } | null {
+    if (!registry) return null;
+    
+    const token = getTokenAtCursor(value, cursorPos);
+    if (!token) return null;
+    
+    if (token.isCommand) {
+        const prefix = token.prefix.slice(1).toLowerCase();
+        const commands = registry.list();
+        
+        const filtered = commands
+            .filter(cmd => cmd.name.toLowerCase().startsWith(prefix))
+            .map(cmd => ({
+                value: `/${cmd.name}`,
+                label: `/${cmd.name}`,
+                hint: cmd.description,
+            }));
+        
+        if (filtered.length === 0) return null;
+        
+        return {
+            suggestions: filtered,
+            tokenStart: token.tokenStart,
+            tokenEnd: token.tokenEnd,
+        };
+    }
+    
+    const precedingCommand = findPrecedingCommand(value, cursorPos);
+    if (precedingCommand === "model") {
+        const modelSuggestions = getModelSuggestions(token.prefix);
+        if (modelSuggestions.length === 0) return null;
+        
+        return {
+            suggestions: modelSuggestions,
+            tokenStart: token.tokenStart,
+            tokenEnd: token.tokenEnd,
+        };
+    }
+    
+    return null;
+}
+
+export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps) {
     const [value, setValue] = useState("");
     const [cursorPos, setCursorPos] = useState(0);
+    const [selectedIndex, setSelectedIndex] = useState(0);
+    const [showSuggestions, setShowSuggestions] = useState(true);
+
+    const suggestionState = useMemo(() => {
+        if (!showSuggestions) return null;
+        return getSuggestions(value, cursorPos, commandRegistry);
+    }, [value, cursorPos, commandRegistry, showSuggestions]);
+
+    const suggestions = suggestionState?.suggestions || [];
+    const hasSuggestions = suggestions.length > 0;
 
     useInput(
         (input, key) => {
             if (disabled) return;
 
+            if (key.escape) {
+                if (hasSuggestions) {
+                    setShowSuggestions(false);
+                    return;
+                }
+            }
+
+            if (key.tab && hasSuggestions) {
+                const suggestion = suggestions[selectedIndex];
+                if (suggestion && suggestionState) {
+                    const before = value.slice(0, suggestionState.tokenStart);
+                    const after = value.slice(suggestionState.tokenEnd);
+                    const newValue = before + suggestion.value + " " + after;
+                    const newCursor = suggestionState.tokenStart + suggestion.value.length + 1;
+                    setValue(newValue);
+                    setCursorPos(newCursor);
+                    setSelectedIndex(0);
+                }
+                return;
+            }
+
             if (key.ctrl && input === "j") {
                 const result = insertNewline(value, cursorPos);
                 setValue(result.value);
                 setCursorPos(result.cursor);
+                setShowSuggestions(true);
                 return;
             }
 
@@ -32,11 +142,14 @@ export function Composer({ onSubmit, disabled }: ComposerProps) {
                     const result = insertNewline(value, cursorPos);
                     setValue(result.value);
                     setCursorPos(result.cursor);
+                    setShowSuggestions(true);
                 } else {
                     if (value.trim().length > 0) {
                         onSubmit(value);
                         setValue("");
                         setCursorPos(0);
+                        setSelectedIndex(0);
+                        setShowSuggestions(true);
                     }
                 }
                 return;
@@ -48,21 +161,29 @@ export function Composer({ onSubmit, disabled }: ComposerProps) {
                     const after = value.slice(cursorPos);
                     setValue(before + after);
                     setCursorPos(cursorPos - 1);
+                    setShowSuggestions(true);
+                    setSelectedIndex(0);
                 }
                 return;
             }
 
             if (key.leftArrow) {
                 setCursorPos(Math.max(0, cursorPos - 1));
+                setShowSuggestions(true);
                 return;
             }
 
             if (key.rightArrow) {
                 setCursorPos(Math.min(value.length, cursorPos + 1));
+                setShowSuggestions(true);
                 return;
             }
 
             if (key.upArrow) {
+                if (hasSuggestions) {
+                    setSelectedIndex(Math.max(0, selectedIndex - 1));
+                    return;
+                }
                 const lines = value.slice(0, cursorPos).split("\n");
                 if (lines.length > 1) {
                     const currentLineStart = cursorPos - lines[lines.length - 1].length;
@@ -75,6 +196,10 @@ export function Composer({ onSubmit, disabled }: ComposerProps) {
             }
 
             if (key.downArrow) {
+                if (hasSuggestions) {
+                    setSelectedIndex(Math.min(suggestions.length - 1, selectedIndex + 1));
+                    return;
+                }
                 const beforeCursor = value.slice(0, cursorPos);
                 const afterCursor = value.slice(cursorPos);
                 const linesAfter = afterCursor.split("\n");
@@ -95,6 +220,8 @@ export function Composer({ onSubmit, disabled }: ComposerProps) {
                 const after = value.slice(cursorPos);
                 setValue(before + input + after);
                 setCursorPos(cursorPos + input.length);
+                setShowSuggestions(true);
+                setSelectedIndex(0);
             }
         },
         { isActive: !disabled }
@@ -122,6 +249,28 @@ export function Composer({ onSubmit, disabled }: ComposerProps) {
                     )}
                 </Box>
             </Box>
+            {hasSuggestions && !disabled && (
+                <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
+                    {suggestions.slice(0, 6).map((s, i) => (
+                        <Box key={s.value}>
+                            <Text color={i === selectedIndex ? "cyan" : "white"} bold={i === selectedIndex}>
+                                {i === selectedIndex ? "› " : "  "}
+                                {s.label}
+                            </Text>
+                            {s.hint && (
+                                <Text color="gray" dimColor>
+                                    {" - "}{s.hint}
+                                </Text>
+                            )}
+                        </Box>
+                    ))}
+                    <Box marginTop={0}>
+                        <Text color="gray" dimColor>
+                            Tab to select, Esc to close
+                        </Text>
+                    </Box>
+                </Box>
+            )}
             {disabled && (
                 <Box marginTop={0}>
                     <Text color="gray" dimColor>
@@ -132,4 +281,3 @@ export function Composer({ onSubmit, disabled }: ComposerProps) {
         </Box>
     );
 }
-

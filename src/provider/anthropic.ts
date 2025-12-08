@@ -44,12 +44,18 @@ export interface ToolResultInput {
     isError?: boolean;
 }
 
+export interface StreamOptions {
+    tools?: ToolSchema[];
+    model?: string;
+    systemSuffix?: string;
+}
+
 export interface Provider {
-    model: string;
+    defaultModel: string;
     stream(
         messages: Message[],
         callbacks: StreamCallbacks,
-        options?: { tools?: ToolSchema[] }
+        options?: StreamOptions
     ): Promise<void>;
     buildToolResultMessage(results: ToolResultInput[]): Message;
     buildAssistantMessage(text: string, toolCalls: ToolCall[]): Message;
@@ -88,15 +94,15 @@ Editing guidelines:
 
 export function createProvider(options?: { model?: string }): Provider {
     const client = new Anthropic();
-    const model = options?.model || "claude-sonnet-4-20250514";
+    const defaultModel = options?.model || "claude-sonnet-4-20250514";
 
     return {
-        model,
+        defaultModel,
 
         async stream(
             messages: Message[],
             callbacks: StreamCallbacks,
-            options?: { tools?: ToolSchema[] }
+            options?: StreamOptions
         ): Promise<void> {
             let fullText = "";
             const toolCalls: ToolCall[] = [];
@@ -104,6 +110,11 @@ export function createProvider(options?: { model?: string }): Provider {
             let currentToolName = "";
             let currentToolInput = "";
             let stopReason: string | null = null;
+
+            const modelToUse = options?.model || defaultModel;
+            const systemPrompt = options?.systemSuffix 
+                ? `${SYSTEM_PROMPT}\n\n${options.systemSuffix}`
+                : SYSTEM_PROMPT;
 
             try {
                 const apiMessages: MessageParam[] = messages.map((m) => {
@@ -114,9 +125,9 @@ export function createProvider(options?: { model?: string }): Provider {
                 });
 
                 const stream = await client.messages.stream({
-                    model,
+                    model: modelToUse,
                     max_tokens: 8192,
-                    system: SYSTEM_PROMPT,
+                    system: systemPrompt,
                     messages: apiMessages,
                     tools: options?.tools?.map((t) => ({
                         name: t.name,
