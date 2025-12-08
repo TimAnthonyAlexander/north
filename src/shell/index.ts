@@ -1,4 +1,5 @@
 import { spawn, type IPty } from "bun-pty";
+import { randomUUID } from "crypto";
 import type { Logger } from "../logging/index";
 
 export interface ShellRunResult {
@@ -10,6 +11,8 @@ export interface ShellRunResult {
 
 interface PendingCommand {
     id: string;
+    startMarker: string;
+    endMarker: string;
     startTime: number;
     resolve: (result: ShellRunResult) => void;
     reject: (error: Error) => void;
@@ -23,15 +26,12 @@ interface PtySession {
     disposed: boolean;
 }
 
-const START_MARKER = "__NORTH_CMD_START_";
-const END_MARKER = "__NORTH_CMD_END_";
-
-function generateCommandId(): string {
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+function generateMarker(prefix: string): string {
+    return `${prefix}${randomUUID().replace(/-/g, '')}`;
 }
 
-function parseEndMarker(buffer: string, commandId: string): { found: boolean; exitCode: number; endIndex: number } {
-    const endPattern = `\n${END_MARKER}${commandId}_EXIT_`;
+function parseEndMarker(buffer: string, endMarker: string): { found: boolean; exitCode: number; endIndex: number } {
+    const endPattern = `\n${endMarker}_EXIT_`;
     const idx = buffer.indexOf(endPattern);
     if (idx === -1) {
         return { found: false, exitCode: -1, endIndex: -1 };
@@ -48,17 +48,17 @@ function parseEndMarker(buffer: string, commandId: string): { found: boolean; ex
     return { found: true, exitCode, endIndex: idx + fullEndLength };
 }
 
-function extractOutput(buffer: string, commandId: string, endIndex: number): string {
-    const startPattern = `${START_MARKER}${commandId}_START_\n`;
+function extractOutput(buffer: string, startMarker: string, endMarker: string): string {
+    const startPattern = `${startMarker}_START_\n`;
     const startIdx = buffer.indexOf(startPattern);
     if (startIdx === -1) {
-        const altPattern = `${START_MARKER}${commandId}_START_\r\n`;
+        const altPattern = `${startMarker}_START_\r\n`;
         const altIdx = buffer.indexOf(altPattern);
         if (altIdx === -1) {
             return "";
         }
         const outputStart = altIdx + altPattern.length;
-        const endPatternStart = `\n${END_MARKER}${commandId}_EXIT_`;
+        const endPatternStart = `\n${endMarker}_EXIT_`;
         const endIdx = buffer.indexOf(endPatternStart, outputStart);
         if (endIdx === -1) {
             return "";
@@ -67,7 +67,7 @@ function extractOutput(buffer: string, commandId: string, endIndex: number): str
     }
 
     const outputStart = startIdx + startPattern.length;
-    const endPatternStart = `\n${END_MARKER}${commandId}_EXIT_`;
+    const endPatternStart = `\n${endMarker}_EXIT_`;
     const endIdx = buffer.indexOf(endPatternStart, outputStart);
     if (endIdx === -1) {
         return "";
@@ -138,9 +138,9 @@ export function createShellService(options: ShellServiceOptions): ShellService {
 
             if (newSession.pending) {
                 const pending = newSession.pending;
-                const result = parseEndMarker(newSession.buffer, pending.id);
+                const result = parseEndMarker(newSession.buffer, pending.endMarker);
                 if (result.found) {
-                    const output = extractOutput(newSession.buffer, pending.id, result.endIndex);
+                    const output = extractOutput(newSession.buffer, pending.startMarker, pending.endMarker);
                     const durationMs = Date.now() - pending.startTime;
 
                     if (pending.timeout) {
@@ -191,21 +191,21 @@ export function createShellService(options: ShellServiceOptions): ShellService {
                 throw new Error("A command is already running. Wait for it to complete or timeout.");
             }
 
-            const commandId = generateCommandId();
+            const startMarker = generateMarker("__NORTH_START_");
+            const endMarker = generateMarker("__NORTH_END_");
             const timeoutMs = runOptions?.timeoutMs ?? 60000;
-
-            const startMarker = `${START_MARKER}${commandId}_START_`;
-            const endMarker = `${END_MARKER}${commandId}_EXIT_`;
 
             let wrappedCommand = "";
             if (runOptions?.cwd) {
                 wrappedCommand += `cd ${JSON.stringify(runOptions.cwd)} && `;
             }
-            wrappedCommand += `printf '\\n${startMarker}\\n'; ${command}; printf '\\n${endMarker}%d_END_\\n' $?`;
+            wrappedCommand += `printf '\\n${startMarker}_START_\\n'; ${command}; printf '\\n${endMarker}_EXIT_%d_END_\\n' $?`;
 
             return new Promise<ShellRunResult>((resolve, reject) => {
                 const pending: PendingCommand = {
-                    id: commandId,
+                    id: startMarker,
+                    startMarker,
+                    endMarker,
                     startTime: Date.now(),
                     resolve,
                     reject,

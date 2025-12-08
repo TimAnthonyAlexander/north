@@ -199,6 +199,7 @@ Span-based tokenizer for reliable command extraction:
 - Single-flight commands: rejects if a command is already running
 - Sentinel-based output parsing:
   - Uses `printf` with newline-framed markers for robustness
+  - Markers are cryptographically randomized per command (UUID-based) to prevent spoofing
   - Buffers PTY output until end marker detected
   - Extracts command output between markers
 - Timeout handling: destroys and recreates PTY session on timeout (prevents poisoned state)
