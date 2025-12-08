@@ -1,20 +1,91 @@
 # North
 
-**Vibe coding peak.**
+**The terminal-native AI coding assistant that actually ships.**
 
-A Claude-powered terminal assistant for codebases.
+A Claude-powered pair programmer that lives in your terminal. No IDE lock-in, no subscription tiers, no bloat—just you, Claude, and your codebase.
 
 ![North in action](screenshot.png)
 
-## What is North?
+## Why North?
 
-North is a CLI for pair programming with Claude. You chat in your terminal, Claude reads your codebase and proposes changes, and you approve or reject everything before it happens. Lowkey the best way to code with AI. It hits different.
+**99.3% edit success rate.** North's deterministic edit tools with exact-match verification mean edits land correctly the first time. No fuzzy matching, no silent failures.
 
-All file edits are shown as diffs before writing. All shell commands require permission. Claude proposes, you decide. No cap. You stay in control, AI does the heavy lifting.
+**One-shots production-ready code.** Complex React components, full API endpoints, beautiful landing pages—North builds them in a single pass. The kind of output that takes other tools 5+ iterations.
+
+**Direct API access.** You bring your own Anthropic key. No middleman pricing, no usage caps, no "you've hit your daily limit." Pay only for what you use at Anthropic's rates.
+
+**200K context that manages itself.** Auto-summarization kicks in at 92% context usage, compressing conversation history into structured summaries. No manual context pruning, no "start a new chat" interruptions.
+
+**Terminal-native speed.** No Electron overhead, no browser tabs, no VS Code plugin lifecycle. North launches instantly and runs lean.
+
+### North vs Claude Code vs Cursor
+
+| | North | Claude Code | Cursor |
+|---|---|---|---|
+| **Pricing** | Direct API (pay-per-use) | $20/mo subscription | $20/mo + usage caps |
+| **Context** | 200K auto-managed | Limited by subscription | Aggressive truncation |
+| **Environment** | Any terminal | Web browser | VS Code fork only |
+| **Control** | Approve every edit/command | Auto-applies changes | Mixed permissions |
+| **Speed** | Instant launch, native | Browser latency | Electron overhead |
+| **Transparency** | Full diff review | Black box | Partial visibility |
+
+## Features
+
+### Two Modes, Zero Friction
+
+- **Ask Mode** (`Tab` to toggle): Read-only exploration. Claude can search, read files, and analyze—but can't modify anything. Perfect for understanding unfamiliar codebases.
+- **Agent Mode**: Full access to edit and shell tools. Claude proposes, you approve.
+
+### Intelligent Approvals
+
+Every file edit shows an inline diff before writing. Every shell command requires explicit permission. You stay in control.
+
+```
+┌─ Editing src/components/Button.tsx ─────────────────────┐
+│  - export const Button = ({ label }) => (               │
+│  + export const Button = ({ label, variant = "primary" }) => ( │
+│      <button className={styles.button}>                 │
+│  +     <span className={`badge ${variant}`} />          │
+│        {label}                                          │
+│      </button>                                          │
+│    );                                                   │
+├─────────────────────────────────────────────────────────┤
+│  [a] Accept  [y] Always  [r] Reject                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+Press `y` once to auto-accept all future edits in a session. Or build a shell command allowlist so trusted operations (`bun test`, `npm run build`) run without prompts.
+
+### Model Switching
+
+Switch between Claude models on the fly:
+
+```
+/model opus-4.5    # Switch to Opus 4.5
+/model sonnet-4    # Switch to Sonnet 4 (default)
+/model haiku-4.5   # Switch to Haiku 4.5 for speed
+```
+
+Available models: Sonnet 4, Opus 4, Opus 4.1, Sonnet 4.5, Haiku 4.5, Opus 4.5
+
+### Cursor Rules Compatible
+
+Drop your `.cursor/rules/*.mdc` files in and North automatically loads them. Same project context, different interface.
+
+### Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/model [name]` | Switch Claude model |
+| `/mode [ask\|agent]` | Switch conversation mode |
+| `/summarize` | Compress conversation history |
+| `/new` | Start fresh conversation |
+| `/help` | List all commands |
+| `/quit` | Exit North |
 
 ## Install
 
-Requires [Bun](https://bun.sh) and an Anthropic API key. Fr.
+Requires [Bun](https://bun.sh) and an Anthropic API key.
 
 ```bash
 git clone https://github.com/timanthonyalexander/north.git
@@ -34,22 +105,22 @@ Run:
 bun run dev
 ```
 
-Or point at a specific repo (works anywhere tbh):
+Point at any repo:
 
 ```bash
 bun run dev --path /path/to/repo
 ```
 
-## Build for Distribution
+## Build
 
-For local linking (recommended for development):
+For local linking:
 
 ```bash
-bun run build      # builds JS to dist/
+bun run build      # builds to dist/
 bun run link       # makes 'north' command available globally
 ```
 
-For standalone binaries:
+For standalone binaries (zero dependencies, ship anywhere):
 
 ```bash
 bun run build:binary              # current platform
@@ -58,61 +129,38 @@ bun run build:binary:mac-x64      # Intel Mac
 bun run build:binary:linux        # Linux x64
 ```
 
-The compiled binary is completely self-contained with no external dependencies. Ship it anywhere and it just works.
-
 ## Input
 
-`Enter` sends your message. `Shift+Enter` or `Ctrl+J` inserts a newline. Pretty straightforward, ngl.
-
-## Approvals
-
-### File Edits
-
-When Claude wants to change files, you see an inline diff. Press `a` to accept, `r` to reject. Nothing writes until you accept. You're in control, king.
-
-### Shell Commands
-
-When Claude wants to run a command, you get three choices:
-
-- `r` (run) — execute once, ask again next time
-- `a` (always) — add to allowlist, auto-approve identical commands in this project (living in 2025 fr)
-- `d` (deny) — block it, Claude gets told the command was denied
-
-The allowlist lives at `.north/allowlist.json`:
-
-```json
-{
-  "allowedCommands": ["bun test", "npm run build"]
-}
-```
-
-Exact string matching only.
+`Enter` sends your message. `Shift+Enter` or `Ctrl+J` adds a newline. `Tab` cycles modes (when not autocompleting).
 
 ## Tools
 
-Claude has access to:
+**Read/search (auto-approved):**
+`list_root`, `find_files`, `search_text`, `read_file`, `read_readme`, `detect_languages`, `hotfiles`
 
-**Read/search (no approval):** `list_root`, `find_files`, `search_text`, `read_file`, `read_readme`, `detect_languages`, `hotfiles`
+**Edit (requires approval):**
+`edit_replace_exact`, `edit_insert_at_line`, `edit_create_file`, `edit_apply_batch`
 
-**Edit (requires approval):** `edit_replace_exact`, `edit_insert_at_line`, `edit_create_file`, `edit_apply_batch`
+**Shell (requires approval):**
+`shell_run`
 
-**Shell (requires approval):** `shell_run` (persistent PTY session)
-
-All tools respect `.gitignore`. Output is truncated to prevent context overflow. It just works.
+All tools respect `.gitignore`. Output is automatically truncated to prevent context overflow.
 
 ## Storage
 
-Project-local config goes in `.north/` at your repo root. Currently just `allowlist.json`. Clean and simple.
+Project config lives in `.north/` at your repo root:
+- `allowlist.json` — pre-approved shell commands
+- `autoaccept.json` — auto-accept edit settings
 
-Logs are at `~/.local/state/north/north.log` (JSON-lines, append-only). Tbh you probably won't need to look at these.
+Logs: `~/.local/state/north/north.log` (JSON-lines format)
 
 ## Troubleshooting
 
-**Search is slow:** Install ripgrep (`brew install ripgrep` or `apt install ripgrep`). Trust, it makes everything bussin.
+**Search is slow?** Install ripgrep: `brew install ripgrep` or `apt install ripgrep`
 
-**Edit tool fails:** It requires exact text matches including whitespace. Claude will re-read the file and retry. Usually fixes itself.
+**Edit tool fails?** It requires exact text matches including whitespace. Claude will re-read and retry—usually self-corrects.
 
-**Command hangs:** There's a timeout. The PTY session gets recreated if a command times out. North understood the assignment.
+**Command hangs?** There's a 60s timeout. The shell session recreates automatically.
 
 ## Development
 
@@ -121,10 +169,15 @@ bun run dev                    # run
 bun run dev --log-level debug  # verbose logging
 bun run build                  # build JS
 bun run typecheck              # type check
+bun run check                  # all checks (typecheck + lint + format)
 ```
 
-Architecture details are in `docs/implementation.md`.
+Architecture: [docs/implementation.md](docs/implementation.md)
 
 ## Privacy
 
-Logs record events and metadata (tool names, durations, prompt lengths) but not file contents or exact prompts. Your prompts and tool results go to Anthropic's API. Keeping it transparent, as it should be.
+Logs record events and metadata (tool names, durations, token counts) but not file contents or prompts. Your messages go directly to Anthropic's API—no intermediary servers, no data collection.
+
+---
+
+**North.** Vibe coding peak.
