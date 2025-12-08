@@ -42,7 +42,8 @@ export interface CommandContext {
     resetChat: () => void;
     setRollingSummary: (summary: StructuredSummary | null) => void;
     getRollingSummary: () => StructuredSummary | null;
-    requestInternalSummary: (keepLast: number) => Promise<StructuredSummary>;
+    generateSummary: () => Promise<StructuredSummary | null>;
+    trimTranscript: (keepLast: number) => void;
     requestExit: () => void;
     showPicker: (commandName: string, prompt: string, options: PickerOption[]) => Promise<string | null>;
     getTranscript: () => unknown[];

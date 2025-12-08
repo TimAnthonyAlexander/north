@@ -47,7 +47,7 @@ export interface ToolResultInput {
 export interface StreamOptions {
     tools?: ToolSchema[];
     model?: string;
-    systemSuffix?: string;
+    systemOverride?: string;
 }
 
 export interface Provider {
@@ -112,9 +112,7 @@ export function createProvider(options?: { model?: string }): Provider {
             let stopReason: string | null = null;
 
             const modelToUse = options?.model || defaultModel;
-            const systemPrompt = options?.systemSuffix 
-                ? `${SYSTEM_PROMPT}\n\n${options.systemSuffix}`
-                : SYSTEM_PROMPT;
+            const systemPrompt = options?.systemOverride || SYSTEM_PROMPT;
 
             try {
                 const apiMessages: MessageParam[] = messages.map((m) => {

@@ -10,11 +10,8 @@ import {
     parseCommandInvocations,
     type CommandRegistry,
     type CommandContext,
-    type CommandDefinition,
     type StructuredSummary,
     type PickerOption,
-    type CommandReviewEntry,
-    type CommandExecutedEntry,
     type CommandReviewStatus,
 } from "../commands/index";
 import { DEFAULT_MODEL } from "../commands/models";
@@ -78,7 +75,7 @@ export type ShellDecision = "run" | "always" | "deny";
 export type CommandDecision = string | null;
 
 export interface Orchestrator {
-    sendMessage(content: string): void;
+    sendMessage(content: string): Promise<void>;
     resolveWriteReview(reviewId: string, decision: "accept" | "reject"): void;
     resolveShellReview(reviewId: string, decision: ShellDecision): void;
     resolveCommandReview(reviewId: string, decision: CommandDecision): void;
@@ -223,6 +220,9 @@ export function createOrchestratorWithTools(
         }
 
         for (const entry of transcript) {
+            if (entry.role === "command_review" || entry.role === "command_executed") {
+                continue;
+            }
             if (entry.role === "user") {
                 if (pendingToolResults.length > 0) {
                     messages.push(provider.buildToolResultMessage(pendingToolResults));
@@ -603,7 +603,7 @@ export function createOrchestratorWithTools(
             getRollingSummary() {
                 return rollingSummary;
             },
-            async requestInternalSummary(keepLast: number): Promise<StructuredSummary> {
+            async generateSummary(): Promise<StructuredSummary | null> {
                 const transcriptText = transcript
                     .filter(e => e.role === "user" || e.role === "assistant")
                     .map(e => `${e.role}: ${e.content}`)
@@ -622,6 +622,8 @@ Conversation:
 ${transcriptText}
 
 Respond with ONLY the JSON, no other text.`;
+
+                const SUMMARY_SYSTEM = "You are a conversation summarizer. Respond with valid JSON only. Do not request any tools.";
 
                 return new Promise((resolve) => {
                     let summaryText = "";
@@ -644,69 +646,46 @@ Respond with ONLY the JSON, no other text.`;
                                             openTasks: Array.isArray(parsed.openTasks) ? parsed.openTasks : [],
                                             importantFiles: Array.isArray(parsed.importantFiles) ? parsed.importantFiles : [],
                                         };
-                                        
-                                        rollingSummary = summary;
-                                        
-                                        const reviewOutcomes = transcript.filter(e => 
-                                            (e.role === "diff_review" || e.role === "shell_review") && 
-                                            e.reviewStatus !== "pending"
-                                        );
-                                        
-                                        const userAssistantEntries = transcript.filter(e => 
-                                            e.role === "user" || e.role === "assistant"
-                                        );
-                                        const entriesToKeep = userAssistantEntries.slice(-keepLast);
-                                        
-                                        transcript = [...reviewOutcomes, ...entriesToKeep];
-                                        
-                                        const summaryEntry: TranscriptEntry = {
-                                            id: generateId(),
-                                            role: "command_executed",
-                                            content: "Conversation summarized",
-                                            ts: Date.now(),
-                                            commandName: "summarize",
-                                        };
-                                        transcript.push(summaryEntry);
-                                        
-                                        emitState();
                                         resolve(summary);
                                     } else {
-                                        resolve({
-                                            goal: "",
-                                            decisions: [],
-                                            constraints: [],
-                                            openTasks: [],
-                                            importantFiles: [],
-                                        });
+                                        resolve(null);
                                     }
                                 } catch {
-                                    resolve({
-                                        goal: "",
-                                        decisions: [],
-                                        constraints: [],
-                                        openTasks: [],
-                                        importantFiles: [],
-                                    });
+                                    resolve(null);
                                 }
                             },
                             onError() {
-                                resolve({
-                                    goal: "",
-                                    decisions: [],
-                                    constraints: [],
-                                    openTasks: [],
-                                    importantFiles: [],
-                                });
+                                resolve(null);
                             },
                             onToolCall() {},
                         },
                         { 
                             tools: [],
                             model: currentModel,
-                            systemSuffix: "Do not request any tools. Respond with JSON only.",
+                            systemOverride: SUMMARY_SYSTEM,
                         }
                     );
                 });
+            },
+            trimTranscript(keepLast: number) {
+                const userAssistantEntries = transcript.filter(e => 
+                    e.role === "user" || e.role === "assistant"
+                );
+                const idsToKeepFromUA = new Set(
+                    userAssistantEntries.slice(-keepLast).map(e => e.id)
+                );
+                
+                transcript = transcript.filter(e => {
+                    if (e.role === "user" || e.role === "assistant") {
+                        return idsToKeepFromUA.has(e.id);
+                    }
+                    if ((e.role === "diff_review" || e.role === "shell_review") && e.reviewStatus !== "pending") {
+                        return true;
+                    }
+                    return false;
+                });
+                
+                emitState();
             },
             requestExit() {
                 stopped = true;

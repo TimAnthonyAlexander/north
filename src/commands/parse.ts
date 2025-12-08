@@ -96,9 +96,9 @@ function parseArgs(
             const flagName = token.value.slice(2);
             const nextPos = skipWhitespace(input, token.end);
             
-            if (nextPos < input.length && !input[nextPos].startsWith("-") && !isNextSlashCommand(input, nextPos, registry)) {
+            if (nextPos < input.length && !isNextSlashCommand(input, nextPos, registry)) {
                 const valueToken = parseToken(input, nextPos);
-                if (valueToken && !valueToken.value.startsWith("-")) {
+                if (valueToken && !valueToken.value.startsWith("--")) {
                     flags[flagName] = valueToken.value;
                     pos = skipWhitespace(input, valueToken.end);
                     argsEnd = valueToken.end;
@@ -106,7 +106,7 @@ function parseArgs(
                 }
             }
             flags[flagName] = true;
-        } else if (token.value.startsWith("-") && token.value.length === 2) {
+        } else if (token.value.startsWith("-") && token.value.length === 2 && !/^-\d$/.test(token.value)) {
             flags[token.value.slice(1)] = true;
         } else {
             positional.push(token.value);

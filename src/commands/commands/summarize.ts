@@ -37,27 +37,31 @@ export const summarizeCommand: CommandDefinition = {
             };
         }
         
-        try {
-            const summary = await ctx.requestInternalSummary(keepLast);
-            
-            const parts: string[] = [];
-            if (summary.goal) parts.push(`Goal: ${summary.goal}`);
-            if (summary.decisions.length > 0) parts.push(`${summary.decisions.length} decisions`);
-            if (summary.openTasks.length > 0) parts.push(`${summary.openTasks.length} open tasks`);
-            if (summary.importantFiles.length > 0) parts.push(`${summary.importantFiles.length} files tracked`);
-            
-            const summaryText = parts.length > 0 
-                ? parts.join(", ") 
-                : "Summary created";
-            
+        const summary = await ctx.generateSummary();
+        
+        if (!summary) {
             return { 
-                ok: true, 
-                message: `Conversation summarized (keeping last ${keepLast}). ${summaryText}` 
+                ok: false, 
+                error: "Failed to generate summary" 
             };
-        } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            return { ok: false, error: `Failed to summarize: ${message}` };
         }
+        
+        ctx.setRollingSummary(summary);
+        ctx.trimTranscript(keepLast);
+        
+        const parts: string[] = [];
+        if (summary.goal) parts.push(`Goal: ${summary.goal}`);
+        if (summary.decisions.length > 0) parts.push(`${summary.decisions.length} decisions`);
+        if (summary.openTasks.length > 0) parts.push(`${summary.openTasks.length} open tasks`);
+        if (summary.importantFiles.length > 0) parts.push(`${summary.importantFiles.length} files tracked`);
+        
+        const summaryText = parts.length > 0 
+            ? parts.join(", ") 
+            : "Summary created";
+        
+        return { 
+            ok: true, 
+            message: `Conversation summarized (keeping last ${keepLast}). ${summaryText}` 
+        };
     },
 };
-

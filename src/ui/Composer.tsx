@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Box, Text, useInput } from "ink";
 import { getTokenAtCursor, MODELS, type CommandRegistry } from "../commands/index";
 
@@ -104,6 +104,12 @@ export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps)
     const suggestions = suggestionState?.suggestions || [];
     const hasSuggestions = suggestions.length > 0;
 
+    useEffect(() => {
+        if (selectedIndex >= suggestions.length && suggestions.length > 0) {
+            setSelectedIndex(suggestions.length - 1);
+        }
+    }, [suggestions.length, selectedIndex]);
+
     useInput(
         (input, key) => {
             if (disabled) return;
@@ -120,8 +126,10 @@ export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps)
                 if (suggestion && suggestionState) {
                     const before = value.slice(0, suggestionState.tokenStart);
                     const after = value.slice(suggestionState.tokenEnd);
-                    const newValue = before + suggestion.value + " " + after;
-                    const newCursor = suggestionState.tokenStart + suggestion.value.length + 1;
+                    const needsSpace = after.length === 0 || !/^\s/.test(after);
+                    const spacing = needsSpace ? " " : "";
+                    const newValue = before + suggestion.value + spacing + after;
+                    const newCursor = suggestionState.tokenStart + suggestion.value.length + (needsSpace ? 1 : 0);
                     setValue(newValue);
                     setCursorPos(newCursor);
                     setSelectedIndex(0);

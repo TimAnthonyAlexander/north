@@ -15,7 +15,7 @@ All file edits are shown as diffs before writing. All shell commands require per
 Requires [Bun](https://bun.sh) and an Anthropic API key.
 
 ```bash
-git clone https://github.com/yourusername/north.git
+git clone https://github.com/timanthonyalexander/north.git
 cd north
 bun install
 ```
@@ -116,12 +116,3 @@ Architecture details are in `docs/implementation.md`.
 
 Logs record events and metadata (tool names, durations, prompt lengths) but not file contents or exact prompts. Your prompts and tool results go to Anthropic's API.
 
-## Status
-
-Milestones 1–4 complete: chat, streaming, read/search tools, deterministic edits with diff review, persistent PTY with shell approvals.
-
-Planned: memory/cache system, slash commands, UX polish.
-
-## License
-
-MIT
