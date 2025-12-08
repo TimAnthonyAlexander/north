@@ -273,6 +273,15 @@ All tools follow the pattern:
 - SIGINT handling: cancel if processing, exit if idle
 - Delegates review decisions to orchestrator methods
 - Tracks `isProcessing` and `pendingReviewId` for UI state
+- Layout: Transcript (scrollable top), StatusLine (sticky bottom), Composer (sticky bottom)
+
+### ui/StatusLine.tsx
+
+- Full-width status bar using `width="100%"` and `justifyContent="space-between"`
+- Left side: project name with truncation for long names (`wrap="truncate"`)
+- Right side: current model name and context usage meter
+- Context meter: color-coded circle (green < 60%, yellow 60-85%, red > 85%) + percentage
+- Updates in real-time as context fills
 
 ### ui/Composer.tsx
 

@@ -20,22 +20,20 @@ export function StatusLine({ model, projectPath, contextUsage }: StatusLineProps
     const contextColor = getContextColor(contextUsage);
 
     return (
-        <Box justifyContent="space-between" paddingX={1}>
-            <Text color="gray">
-                <Text color="blue" bold>
-                    north
-                </Text>
-                {" • "}
-                <Text>{projectName}</Text>
-            </Text>
-            <Box>
-                <Text color="gray">
-                    <Text color="magenta">{model}</Text>
+        <Box width="100%" paddingX={1} justifyContent="space-between">
+            <Box flexGrow={1} flexShrink={1} marginRight={1}>
+                <Text wrap="truncate" color="gray">
+                    <Text color="blue" bold>
+                        north
+                    </Text>
                     {" • "}
-                    <Text color={contextColor}>●</Text>
-                    {" "}
-                    <Text color={contextColor}>{usagePercent}%</Text>
+                    {projectName}
                 </Text>
+            </Box>
+            <Box flexDirection="row" gap={1}>
+                <Text color="magenta">{model}</Text>
+                <Text color="gray">•</Text>
+                <Text color={contextColor}>● {usagePercent}%</Text>
             </Box>
         </Box>
     );

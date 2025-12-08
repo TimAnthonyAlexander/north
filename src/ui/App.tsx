@@ -162,8 +162,7 @@ export function App({
 
     return (
         <Box flexDirection="column" height="100%">
-            <StatusLine model={currentModel} projectPath={projectPath} contextUsage={contextUsage} />
-            <Box flexDirection="column" flexGrow={1} paddingX={1} marginY={1}>
+            <Box flexDirection="column" flexGrow={1} paddingX={1} marginTop={1}>
                 <Transcript
                     entries={transcript}
                     pendingReviewId={pendingReviewId}
@@ -175,6 +174,9 @@ export function App({
                     onCommandSelect={handleCommandSelect}
                     onCommandCancel={handleCommandCancel}
                 />
+            </Box>
+            <Box paddingX={1} marginBottom={1}>
+                <StatusLine model={currentModel} projectPath={projectPath} contextUsage={contextUsage} />
             </Box>
             <Box paddingX={1}>
                 <Composer
