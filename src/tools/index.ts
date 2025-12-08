@@ -26,20 +26,20 @@ import { editCreateFileTool } from "./edit_create_file";
 import { editApplyBatchTool } from "./edit_apply_batch";
 
 export function createToolRegistryWithAllTools(): ToolRegistry {
-  const registry = createToolRegistry();
+    const registry = createToolRegistry();
 
-  registry.register(listRootTool);
-  registry.register(readFileTool);
-  registry.register(searchTextTool);
-  registry.register(findFilesTool);
-  registry.register(readReadmeTool);
-  registry.register(detectLanguagesTool);
-  registry.register(hotfilesTool);
-  registry.register(editReplaceExactTool);
-  registry.register(editInsertAtLineTool);
-  registry.register(editCreateFileTool);
-  registry.register(editApplyBatchTool);
+    registry.register(listRootTool);
+    registry.register(readFileTool);
+    registry.register(searchTextTool);
+    registry.register(findFilesTool);
+    registry.register(readReadmeTool);
+    registry.register(detectLanguagesTool);
+    registry.register(hotfilesTool);
+    registry.register(editReplaceExactTool);
+    registry.register(editInsertAtLineTool);
+    registry.register(editCreateFileTool);
+    registry.register(editApplyBatchTool);
 
-  return registry;
+    return registry;
 }
 
