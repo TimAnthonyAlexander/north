@@ -12,8 +12,6 @@ export { editInsertAtLineTool } from "./edit_insert_at_line";
 export { editCreateFileTool } from "./edit_create_file";
 export { editApplyBatchTool } from "./edit_apply_batch";
 export { shellRunTool } from "./shell_run";
-export { planCreateTool } from "./plan_create";
-export { planUpdateTool } from "./plan_update";
 
 import type { Mode } from "../commands/types";
 import { createToolRegistry, type ToolRegistry } from "./registry";
@@ -29,9 +27,6 @@ import { editInsertAtLineTool } from "./edit_insert_at_line";
 import { editCreateFileTool } from "./edit_create_file";
 import { editApplyBatchTool } from "./edit_apply_batch";
 import { shellRunTool } from "./shell_run";
-import { planCreateTool } from "./plan_create";
-import { planUpdateTool } from "./plan_update";
-
 const READ_ONLY_TOOLS = [
     "list_root",
     "read_file",
@@ -41,8 +36,6 @@ const READ_ONLY_TOOLS = [
     "detect_languages",
     "hotfiles",
 ];
-
-const PLAN_TOOLS = ["plan_create", "plan_update"];
 
 export function createToolRegistryWithAllTools(): ToolRegistry {
     const registry = createToolRegistry();
@@ -59,8 +52,6 @@ export function createToolRegistryWithAllTools(): ToolRegistry {
     registry.register(editCreateFileTool);
     registry.register(editApplyBatchTool);
     registry.register(shellRunTool);
-    registry.register(planCreateTool);
-    registry.register(planUpdateTool);
 
     return registry;
 }
@@ -72,10 +63,6 @@ export function filterToolsForMode(
     switch (mode) {
         case "ask":
             return allSchemas.filter((tool) => READ_ONLY_TOOLS.includes(tool.name));
-        case "plan":
-            return allSchemas.filter(
-                (tool) => READ_ONLY_TOOLS.includes(tool.name) || PLAN_TOOLS.includes(tool.name)
-            );
         case "agent":
         default:
             return allSchemas;

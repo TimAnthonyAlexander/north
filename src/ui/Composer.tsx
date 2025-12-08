@@ -96,8 +96,6 @@ function cycleMode(currentMode: Mode): Mode {
         case "ask":
             return "agent";
         case "agent":
-            return "plan";
-        case "plan":
             return "ask";
     }
 }
@@ -108,8 +106,6 @@ function getModeColor(mode: Mode): string {
             return "blue";
         case "agent":
             return "green";
-        case "plan":
-            return "yellow";
     }
 }
 
@@ -119,8 +115,6 @@ function getModeLabel(mode: Mode): string {
             return "ASK";
         case "agent":
             return "AGENT";
-        case "plan":
-            return "PLAN";
     }
 }
 

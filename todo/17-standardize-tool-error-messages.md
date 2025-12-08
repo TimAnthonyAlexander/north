@@ -55,3 +55,4 @@ return { ok: false, error: toolErrors.fileNotFound(args.path) };
 
 **When complete, delete this file: `rm todo/17-standardize-tool-error-messages.md`**
 
+

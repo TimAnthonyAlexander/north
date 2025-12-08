@@ -55,3 +55,4 @@ export function resolveSafePath(repoRoot: string, filePath: string): string | nu
 
 **When complete, delete this file: `rm todo/03-symlink-path-traversal.md`**
 
+

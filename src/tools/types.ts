@@ -1,6 +1,6 @@
 import type { Logger } from "../logging/index";
 
-export type ApprovalPolicy = "none" | "write" | "shell" | "plan";
+export type ApprovalPolicy = "none" | "write" | "shell";
 
 export interface ToolContext {
     repoRoot: string;
@@ -177,18 +177,4 @@ export interface ShellRunOutput {
     exitCode: number;
     durationMs: number;
     denied?: boolean;
-}
-
-export interface PlanCreateInput {
-    planText: string;
-}
-
-export interface PlanUpdateInput {
-    planId: string;
-    planText: string;
-}
-
-export interface PlanOutput {
-    planId: string;
-    version: number;
 }

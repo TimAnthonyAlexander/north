@@ -27,8 +27,7 @@ import * as path from "node:path";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "denied";
 export type WriteReviewStatus = "pending" | "accepted" | "always" | "rejected";
-export type PlanReviewStatus = "pending" | "accepted" | "rejected" | "revised";
-export type ReviewStatus = WriteReviewStatus | ShellReviewStatus | PlanReviewStatus;
+export type ReviewStatus = WriteReviewStatus | ShellReviewStatus;
 export type { CommandReviewStatus };
 
 export interface TranscriptEntry {
@@ -40,8 +39,7 @@ export interface TranscriptEntry {
         | "diff_review"
         | "shell_review"
         | "command_review"
-        | "command_executed"
-        | "plan_review";
+        | "command_executed";
     content: string;
     ts: number;
     isStreaming?: boolean;
@@ -58,9 +56,6 @@ export interface TranscriptEntry {
     commandPrompt?: string;
     commandOptions?: PickerOption[];
     commandSelectedId?: string;
-    planId?: string;
-    planText?: string;
-    planVersion?: number;
     toolCallId?: string;
     shellResult?: { ok: boolean; data?: unknown; error?: string };
 }
@@ -106,8 +101,6 @@ export interface OrchestratorContext {
 
 export type ShellDecision = "run" | "always" | "deny";
 export type CommandDecision = string | null;
-export type PlanDecision = "accept" | "revise" | "reject";
-
 export type WriteDecision = "accept" | "always" | "reject";
 
 export interface Orchestrator {
@@ -115,7 +108,6 @@ export interface Orchestrator {
     resolveWriteReview(reviewId: string, decision: WriteDecision): void;
     resolveShellReview(reviewId: string, decision: ShellDecision): void;
     resolveCommandReview(reviewId: string, decision: CommandDecision): void;
-    resolvePlanReview(reviewId: string, decision: PlanDecision): void;
     getModel(): string;
     getCommandRegistry(): CommandRegistry;
     cancel(): void;
@@ -140,20 +132,6 @@ interface PendingShellReview {
 interface PendingCommandReview {
     id: string;
     resolve: (decision: CommandDecision) => void;
-}
-
-interface PendingPlanReview {
-    id: string;
-    resolve: (decision: PlanDecision) => void;
-    planId: string;
-    planText: string;
-    planVersion: number;
-}
-
-interface AcceptedPlan {
-    planId: string;
-    version: number;
-    text: string;
 }
 
 const STREAM_THROTTLE_MS = 32;
@@ -232,11 +210,9 @@ export function createOrchestratorWithTools(
     let pendingWriteReview: PendingWriteReview | null = null;
     let pendingShellReview: PendingShellReview | null = null;
     let pendingCommandReview: PendingCommandReview | null = null;
-    let pendingPlanReview: PendingPlanReview | null = null;
     let stopped = false;
     let currentModel: string = DEFAULT_MODEL;
     let rollingSummary: StructuredSummary | null = null;
-    let acceptedPlan: AcceptedPlan | null = null;
 
     let contextUsedTokens = 0;
     let contextLimitTokens = getModelContextLimit(currentModel);
@@ -297,7 +273,6 @@ export function createOrchestratorWithTools(
 
     const writeToolCallIds = new Set<string>();
     const shellToolCallIds = new Set<string>();
-    const planToolCallIds = new Set<string>();
 
     function buildMessagesForClaude(): Message[] {
         const messages: Message[] = [];
@@ -352,8 +327,7 @@ export function createOrchestratorWithTools(
                 if (
                     toolCallId &&
                     !writeToolCallIds.has(toolCallId) &&
-                    !shellToolCallIds.has(toolCallId) &&
-                    !planToolCallIds.has(toolCallId)
+                    !shellToolCallIds.has(toolCallId)
                 ) {
                     pendingToolResults.push({
                         toolCallId,
@@ -385,30 +359,6 @@ export function createOrchestratorWithTools(
                         toolCallId,
                         result: JSON.stringify(shellResult),
                         isError: !shellResult.ok,
-                    });
-                }
-            } else if (entry.role === "plan_review" && entry.reviewStatus !== "pending") {
-                const toolCallId = entry.toolCallId;
-                if (toolCallId) {
-                    const accepted = entry.reviewStatus === "accepted";
-                    const revised = entry.reviewStatus === "revised";
-                    const resultData: Record<string, unknown> = {
-                        ok: true,
-                        accepted,
-                        planId: entry.planId,
-                        version: entry.planVersion,
-                    };
-                    if (entry.reviewStatus === "accepted") {
-                        resultData.message =
-                            "Plan accepted by user. You now have access to all write tools. Begin implementing the plan immediately. Do not ask for permission - start making the changes outlined in your plan.";
-                    } else if (entry.reviewStatus === "rejected") {
-                        resultData.reason = "User rejected the plan";
-                    } else if (revised) {
-                        resultData.reason = "User requested revisions to the plan";
-                    }
-                    pendingToolResults.push({
-                        toolCallId,
-                        result: JSON.stringify(resultData),
                     });
                 }
             }
@@ -466,52 +416,6 @@ export function createOrchestratorWithTools(
             const message = err instanceof Error ? err.message : String(err);
             return { ok: false, error: message };
         }
-    }
-
-    async function handlePlanTool(
-        toolCall: ToolCall,
-        toolEntryId: string
-    ): Promise<{ needsReview: boolean; entry: TranscriptEntry }> {
-        const args = toolCall.input as { planText?: string; planId?: string };
-        const planText = args.planText || "";
-
-        planToolCallIds.add(toolCall.id);
-
-        const result = await toolRegistry.execute(toolCall.name, args, {
-            repoRoot: context.repoRoot,
-            logger: context.logger,
-        });
-
-        if (result.ok && result.data) {
-            const planData = result.data as { planId: string; version: number };
-            const reviewId = generateId();
-
-            const reviewEntry: TranscriptEntry = {
-                id: reviewId,
-                role: "plan_review",
-                content: "",
-                ts: Date.now(),
-                toolName: toolCall.name,
-                planId: planData.planId,
-                planText: planText,
-                planVersion: planData.version,
-                reviewStatus: "pending",
-                toolCallId: toolCall.id,
-            };
-            transcript.push(reviewEntry);
-
-            updateEntry(toolEntryId, {
-                content: `${toolCall.name} (awaiting approval)`,
-                toolResult: { ok: true, data: { awaitingApproval: true } },
-            });
-
-            return { needsReview: true, entry: reviewEntry };
-        }
-
-        updateEntry(toolEntryId, { toolResult: result });
-        emitState();
-
-        return { needsReview: false, entry: findEntry(toolEntryId)! };
     }
 
     async function handleShellTool(
@@ -582,11 +486,11 @@ export function createOrchestratorWithTools(
     async function executeToolCall(
         toolCall: ToolCall,
         _assistantId: string,
-        mode: Mode
+        _mode: Mode
     ): Promise<{
         needsReview: boolean;
         entry: TranscriptEntry;
-        reviewType?: "write" | "shell" | "plan";
+        reviewType?: "write" | "shell";
     }> {
         const toolName = toolCall.name;
         const args = toolCall.input;
@@ -608,13 +512,6 @@ export function createOrchestratorWithTools(
         transcript.push(toolEntry);
         emitState();
 
-        if (policy === "plan") {
-            const { needsReview, entry } = await handlePlanTool(toolCall, toolEntryId);
-            const durationMs = Date.now() - startTime;
-            callbacks.onToolCallComplete?.(toolName, durationMs, true);
-            return { needsReview, entry, reviewType: "plan" };
-        }
-
         if (policy === "shell") {
             const { needsReview, entry } = await handleShellTool(toolCall, toolEntryId);
             const durationMs = Date.now() - startTime;
@@ -623,17 +520,6 @@ export function createOrchestratorWithTools(
         }
 
         if (policy === "write") {
-            if (mode === "plan" && !acceptedPlan) {
-                const planRequiredResult = {
-                    ok: false,
-                    error: "PLAN_REQUIRED: You must create and get approval for a plan before making changes. Use plan_create tool to create a plan describing what you want to do.",
-                };
-                updateEntry(toolEntryId, { toolResult: planRequiredResult });
-                const durationMs = Date.now() - startTime;
-                callbacks.onToolCallComplete?.(toolName, durationMs, false);
-                emitState();
-                return { needsReview: false, entry: toolEntry };
-            }
             writeToolCallIds.add(toolCall.id);
         }
 
@@ -758,21 +644,6 @@ export function createOrchestratorWithTools(
         });
     }
 
-    async function waitForPlanReviewDecision(reviewEntry: TranscriptEntry): Promise<PlanDecision> {
-        pendingReviewId = reviewEntry.id;
-        emitState();
-
-        return new Promise((resolve) => {
-            pendingPlanReview = {
-                id: reviewEntry.id,
-                resolve,
-                planId: reviewEntry.planId || "",
-                planText: reviewEntry.planText || "",
-                planVersion: reviewEntry.planVersion || 1,
-            };
-        });
-    }
-
     async function applyWriteDecision(
         reviewEntry: TranscriptEntry,
         decision: WriteDecision
@@ -847,28 +718,6 @@ export function createOrchestratorWithTools(
         emitState();
     }
 
-    async function applyPlanDecision(
-        reviewEntry: TranscriptEntry,
-        decision: PlanDecision
-    ): Promise<void> {
-        if (decision === "accept") {
-            acceptedPlan = {
-                planId: reviewEntry.planId || "",
-                version: reviewEntry.planVersion || 1,
-                text: reviewEntry.planText || "",
-            };
-            updateEntry(reviewEntry.id, { reviewStatus: "accepted" });
-        } else if (decision === "revise") {
-            updateEntry(reviewEntry.id, { reviewStatus: "revised" });
-        } else {
-            updateEntry(reviewEntry.id, { reviewStatus: "rejected" });
-        }
-
-        pendingReviewId = null;
-        pendingPlanReview = null;
-        emitState();
-    }
-
     function createCommandContext(): CommandContext {
         return {
             repoRoot: context.repoRoot,
@@ -886,15 +735,12 @@ export function createOrchestratorWithTools(
             resetChat() {
                 transcript = [];
                 rollingSummary = null;
-                acceptedPlan = null;
                 pendingReviewId = null;
                 pendingWriteReview = null;
                 pendingShellReview = null;
                 pendingCommandReview = null;
-                pendingPlanReview = null;
                 writeToolCallIds.clear();
                 shellToolCallIds.clear();
-                planToolCallIds.clear();
                 toolCallsMap.clear();
                 emitState();
             },
@@ -1075,9 +921,7 @@ Respond with ONLY the JSON, no other text.`;
         return remainingText;
     }
 
-    async function runConversationLoop(mode: Mode): Promise<void> {
-        let currentMode = mode;
-
+    async function runConversationLoop(_mode: Mode): Promise<void> {
         while (!stopped && !cancelled) {
             const requestId = generateId();
             const requestStart = Date.now();
@@ -1101,7 +945,7 @@ Respond with ONLY the JSON, no other text.`;
 
             let messages = buildMessagesForClaude();
             const allToolSchemas = toolRegistry.getSchemas();
-            const toolSchemas = filterToolsForMode(currentMode, allToolSchemas);
+            const toolSchemas = filterToolsForMode(_mode, allToolSchemas);
             const signal = currentAbortController.signal;
 
             const systemPrompt = provider.systemPrompt;
@@ -1211,7 +1055,7 @@ Respond with ONLY the JSON, no other text.`;
                 const { needsReview, entry, reviewType } = await executeToolCall(
                     toolCall,
                     assistantId,
-                    currentMode
+                    _mode
                 );
 
                 if (needsReview) {
@@ -1221,13 +1065,6 @@ Respond with ONLY the JSON, no other text.`;
                     } else if (reviewType === "shell") {
                         const decision = await waitForShellReviewDecision(entry);
                         await applyShellDecision(entry, decision);
-                    } else if (reviewType === "plan") {
-                        const decision = await waitForPlanReviewDecision(entry);
-                        await applyPlanDecision(entry, decision);
-
-                        if (decision === "accept") {
-                            currentMode = "agent";
-                        }
                     }
                 }
             }
@@ -1298,12 +1135,6 @@ Respond with ONLY the JSON, no other text.`;
             }
         },
 
-        resolvePlanReview(reviewId: string, decision: PlanDecision) {
-            if (pendingPlanReview && pendingPlanReview.id === reviewId) {
-                pendingPlanReview.resolve(decision);
-            }
-        },
-
         getModel() {
             return currentModel;
         },
@@ -1333,10 +1164,6 @@ Respond with ONLY the JSON, no other text.`;
                 pendingCommandReview.resolve(null);
                 pendingCommandReview = null;
             }
-            if (pendingPlanReview) {
-                pendingPlanReview.resolve("reject");
-                pendingPlanReview = null;
-            }
 
             pendingReviewId = null;
         },
@@ -1357,9 +1184,6 @@ Respond with ONLY the JSON, no other text.`;
             }
             if (pendingCommandReview) {
                 pendingCommandReview.resolve(null);
-            }
-            if (pendingPlanReview) {
-                pendingPlanReview.resolve("reject");
             }
         },
 

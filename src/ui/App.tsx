@@ -171,22 +171,6 @@ export function App({
         orchestrator.resolveCommandReview(entryId, null);
     }
 
-    function handlePlanAccept(entryId: string) {
-        if (!orchestrator) return;
-        orchestrator.resolvePlanReview(entryId, "accept");
-        setNextMode("agent");
-    }
-
-    function handlePlanRevise(entryId: string) {
-        if (!orchestrator) return;
-        orchestrator.resolvePlanReview(entryId, "revise");
-    }
-
-    function handlePlanReject(entryId: string) {
-        if (!orchestrator) return;
-        orchestrator.resolvePlanReview(entryId, "reject");
-    }
-
     const composerDisabled = isProcessing || pendingReviewId !== null;
 
     return (
@@ -203,9 +187,6 @@ export function App({
                     onShellDeny={handleShellDeny}
                     onCommandSelect={handleCommandSelect}
                     onCommandCancel={handleCommandCancel}
-                    onPlanAccept={handlePlanAccept}
-                    onPlanRevise={handlePlanRevise}
-                    onPlanReject={handlePlanReject}
                 />
             </Box>
             <Box paddingX={1}>

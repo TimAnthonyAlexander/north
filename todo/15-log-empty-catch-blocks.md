@@ -53,3 +53,4 @@ Priority locations to fix:
 
 **When complete, delete this file: `rm todo/15-log-empty-catch-blocks.md`**
 
+

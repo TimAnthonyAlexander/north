@@ -29,7 +29,7 @@ export interface StructuredSummary {
     importantFiles: string[];
 }
 
-export type Mode = "ask" | "agent" | "plan";
+export type Mode = "ask" | "agent";
 
 export interface PickerOption {
     id: string;

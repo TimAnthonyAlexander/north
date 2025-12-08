@@ -70,3 +70,4 @@ Note: This requires refactoring the individual edit tools to optionally accept p
 
 **When complete, delete this file: `rm todo/11-batch-edit-overlap-detection.md`**
 
+

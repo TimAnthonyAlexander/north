@@ -39,3 +39,4 @@ const [currentModel, setCurrentModel] = useState<string>(DEFAULT_MODEL);
 
 **When complete, delete this file: `rm todo/05-consolidate-default-model.md`**
 
+

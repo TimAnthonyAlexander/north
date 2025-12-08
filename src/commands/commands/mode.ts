@@ -9,25 +9,20 @@ import type {
 const MODE_OPTIONS: PickerOption[] = [
     { id: "ask", label: "Ask", hint: "Read-only mode - no edits or commands" },
     { id: "agent", label: "Agent", hint: "Full mode with all tools" },
-    {
-        id: "plan",
-        label: "Plan",
-        hint: "Create/update plans before execution (plan required for writes)",
-    },
 ];
 
 export const modeCommand: CommandDefinition = {
     name: "mode",
-    description: "Switch conversation mode (ask/agent/plan)",
-    usage: "/mode [ask|agent|plan]",
+    description: "Switch conversation mode (ask/agent)",
+    usage: "/mode [ask|agent]",
     async execute(ctx: CommandContext, args: ParsedArgs): Promise<CommandResult> {
         const modeArg = args.positional[0]?.toLowerCase();
 
         if (modeArg) {
-            if (!["ask", "agent", "plan"].includes(modeArg)) {
+            if (!["ask", "agent"].includes(modeArg)) {
                 return {
                     ok: false,
-                    error: "Invalid mode. Use: ask, agent, or plan",
+                    error: "Invalid mode. Use: ask or agent",
                 };
             }
 
