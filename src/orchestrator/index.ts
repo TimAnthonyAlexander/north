@@ -144,6 +144,12 @@ function formatToolNameForDisplay(toolName: string, args: unknown): string {
     const basename = (filePath: string) => path.basename(filePath);
 
     switch (toolName) {
+        case "list_root":
+            return "Listing project files";
+        case "find_files": {
+            const { pattern } = args as { pattern?: string };
+            return pattern ? `Finding ${pattern}` : "Finding files";
+        }
         case "read_file": {
             const { path: filePath } = args as { path?: string };
             return filePath ? `Reading ${basename(filePath)}` : "Reading file";

@@ -100,18 +100,45 @@ const AssistantMessage = memo(function AssistantMessage({
     );
 });
 
+function getToolResultSuffix(
+    toolName: string | undefined,
+    toolResult: { ok: boolean; data?: unknown } | undefined
+): string {
+    if (!toolResult?.ok || !toolResult.data) return "";
+
+    if (toolName === "list_root") {
+        const data = toolResult.data as { entries?: unknown[] };
+        const count = data.entries?.length ?? 0;
+        return ` - ${count} entries`;
+    }
+
+    if (toolName === "find_files") {
+        const data = toolResult.data as { files?: unknown[]; truncated?: boolean };
+        const count = data.files?.length ?? 0;
+        const suffix = data.truncated ? "+" : "";
+        return ` - ${count}${suffix} files`;
+    }
+
+    return "";
+}
+
 const ToolMessage = memo(function ToolMessage({
     content,
     isStreaming,
     isError,
     animationsEnabled,
+    toolName,
+    toolResult,
 }: {
     content: string;
     isStreaming: boolean;
     isError: boolean;
     animationsEnabled: boolean;
+    toolName?: string;
+    toolResult?: { ok: boolean; data?: unknown };
 }) {
     const spinner = useSpinner(isStreaming && animationsEnabled, 80);
+    const suffix = isStreaming ? "" : getToolResultSuffix(toolName, toolResult);
 
     return (
         <Box marginLeft={2} marginBottom={0}>
@@ -119,6 +146,7 @@ const ToolMessage = memo(function ToolMessage({
                 <Text color={isError ? "red" : "yellow"}>⚡</Text>{" "}
                 <Text color={isError ? "red" : "gray"} dimColor={!isError}>
                     {content}
+                    {suffix}
                 </Text>
                 {isStreaming && <Text color="yellow"> {spinner}</Text>}
             </Text>
@@ -181,6 +209,8 @@ const MessageBlock = memo(function MessageBlock({
                 isStreaming={entry.isStreaming ?? false}
                 isError={isError}
                 animationsEnabled={animationsEnabled}
+                toolName={entry.toolName}
+                toolResult={entry.toolResult}
             />
         );
     }
@@ -274,6 +304,8 @@ const StaticEntry = memo(function StaticEntry({ entry }: { entry: TranscriptEntr
                 isStreaming={false}
                 isError={isError}
                 animationsEnabled={false}
+                toolName={entry.toolName}
+                toolResult={entry.toolResult}
             />
         );
     }

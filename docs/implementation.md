@@ -678,6 +678,8 @@ Implementation details:
 ### Tool Display Formatting
 
 The orchestrator formats tool names for better readability in the TUI:
+- `list_root` → "Listing project files - N entries"
+- `find_files` → "Finding pattern - N files" (with + suffix if truncated)
 - `read_file` → "Reading filename.ext"
 - `edit_replace_exact` → "Editing filename.ext"
 - `edit_insert_at_line` → "Editing filename.ext"
@@ -685,7 +687,9 @@ The orchestrator formats tool names for better readability in the TUI:
 - `edit_apply_batch` → "Editing N files" (or single file name if batch contains only one edit)
 - Other tools: shown as-is
 
-Implementation in `formatToolNameForDisplay()` which extracts the filename from tool arguments and formats the display text accordingly.
+Implementation split between:
+- `formatToolNameForDisplay()` in orchestrator: extracts display name from tool arguments
+- `getToolResultSuffix()` in Transcript.tsx: appends result counts for file listing tools
 
 ### UI Animations
 
