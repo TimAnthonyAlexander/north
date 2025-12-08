@@ -24,6 +24,7 @@ export interface TranscriptEntry {
     applyPayload?: unknown;
     shellCommand?: string;
     shellCwd?: string | null;
+    shellTimeoutMs?: number | null;
 }
 
 export interface OrchestratorState {
@@ -218,14 +219,15 @@ export function createOrchestratorWithTools(
         return toolCallsMap.get(assistantId) || [];
     }
 
-    async function executeShellCommand(command: string, cwd?: string | null): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+    async function executeShellCommand(command: string, cwd?: string | null, timeoutMs?: number | null): Promise<{ ok: boolean; data?: unknown; error?: string }> {
         const cwdOrUndefined = cwd || undefined;
+        const timeoutOrUndefined = timeoutMs ?? undefined;
         callbacks.onShellRunStart?.(command, cwdOrUndefined);
         const startTime = Date.now();
 
         try {
             const shellService = getShellService(context.repoRoot, context.logger);
-            const result = await shellService.run(command, { cwd: cwdOrUndefined });
+            const result = await shellService.run(command, { cwd: cwdOrUndefined, timeoutMs: timeoutOrUndefined });
             const durationMs = Date.now() - startTime;
 
             callbacks.onShellRunComplete?.(
@@ -258,6 +260,7 @@ export function createOrchestratorWithTools(
         const args = toolCall.input as ShellRunInput;
         const command = args.command?.trim() || "";
         const cwd = args.cwd;
+        const timeoutMs = args.timeoutMs;
 
         shellToolCallIds.add(toolCall.id);
 
@@ -267,7 +270,7 @@ export function createOrchestratorWithTools(
             });
             emitState();
 
-            const result = await executeShellCommand(command, cwd);
+            const result = await executeShellCommand(command, cwd, timeoutMs);
 
             const reviewEntry: TranscriptEntry = {
                 id: generateId(),
@@ -277,6 +280,7 @@ export function createOrchestratorWithTools(
                 toolName: "shell_run",
                 shellCommand: command,
                 shellCwd: cwd,
+                shellTimeoutMs: timeoutMs,
                 reviewStatus: "always",
             };
             (reviewEntry as any).toolCallId = toolCall.id;
@@ -300,6 +304,7 @@ export function createOrchestratorWithTools(
             toolName: "shell_run",
             shellCommand: command,
             shellCwd: cwd,
+            shellTimeoutMs: timeoutMs,
             reviewStatus: "pending",
         };
         (reviewEntry as any).toolCallId = toolCall.id;
@@ -453,6 +458,7 @@ export function createOrchestratorWithTools(
     ): Promise<void> {
         const command = reviewEntry.shellCommand || "";
         const cwd = reviewEntry.shellCwd;
+        const timeoutMs = reviewEntry.shellTimeoutMs;
 
         callbacks.onShellReviewDecision?.(decision, command);
 
@@ -474,7 +480,7 @@ export function createOrchestratorWithTools(
                 allowCommand(context.repoRoot, command);
             }
 
-            const result = await executeShellCommand(command, cwd);
+            const result = await executeShellCommand(command, cwd, timeoutMs);
             (reviewEntry as any).shellResult = result;
 
             updateEntry(reviewEntry.id, {

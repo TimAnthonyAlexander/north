@@ -102,11 +102,14 @@ src/
 ### shell/index.ts
 
 - Creates and manages one PTY session per project root
-- Uses `bun-pty` for cross-platform PTY support
+- Uses `bun-pty` for cross-platform PTY support (hardcoded to `/bin/bash` to avoid zsh flag issues)
+- Single-flight commands: rejects if a command is already running
 - Sentinel-based output parsing:
-  - Wraps commands with `__NORTH_START_{uuid}__` and `__NORTH_END_{uuid}__EXIT__{exitCode}__`
+  - Uses `printf` with newline-framed markers for robustness
   - Buffers PTY output until end marker detected
   - Extracts command output between markers
+- Timeout handling: destroys and recreates PTY session on timeout (prevents poisoned state)
+- Note: PTY merges stdout/stderr; `stderr` field is always empty
 - API: `getShellService(repoRoot, logger)` returns service with `run(command, options)` and `dispose()`
 - `disposeAllShellServices()` cleans up all sessions on exit
 
@@ -155,7 +158,7 @@ All tools follow the pattern:
 | `edit_insert_at_line` | Insert at line | 1-based, requires approval |
 | `edit_create_file` | Create/overwrite file | Requires approval |
 | `edit_apply_batch` | Atomic batch edits | All-or-nothing, requires approval |
-| `shell_run` | Execute shell command | Persistent PTY, requires approval or allowlist |
+| `shell_run` | Execute shell command | Persistent PTY, requires approval or allowlist, stderr merged into stdout |
 
 ### utils/ignore.ts
 

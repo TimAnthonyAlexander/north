@@ -10,7 +10,7 @@ export interface ToolContext {
 export interface ToolInputSchema {
     type: "object";
     properties: Record<string, {
-        type: string;
+        type: string | string[];
         description: string;
         items?: {
             type: string;

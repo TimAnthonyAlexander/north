@@ -11,11 +11,11 @@ export const shellRunTool: ToolDefinition<ShellRunInput, ShellRunOutput> = {
                 description: "The shell command to execute",
             },
             cwd: {
-                type: "string",
-                description: "Working directory override for this command (optional, defaults to repo root). Can be null.",
+                type: ["string", "null"],
+                description: "Working directory override for this command (optional, defaults to repo root)",
             },
             timeoutMs: {
-                type: "number",
+                type: ["number", "null"],
                 description: "Timeout in milliseconds (optional, defaults to 60000). On timeout, the PTY session is destroyed and recreated.",
             },
         },

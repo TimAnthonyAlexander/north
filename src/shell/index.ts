@@ -97,8 +97,9 @@ export function createShellService(options: ShellServiceOptions): ShellService {
                 if (session.pending.timeout) {
                     clearTimeout(session.pending.timeout);
                 }
+                session.pending.reject(new Error("Shell service disposed"));
+                session.pending = null;
             }
-            session.pending = null;
             try {
                 session.pty.kill();
             } catch {
