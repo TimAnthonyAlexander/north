@@ -24,6 +24,8 @@ export interface Orchestrator {
   getModel(): string;
 }
 
+const STREAM_THROTTLE_MS = 32;
+
 let entryIdCounter = 0;
 function generateEntryId(): string {
   return `entry-${++entryIdCounter}`;
@@ -40,8 +42,29 @@ export function createOrchestrator(callbacks: OrchestratorCallbacks): Orchestrat
     isProcessing: false,
   };
 
+  let pendingEmit: ReturnType<typeof setTimeout> | null = null;
+  let streamBuffer = "";
+
   function emitState(): void {
     callbacks.onStateChange({ ...state, transcript: [...state.transcript] });
+  }
+
+  function emitStateThrottled(): void {
+    if (pendingEmit) return;
+    pendingEmit = setTimeout(() => {
+      pendingEmit = null;
+      flushStreamBuffer();
+      emitState();
+    }, STREAM_THROTTLE_MS);
+  }
+
+  function flushStreamBuffer(): void {
+    if (!streamBuffer) return;
+    const lastEntry = state.transcript[state.transcript.length - 1];
+    if (lastEntry && lastEntry.role === "assistant" && lastEntry.isStreaming) {
+      lastEntry.content += streamBuffer;
+      streamBuffer = "";
+    }
   }
 
   function buildMessages(): Message[] {
@@ -53,15 +76,10 @@ export function createOrchestrator(callbacks: OrchestratorCallbacks): Orchestrat
       }));
   }
 
-  function updateLastEntry(update: Partial<TranscriptEntry>): void {
-    const lastIndex = state.transcript.length - 1;
-    if (lastIndex >= 0) {
-      state.transcript[lastIndex] = { ...state.transcript[lastIndex], ...update };
-      emitState();
-    }
-  }
-
   async function processUserMessage(userContent: string): Promise<void> {
+    const messages = buildMessages();
+    messages.push({ role: "user", content: userContent });
+
     const userEntry: TranscriptEntry = {
       id: generateEntryId(),
       role: "user",
@@ -85,28 +103,40 @@ export function createOrchestrator(callbacks: OrchestratorCallbacks): Orchestrat
     const startTime = Date.now();
     callbacks.onRequestStart(requestId, provider.model);
 
-    const messages = buildMessages();
-    messages.push({ role: "user", content: userContent });
+    streamBuffer = "";
 
     await provider.stream(messages, {
       onChunk(chunk: string) {
-        const lastEntry = state.transcript[state.transcript.length - 1];
-        if (lastEntry && lastEntry.role === "assistant") {
-          updateLastEntry({ content: lastEntry.content + chunk });
-        }
+        streamBuffer += chunk;
+        emitStateThrottled();
       },
       onComplete() {
-        updateLastEntry({ isStreaming: false });
+        if (pendingEmit) {
+          clearTimeout(pendingEmit);
+          pendingEmit = null;
+        }
+        flushStreamBuffer();
+        const lastEntry = state.transcript[state.transcript.length - 1];
+        if (lastEntry) {
+          lastEntry.isStreaming = false;
+        }
         state.isProcessing = false;
         emitState();
         callbacks.onRequestComplete(requestId, Date.now() - startTime);
       },
       onError(error: Error) {
-        updateLastEntry({
-          content: state.transcript[state.transcript.length - 1].content ||
-            `Error: ${error.message}`,
-          isStreaming: false,
-        });
+        if (pendingEmit) {
+          clearTimeout(pendingEmit);
+          pendingEmit = null;
+        }
+        flushStreamBuffer();
+        const lastEntry = state.transcript[state.transcript.length - 1];
+        if (lastEntry) {
+          if (!lastEntry.content) {
+            lastEntry.content = `Error: ${error.message}`;
+          }
+          lastEntry.isStreaming = false;
+        }
         state.isProcessing = false;
         emitState();
         callbacks.onRequestComplete(requestId, Date.now() - startTime, error);

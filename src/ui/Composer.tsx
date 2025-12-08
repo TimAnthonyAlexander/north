@@ -6,6 +6,12 @@ interface ComposerProps {
   disabled: boolean;
 }
 
+function insertNewline(value: string, cursorPos: number): { value: string; cursor: number } {
+  const before = value.slice(0, cursorPos);
+  const after = value.slice(cursorPos);
+  return { value: before + "\n" + after, cursor: cursorPos + 1 };
+}
+
 export function Composer({ onSubmit, disabled }: ComposerProps) {
   const [value, setValue] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
@@ -14,16 +20,21 @@ export function Composer({ onSubmit, disabled }: ComposerProps) {
     (input, key) => {
       if (disabled) return;
 
+      if (key.ctrl && input === "j") {
+        const result = insertNewline(value, cursorPos);
+        setValue(result.value);
+        setCursorPos(result.cursor);
+        return;
+      }
+
       if (key.return) {
         if (key.shift) {
-          const before = value.slice(0, cursorPos);
-          const after = value.slice(cursorPos);
-          setValue(before + "\n" + after);
-          setCursorPos(cursorPos + 1);
+          const result = insertNewline(value, cursorPos);
+          setValue(result.value);
+          setCursorPos(result.cursor);
         } else {
-          const trimmed = value.trim();
-          if (trimmed) {
-            onSubmit(trimmed);
+          if (value.trim().length > 0) {
+            onSubmit(value);
             setValue("");
             setCursorPos(0);
           }
@@ -101,7 +112,7 @@ export function Composer({ onSubmit, disabled }: ComposerProps) {
         </Text>
         <Box flexDirection="column" flexGrow={1}>
           {showPlaceholder ? (
-            <Text color="gray">Type a message... (Shift+Enter for newline)</Text>
+            <Text color="gray">Type a message... (Ctrl+J for newline)</Text>
           ) : (
             lines.map((line, i) => (
               <Text key={i} wrap="wrap">

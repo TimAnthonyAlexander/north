@@ -220,4 +220,38 @@ Consequences:
 - Tool schemas and results must be strict structured JSON.
 - Avoid tool designs that rely on hidden side channels.
 
+---
+
+## 2025-12-08: Ctrl+J as reliable newline binding
+
+Decision:
+- Use Ctrl+J as the primary multiline input mechanism.
+- Keep Shift+Enter as a fallback where terminals support it.
+
+Rationale:
+- Shift+Enter is not reliably detectable across terminals (key codes vary by platform and terminal emulator).
+- Ctrl+J sends a distinct, universal key sequence (ASCII linefeed).
+- Users need a guaranteed way to insert newlines in the composer.
+
+Consequences:
+- Placeholder text advertises Ctrl+J, not Shift+Enter.
+- Both bindings work, but Ctrl+J is the documented method.
+
+---
+
+## 2025-12-08: Throttled streaming updates
+
+Decision:
+- Throttle UI updates during streaming to ~32ms intervals.
+- Buffer incoming chunks and flush on throttle tick or stream completion.
+
+Rationale:
+- Calling setState on every chunk (potentially hundreds per second) causes unnecessary re-renders.
+- Throttling reduces CPU load and prevents UI flicker on fast streams.
+- 32ms (~30fps) is visually smooth and efficient.
+
+Consequences:
+- Final content is always exact (flush on complete).
+- Streaming feels smooth without lag.
+
 

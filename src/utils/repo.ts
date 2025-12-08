@@ -5,9 +5,8 @@ const REPO_MARKERS = [".git", "package.json", "Cargo.toml", "go.mod", "pyproject
 
 export function detectRepoRoot(startPath: string): string {
   let current = resolve(startPath);
-  const root = dirname(current);
 
-  while (current !== root) {
+  while (true) {
     for (const marker of REPO_MARKERS) {
       if (existsSync(join(current, marker))) {
         return current;

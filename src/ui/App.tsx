@@ -43,7 +43,6 @@ export function App({
   useEffect(() => {
     const handleSigint = () => {
       exit();
-      process.exit(0);
     };
     process.on("SIGINT", handleSigint);
     return () => {
