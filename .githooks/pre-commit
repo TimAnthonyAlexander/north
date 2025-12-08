@@ -1,0 +1,27 @@
+#!/bin/sh
+
+echo "Running pre-commit checks..."
+
+echo "→ Type checking..."
+bun run typecheck
+if [ $? -ne 0 ]; then
+    echo "❌ Type check failed. Please fix TypeScript errors before committing."
+    exit 1
+fi
+
+echo "→ Linting..."
+bun run lint
+if [ $? -ne 0 ]; then
+    echo "❌ Lint check failed. Run 'bun run lint:fix' to auto-fix issues."
+    exit 1
+fi
+
+echo "→ Checking formatting..."
+bun run format:check
+if [ $? -ne 0 ]; then
+    echo "❌ Formatting check failed. Run 'bun run format' to fix."
+    exit 1
+fi
+
+echo "✅ All pre-commit checks passed!"
+

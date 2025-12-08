@@ -854,6 +854,20 @@ bun run check         # Run all checks (typecheck + lint + format:check)
 - 100 character line width
 - ES5 trailing commas
 
+### Git Hooks
+
+Pre-commit hooks are configured in `.githooks/pre-commit`. The hook runs:
+1. TypeScript type checking
+2. ESLint linting
+3. Prettier format verification
+
+To enable hooks after cloning:
+```bash
+bun run prepare  # or: git config core.hooksPath .githooks
+```
+
+The `prepare` script runs automatically on `bun install`.
+
 ## Running
 
 ```bash

@@ -14,6 +14,7 @@
     "build:binary:mac-x64": "bun build src/index.ts --compile --target=bun-darwin-x64 --outfile north-darwin-x64",
     "typecheck": "tsc --noEmit",
     "link": "bun link",
+    "prepare": "git config core.hooksPath .githooks",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
