@@ -265,6 +265,8 @@ All tools follow the pattern:
 | `hotfiles` | Important files | Git history or fallback |
 | `edit_replace_exact` | Replace exact text | Requires user approval |
 | `edit_insert_at_line` | Insert at line | 1-based, requires approval |
+| `plan_create` | Create implementation plan | MUST ask questions first, requires approval |
+| `plan_update` | Update existing plan | Revise plan, requires approval |
 | `edit_create_file` | Create/overwrite file | Requires approval |
 | `edit_apply_batch` | Atomic batch edits | All-or-nothing, requires approval |
 | `shell_run` | Execute shell command | Persistent PTY, requires approval or allowlist, stderr merged into stdout |
@@ -585,12 +587,12 @@ Creating and using plans:
    - Write tools now allowed (will pass plan existence check)
    - LLM proceeds with implementation without asking for permission
 
-4. **Plan Updates**:
+5. **Plan Updates**:
    - LLM can call `plan_update(planId, newPlanText)` to revise plan
    - Creates new plan_review entry with incremented version
    - Requires user acceptance again before write tools work with updated plan
 
-5. **Plan Persistence**:
+6. **Plan Persistence**:
    - Plan cleared only by `/new` command (chat reset)
    - Persists across mode switches
    - Persists across model switches
