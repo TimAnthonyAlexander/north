@@ -1,7 +1,24 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Text, useInput } from "ink";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "denied";
+
+const BORDER_PULSE_COLORS = ["yellow", "#ffff87", "#ffffaf", "#ffff87"] as const;
+
+function useBorderPulse(isPending: boolean, interval = 600) {
+    const [colorIndex, setColorIndex] = useState(0);
+    
+    useEffect(() => {
+        if (!isPending) return;
+        
+        const timer = setInterval(() => {
+            setColorIndex((prev) => (prev + 1) % BORDER_PULSE_COLORS.length);
+        }, interval);
+        return () => clearInterval(timer);
+    }, [isPending, interval]);
+    
+    return isPending ? BORDER_PULSE_COLORS[colorIndex] : "yellow";
+}
 
 interface ShellReviewProps {
     command: string;
@@ -34,6 +51,8 @@ export function ShellReview({
     onDeny,
     isActive,
 }: ShellReviewProps) {
+    const borderPulse = useBorderPulse(status === "pending", 600);
+    
     useInput(
         (input) => {
             if (!isActive || status !== "pending") return;
@@ -48,13 +67,15 @@ export function ShellReview({
         },
         { isActive: isActive && status === "pending" }
     );
+    
+    const finalBorderColor = status === "pending" ? borderPulse : getBorderColor(status);
 
     return (
         <Box
             flexDirection="column"
             marginBottom={1}
             borderStyle="round"
-            borderColor={getBorderColor(status)}
+            borderColor={finalBorderColor}
             paddingX={1}
         >
             <Box marginBottom={1}>

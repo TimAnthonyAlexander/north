@@ -1,8 +1,24 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Text, useInput } from "ink";
 import type { FileDiff } from "../tools/types";
 
 const MAX_DIFF_LINES = 100;
+const BORDER_PULSE_COLORS = ["yellow", "#ffff87", "#ffffaf", "#ffff87"] as const;
+
+function useBorderPulse(isPending: boolean, interval = 600) {
+    const [colorIndex, setColorIndex] = useState(0);
+    
+    useEffect(() => {
+        if (!isPending) return;
+        
+        const timer = setInterval(() => {
+            setColorIndex((prev) => (prev + 1) % BORDER_PULSE_COLORS.length);
+        }, interval);
+        return () => clearInterval(timer);
+    }, [isPending, interval]);
+    
+    return isPending ? BORDER_PULSE_COLORS[colorIndex] : "yellow";
+}
 
 interface DiffReviewProps {
     diffs: FileDiff[];
@@ -66,6 +82,8 @@ export function DiffReview({
     onReject,
     isActive,
 }: DiffReviewProps) {
+    const borderColor = useBorderPulse(reviewStatus === "pending", 600);
+    
     useInput(
         (input, key) => {
             if (!isActive || reviewStatus !== "pending") return;
@@ -85,12 +103,12 @@ export function DiffReview({
 
     const totalAdded = diffs.reduce((sum, d) => sum + d.linesAdded, 0);
     const totalRemoved = diffs.reduce((sum, d) => sum + d.linesRemoved, 0);
+    
+    const finalBorderColor = reviewStatus === "accepted" ? "green" :
+        reviewStatus === "rejected" ? "red" : borderColor;
 
     return (
-        <Box flexDirection="column" marginBottom={1} borderStyle="round" borderColor={
-            reviewStatus === "accepted" ? "green" :
-                reviewStatus === "rejected" ? "red" : "yellow"
-        } paddingX={1}>
+        <Box flexDirection="column" marginBottom={1} borderStyle="round" borderColor={finalBorderColor} paddingX={1}>
             <Box marginBottom={1}>
                 <Text bold color="yellow">
                     📝 {toolName}

@@ -295,7 +295,11 @@ All tools follow the pattern:
 - Shell review entries: command approval prompt
 - Command review entries: interactive picker
 - Error tool results: red text
-- Streaming indicator (●)
+- Streaming indicator (●) with magenta pulse animation
+- Tool execution spinner animation (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏)
+- Animation hooks:
+  - `useSpinner(interval)`: animated spinner frames for tool execution
+  - `usePulse(colors, interval)`: color cycling for streaming indicators
 
 ### ui/CommandReview.tsx
 
@@ -312,14 +316,16 @@ All tools follow the pattern:
 - Truncates diffs over 100 lines with indicator
 - Shows file stats (+lines/-lines)
 - Keyboard shortcuts: `a` accept, `r` reject
-- Status badges: pending (yellow border), accepted (green), rejected (red)
+- Status badges: pending (pulsing yellow border), accepted (green), rejected (red)
+- Animation: border color pulses when status is pending to draw attention
 
 ### ui/ShellReview.tsx
 
 - Renders shell command approval prompt
 - Shows command and optional cwd
 - Keyboard shortcuts: `r` run, `a` always (adds to allowlist), `d` deny
-- Status badges: pending (yellow), ran/always (green), denied (red)
+- Status badges: pending (pulsing yellow border), ran/always (green), denied (red)
+- Animation: border color pulses when status is pending to draw attention
 
 ### utils/editing.ts
 
@@ -579,6 +585,34 @@ The orchestrator formats tool names for better readability in the TUI:
 - Other tools: shown as-is
 
 Implementation in `formatToolNameForDisplay()` which extracts the filename from tool arguments and formats the display text accordingly.
+
+### UI Animations
+
+North uses subtle, frame-based animations to enhance feedback without overwhelming the terminal:
+
+1. **Streaming Indicator Pulse** (Assistant & Tool messages):
+   - Pulses through magenta shades (magenta → #ff6ec7 → #ff8fd5 → #ffa0dc → back)
+   - 500ms interval per color transition
+   - Indicates active streaming or processing
+
+2. **Tool Execution Spinner**:
+   - Animated spinner frames: ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
+   - 80ms frame interval for smooth rotation
+   - Yellow color to match tool theme
+   - Shown when tool is executing (`isStreaming: true`)
+
+3. **Pending Review Border Pulse**:
+   - Pulses through yellow shades (yellow → #ffff87 → #ffffaf → back)
+   - 600ms interval per color transition
+   - Applied to DiffReview and ShellReview when status is "pending"
+   - Draws attention to items requiring user action
+
+**Implementation Details**:
+- Custom React hooks (`useSpinner`, `usePulse`, `useBorderPulse`)
+- Uses `setInterval` with cleanup on unmount
+- Frame rates kept low (12-15 fps) to avoid terminal flicker
+- Colors cycle smoothly for breathing effect
+- All animations respect terminal color support
 
 ### Gitignore Handling
 

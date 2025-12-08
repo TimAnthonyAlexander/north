@@ -1,9 +1,38 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Text } from "ink";
 import type { TranscriptEntry, ShellReviewStatus, CommandReviewStatus } from "../orchestrator/index";
 import { DiffReview } from "./DiffReview";
 import { ShellReview } from "./ShellReview";
 import { CommandReview } from "./CommandReview";
+
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const PULSE_COLORS = ["magenta", "#ff6ec7", "#ff8fd5", "#ffa0dc", "#ff8fd5", "#ff6ec7"] as const;
+
+function useSpinner(interval = 80) {
+    const [frame, setFrame] = useState(0);
+    
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setFrame((prev) => (prev + 1) % SPINNER_FRAMES.length);
+        }, interval);
+        return () => clearInterval(timer);
+    }, [interval]);
+    
+    return SPINNER_FRAMES[frame];
+}
+
+function usePulse(colors: readonly string[], interval = 500) {
+    const [colorIndex, setColorIndex] = useState(0);
+    
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setColorIndex((prev) => (prev + 1) % colors.length);
+        }, interval);
+        return () => clearInterval(timer);
+    }, [colors, interval]);
+    
+    return colors[colorIndex];
+}
 
 interface TranscriptProps {
     entries: TranscriptEntry[];
@@ -32,12 +61,13 @@ function UserMessage({ entry }: { entry: TranscriptEntry }) {
 
 function AssistantMessage({ entry }: { entry: TranscriptEntry }) {
     const hasContent = entry.content.length > 0;
+    const pulseColor = usePulse(PULSE_COLORS, 500);
 
     return (
         <Box flexDirection="column" marginBottom={1}>
             <Text bold color="magenta">
                 Claude
-                {entry.isStreaming && <Text color="gray"> ●</Text>}
+                {entry.isStreaming && <Text color={pulseColor}> ●</Text>}
             </Text>
             {hasContent && (
                 <Box marginLeft={2}>
@@ -55,6 +85,7 @@ function AssistantMessage({ entry }: { entry: TranscriptEntry }) {
 
 function ToolMessage({ entry }: { entry: TranscriptEntry }) {
     const isError = entry.toolResult && !entry.toolResult.ok;
+    const spinner = useSpinner(80);
 
     return (
         <Box marginLeft={2} marginBottom={0}>
@@ -63,7 +94,7 @@ function ToolMessage({ entry }: { entry: TranscriptEntry }) {
                 <Text color={isError ? "red" : "gray"} dimColor={!isError}>
                     {entry.content}
                 </Text>
-                {entry.isStreaming && <Text color="gray"> ●</Text>}
+                {entry.isStreaming && <Text color="yellow"> {spinner}</Text>}
             </Text>
         </Box>
     );
