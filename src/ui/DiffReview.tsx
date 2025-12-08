@@ -1,23 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, memo } from "react";
 import { Box, Text, useInput } from "ink";
 import type { FileDiff } from "../tools/types";
 
 const MAX_DIFF_LINES = 100;
 const BORDER_PULSE_COLORS = ["yellow", "#ffff87", "#ffffaf", "#ffff87"] as const;
 
-function useBorderPulse(isPending: boolean, interval = 600) {
+function useBorderPulse(active: boolean, interval = 600) {
     const [colorIndex, setColorIndex] = useState(0);
 
     useEffect(() => {
-        if (!isPending) return;
+        if (!active) return;
 
         const timer = setInterval(() => {
             setColorIndex((prev) => (prev + 1) % BORDER_PULSE_COLORS.length);
         }, interval);
         return () => clearInterval(timer);
-    }, [isPending, interval]);
+    }, [active, interval]);
 
-    return isPending ? BORDER_PULSE_COLORS[colorIndex] : "yellow";
+    return active ? BORDER_PULSE_COLORS[colorIndex] : "yellow";
 }
 
 interface DiffReviewProps {
@@ -29,40 +29,58 @@ interface DiffReviewProps {
     onAlways?: () => void;
     onReject?: () => void;
     isActive: boolean;
+    animationsEnabled?: boolean;
 }
 
-function DiffLine({ line }: { line: string }) {
+interface ColoredLine {
+    text: string;
+    color: string;
+    bold?: boolean;
+    dimColor?: boolean;
+}
+
+function getLineStyle(line: string): ColoredLine {
     if (line.startsWith("+") && !line.startsWith("+++")) {
-        return <Text color="green">{line}</Text>;
+        return { text: line, color: "green" };
     }
     if (line.startsWith("-") && !line.startsWith("---")) {
-        return <Text color="red">{line}</Text>;
+        return { text: line, color: "red" };
     }
     if (line.startsWith("@@")) {
-        return <Text color="cyan">{line}</Text>;
+        return { text: line, color: "cyan" };
     }
     if (line.startsWith("---") || line.startsWith("+++")) {
-        return (
-            <Text bold color="white">
-                {line}
-            </Text>
-        );
+        return { text: line, color: "white", bold: true };
     }
-    return <Text color="gray">{line}</Text>;
+    return { text: line, color: "gray" };
 }
 
-function DiffContent({ diffs }: { diffs: FileDiff[] }) {
-    const allLines: string[] = [];
+const DiffLine = memo(function DiffLine({ line }: { line: ColoredLine }) {
+    return (
+        <Text color={line.color} bold={line.bold} dimColor={line.dimColor}>
+            {line.text}
+        </Text>
+    );
+});
 
-    for (const fileDiff of diffs) {
-        const diffLines = fileDiff.diff.split("\n");
-        allLines.push(...diffLines);
-        allLines.push("");
-    }
+const DiffContent = memo(function DiffContent({ diffs }: { diffs: FileDiff[] }) {
+    const { displayLines, truncated, hiddenCount } = useMemo(() => {
+        const allLines: ColoredLine[] = [];
 
-    const truncated = allLines.length > MAX_DIFF_LINES;
-    const displayLines = truncated ? allLines.slice(0, MAX_DIFF_LINES) : allLines;
-    const hiddenCount = allLines.length - MAX_DIFF_LINES;
+        for (const fileDiff of diffs) {
+            const diffLines = fileDiff.diff.split("\n");
+            for (const line of diffLines) {
+                allLines.push(getLineStyle(line));
+            }
+            allLines.push({ text: "", color: "gray" });
+        }
+
+        const isTruncated = allLines.length > MAX_DIFF_LINES;
+        const display = isTruncated ? allLines.slice(0, MAX_DIFF_LINES) : allLines;
+        const hidden = allLines.length - MAX_DIFF_LINES;
+
+        return { displayLines: display, truncated: isTruncated, hiddenCount: hidden };
+    }, [diffs]);
 
     return (
         <Box flexDirection="column">
@@ -76,9 +94,9 @@ function DiffContent({ diffs }: { diffs: FileDiff[] }) {
             )}
         </Box>
     );
-}
+});
 
-export function DiffReview({
+export const DiffReview = memo(function DiffReview({
     diffs,
     filesCount,
     toolName,
@@ -87,8 +105,10 @@ export function DiffReview({
     onAlways,
     onReject,
     isActive,
+    animationsEnabled = true,
 }: DiffReviewProps) {
-    const borderColor = useBorderPulse(reviewStatus === "pending", 600);
+    const shouldAnimate = reviewStatus === "pending" && animationsEnabled;
+    const borderColor = useBorderPulse(shouldAnimate, 600);
 
     useInput(
         (input, key) => {
@@ -109,8 +129,15 @@ export function DiffReview({
         { isActive: isActive && reviewStatus === "pending" }
     );
 
-    const totalAdded = diffs.reduce((sum, d) => sum + d.linesAdded, 0);
-    const totalRemoved = diffs.reduce((sum, d) => sum + d.linesRemoved, 0);
+    const { totalAdded, totalRemoved } = useMemo(() => {
+        let added = 0;
+        let removed = 0;
+        for (const d of diffs) {
+            added += d.linesAdded;
+            removed += d.linesRemoved;
+        }
+        return { totalAdded: added, totalRemoved: removed };
+    }, [diffs]);
 
     const finalBorderColor =
         reviewStatus === "accepted" || reviewStatus === "always"
@@ -190,4 +217,4 @@ export function DiffReview({
             )}
         </Box>
     );
-}
+});

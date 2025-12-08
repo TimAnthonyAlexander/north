@@ -326,7 +326,9 @@ All tools follow the pattern:
 
 ### ui/Transcript.tsx
 
-- Renders conversation history
+- Renders conversation history with performance optimizations for large transcripts
+- Uses Ink's `<Static>` component for completed entries (render once, never re-render)
+- Dynamic section only for actively streaming or pending review entries
 - User messages: cyan label
 - Assistant messages: magenta label
 - Tool messages: yellow ⚡ icon, gray text, human-readable formatting
@@ -338,9 +340,11 @@ All tools follow the pattern:
 - Error tool results: red text
 - Streaming indicator (●) with magenta pulse animation
 - Tool execution spinner animation (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏)
-- Animation hooks:
-  - `useSpinner(interval)`: animated spinner frames for tool execution
-  - `usePulse(colors, interval)`: color cycling for streaming indicators
+- Animation hooks (all conditional on `active` parameter):
+  - `useSpinner(active, interval)`: animated spinner frames for tool execution
+  - `usePulse(active, colors, interval)`: color cycling for streaming indicators
+- Auto-disables animations when transcript exceeds 100 entries
+- All message components memoized with `React.memo`
 
 ### ui/CommandReview.tsx
 
@@ -766,7 +770,7 @@ North uses subtle, frame-based animations to enhance feedback without overwhelmi
 3. **Pending Review Border Pulse**:
    - Pulses through yellow shades (yellow → #ffff87 → #ffffaf → back)
    - 600ms interval per color transition
-   - Applied to DiffReview and ShellReview when status is "pending"
+   - Applied to DiffReview, ShellReview, and PlanReview when status is "pending"
    - Draws attention to items requiring user action
 
 **Implementation Details**:
@@ -775,6 +779,58 @@ North uses subtle, frame-based animations to enhance feedback without overwhelmi
 - Frame rates kept low (12-15 fps) to avoid terminal flicker
 - Colors cycle smoothly for breathing effect
 - All animations respect terminal color support
+- **Conditional timers**: Animation hooks accept an `active` boolean parameter; timers only run when active
+- **Auto-disable threshold**: Animations auto-disable when transcript exceeds 100 entries
+
+### Transcript Performance Optimizations
+
+To prevent flickering in large conversations, North implements several Ink-specific optimizations:
+
+1. **Static Rendering with `<Static>`**:
+   - Ink's `<Static>` component renders items once and never re-renders them
+   - Completed transcript entries (not streaming, not pending review) are rendered inside `<Static>`
+   - Only dynamic entries (streaming messages, pending reviews) re-render on state changes
+   - This transforms "redraw 2000-line screen 12x/sec" into "redraw small dynamic section"
+
+2. **Conditional Animation Timers**:
+   - All animation hooks (`useSpinner`, `usePulse`, `useBorderPulse`) accept an `active` parameter
+   - Timers only start when `active === true`
+   - Prevents "zombie timers" from completed entries causing unnecessary state updates
+   - Example: `useSpinner(entry.isStreaming, 80)` only animates while streaming
+
+3. **Animation Kill Switch**:
+   - When transcript exceeds `ANIMATION_DISABLE_THRESHOLD` (100 entries), animations auto-disable
+   - `animationsEnabled` boolean passed through component tree
+   - Pending reviews still show correct state, just without pulsing animations
+
+4. **Memoized Components**:
+   - All message components wrapped in `React.memo`: `UserMessage`, `AssistantMessage`, `ToolMessage`, `CommandExecutedMessage`, `MessageBlock`, `StaticEntry`
+   - Review components also memoized: `DiffReview`, `ShellReview`, `PlanReview`, `CommandReview`
+   - Primitive props preferred over object props where possible
+
+5. **Precomputed Render Data**:
+   - `DiffContent` precomputes colored line data in `useMemo`
+   - Line styling decisions made once per diff, not on every render
+   - Reduces CPU work during animation frames
+
+6. **Entry Classification**:
+   - `isEntryStatic()` helper determines if an entry can be rendered statically
+   - Criteria: not streaming, not the active review, no pending review status
+   - Entries graduate from dynamic to static as their state settles
+
+**Architecture**:
+```
+<Transcript>
+  <Static items={staticEntries}>     // Completed entries - render once
+    {(entry) => <StaticEntry />}
+  </Static>
+  {dynamicEntries.map((entry) =>     // Active entries - re-render on changes
+    <MessageBlock />
+  )}
+</Transcript>
+```
+
+This architecture ensures that only the actively changing portion of the transcript triggers redraws, keeping the terminal responsive even in very long conversations.
 
 ### Gitignore Handling
 

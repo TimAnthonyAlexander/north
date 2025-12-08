@@ -1,21 +1,22 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { Box, Text, useInput } from "ink";
 
 export type PlanReviewStatus = "pending" | "accepted" | "rejected" | "revised";
 
 const BORDER_PULSE_COLORS = ["yellow", "#ffff87", "#ffffaf", "#ffff87"] as const;
 
-function useBorderPulse(colors: readonly string[], interval = 600) {
+function useBorderPulse(active: boolean, colors: readonly string[], interval = 600) {
     const [colorIndex, setColorIndex] = useState(0);
 
     useEffect(() => {
+        if (!active) return;
         const timer = setInterval(() => {
             setColorIndex((prev) => (prev + 1) % colors.length);
         }, interval);
         return () => clearInterval(timer);
-    }, [colors, interval]);
+    }, [active, colors.length, interval]);
 
-    return colors[colorIndex];
+    return active ? colors[colorIndex] : colors[0];
 }
 
 interface PlanReviewProps {
@@ -26,9 +27,10 @@ interface PlanReviewProps {
     onRevise?: () => void;
     onReject?: () => void;
     isActive: boolean;
+    animationsEnabled?: boolean;
 }
 
-export function PlanReview({
+export const PlanReview = memo(function PlanReview({
     planText,
     planVersion,
     status,
@@ -36,8 +38,10 @@ export function PlanReview({
     onRevise,
     onReject,
     isActive,
+    animationsEnabled = true,
 }: PlanReviewProps) {
-    const pulsedColor = useBorderPulse(BORDER_PULSE_COLORS, 600);
+    const shouldAnimate = status === "pending" && animationsEnabled;
+    const pulsedColor = useBorderPulse(shouldAnimate, BORDER_PULSE_COLORS, 600);
     const borderColor = status === "pending" ? pulsedColor : getBorderColor(status);
 
     useInput(
@@ -94,7 +98,7 @@ export function PlanReview({
             )}
         </Box>
     );
-}
+});
 
 function getBorderColor(status: PlanReviewStatus): string {
     switch (status) {

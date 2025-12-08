@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, memo } from "react";
 import { Box, Text, useInput } from "ink";
 import type { PickerOption, CommandReviewStatus } from "../commands/types";
 
@@ -24,7 +24,7 @@ function getBorderColor(status: CommandReviewStatus): string {
     }
 }
 
-export function CommandReview({
+export const CommandReview = memo(function CommandReview({
     commandName,
     prompt,
     options,
@@ -131,4 +131,4 @@ export function CommandReview({
             )}
         </Box>
     );
-}
+});

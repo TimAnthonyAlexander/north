@@ -1,23 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { Box, Text, useInput } from "ink";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "denied";
 
 const BORDER_PULSE_COLORS = ["yellow", "#ffff87", "#ffffaf", "#ffff87"] as const;
 
-function useBorderPulse(isPending: boolean, interval = 600) {
+function useBorderPulse(active: boolean, interval = 600) {
     const [colorIndex, setColorIndex] = useState(0);
 
     useEffect(() => {
-        if (!isPending) return;
+        if (!active) return;
 
         const timer = setInterval(() => {
             setColorIndex((prev) => (prev + 1) % BORDER_PULSE_COLORS.length);
         }, interval);
         return () => clearInterval(timer);
-    }, [isPending, interval]);
+    }, [active, interval]);
 
-    return isPending ? BORDER_PULSE_COLORS[colorIndex] : "yellow";
+    return active ? BORDER_PULSE_COLORS[colorIndex] : "yellow";
 }
 
 interface ShellReviewProps {
@@ -28,6 +28,7 @@ interface ShellReviewProps {
     onAlways?: () => void;
     onDeny?: () => void;
     isActive: boolean;
+    animationsEnabled?: boolean;
 }
 
 function getBorderColor(status: ShellReviewStatus): string {
@@ -42,7 +43,7 @@ function getBorderColor(status: ShellReviewStatus): string {
     }
 }
 
-export function ShellReview({
+export const ShellReview = memo(function ShellReview({
     command,
     cwd,
     status,
@@ -50,8 +51,10 @@ export function ShellReview({
     onAlways,
     onDeny,
     isActive,
+    animationsEnabled = true,
 }: ShellReviewProps) {
-    const borderPulse = useBorderPulse(status === "pending", 600);
+    const shouldAnimate = status === "pending" && animationsEnabled;
+    const borderPulse = useBorderPulse(shouldAnimate, 600);
 
     useInput(
         (input) => {
@@ -142,4 +145,4 @@ export function ShellReview({
             )}
         </Box>
     );
-}
+});
