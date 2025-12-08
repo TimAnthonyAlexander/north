@@ -4,6 +4,7 @@ import type { Logger } from "../logging/index";
 import type { FileDiff, EditPrepareResult, ShellRunInput } from "../tools/types";
 import { applyEditsAtomically } from "../utils/editing";
 import { isCommandAllowed, allowCommand } from "../storage/allowlist";
+import { isEditsAutoAcceptEnabled, enableEditsAutoAccept } from "../storage/autoaccept";
 import { getShellService } from "../shell/index";
 import {
     createCommandRegistryWithAllCommands,
@@ -20,7 +21,7 @@ import { estimatePromptTokens } from "../utils/tokens";
 import * as path from "node:path";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "denied";
-export type WriteReviewStatus = "pending" | "accepted" | "rejected";
+export type WriteReviewStatus = "pending" | "accepted" | "always" | "rejected";
 export type PlanReviewStatus = "pending" | "accepted" | "rejected" | "revised";
 export type ReviewStatus = WriteReviewStatus | ShellReviewStatus | PlanReviewStatus;
 export type { CommandReviewStatus };
@@ -86,9 +87,11 @@ export type ShellDecision = "run" | "always" | "deny";
 export type CommandDecision = string | null;
 export type PlanDecision = "accept" | "revise" | "reject";
 
+export type WriteDecision = "accept" | "always" | "reject";
+
 export interface Orchestrator {
     sendMessage(content: string, mode: Mode): Promise<void>;
-    resolveWriteReview(reviewId: string, decision: "accept" | "reject"): void;
+    resolveWriteReview(reviewId: string, decision: WriteDecision): void;
     resolveShellReview(reviewId: string, decision: ShellDecision): void;
     resolveCommandReview(reviewId: string, decision: CommandDecision): void;
     resolvePlanReview(reviewId: string, decision: PlanDecision): void;
@@ -101,7 +104,7 @@ export interface Orchestrator {
 
 interface PendingWriteReview {
     id: string;
-    resolve: (decision: "accept" | "reject") => void;
+    resolve: (decision: WriteDecision) => void;
     filesCount: number;
     applyPayload: unknown;
 }
@@ -605,6 +608,39 @@ export function createOrchestratorWithTools(
             const prepareResult = result.data as EditPrepareResult;
             const reviewId = generateId();
 
+            if (isEditsAutoAcceptEnabled(context.repoRoot)) {
+                callbacks.onWriteApplyStart?.();
+                const applyStart = Date.now();
+                const applyResult = applyEditsAtomically(
+                    context.repoRoot,
+                    prepareResult.applyPayload as any
+                );
+                const applyDuration = Date.now() - applyStart;
+                callbacks.onWriteApplyComplete?.(applyDuration, applyResult.ok);
+
+                const reviewEntry: TranscriptEntry = {
+                    id: reviewId,
+                    role: "diff_review",
+                    content: "",
+                    ts: Date.now(),
+                    toolName,
+                    diffContent: prepareResult.diffsByFile,
+                    filesCount: prepareResult.stats.filesChanged,
+                    reviewStatus: "always",
+                    applyPayload: prepareResult.applyPayload,
+                };
+                (reviewEntry as any).toolCallId = toolCall.id;
+                transcript.push(reviewEntry);
+
+                updateEntry(toolEntryId, {
+                    content: `${toolName} (auto-applied)`,
+                    toolResult: { ok: true, data: { autoApplied: true } },
+                });
+                emitState();
+
+                return { needsReview: false, entry: reviewEntry, reviewType: "write" };
+            }
+
             const reviewEntry: TranscriptEntry = {
                 id: reviewId,
                 role: "diff_review",
@@ -635,7 +671,7 @@ export function createOrchestratorWithTools(
         return { needsReview: false, entry: toolEntry };
     }
 
-    async function waitForWriteReviewDecision(reviewEntry: TranscriptEntry): Promise<"accept" | "reject"> {
+    async function waitForWriteReviewDecision(reviewEntry: TranscriptEntry): Promise<WriteDecision> {
         pendingReviewId = reviewEntry.id;
         emitState();
 
@@ -692,12 +728,17 @@ export function createOrchestratorWithTools(
 
     async function applyWriteDecision(
         reviewEntry: TranscriptEntry,
-        decision: "accept" | "reject"
+        decision: WriteDecision
     ): Promise<void> {
         const filesCount = reviewEntry.filesCount || 0;
-        callbacks.onWriteReviewDecision?.(decision, filesCount);
+        const callbackDecision = decision === "always" ? "accept" : decision;
+        callbacks.onWriteReviewDecision?.(callbackDecision, filesCount);
 
-        if (decision === "accept" && reviewEntry.applyPayload) {
+        if ((decision === "accept" || decision === "always") && reviewEntry.applyPayload) {
+            if (decision === "always") {
+                enableEditsAutoAccept(context.repoRoot);
+            }
+
             callbacks.onWriteApplyStart?.();
             const startTime = Date.now();
 
@@ -709,7 +750,7 @@ export function createOrchestratorWithTools(
             const durationMs = Date.now() - startTime;
             callbacks.onWriteApplyComplete?.(durationMs, applyResult.ok);
 
-            updateEntry(reviewEntry.id, { reviewStatus: "accepted" });
+            updateEntry(reviewEntry.id, { reviewStatus: decision === "always" ? "always" : "accepted" });
         } else {
             updateEntry(reviewEntry.id, { reviewStatus: "rejected" });
         }
@@ -1161,7 +1202,7 @@ Respond with ONLY the JSON, no other text.`;
             }
         },
 
-        resolveWriteReview(reviewId: string, decision: "accept" | "reject") {
+        resolveWriteReview(reviewId: string, decision: WriteDecision) {
             if (pendingWriteReview && pendingWriteReview.id === reviewId) {
                 pendingWriteReview.resolve(decision);
             }

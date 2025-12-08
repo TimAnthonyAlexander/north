@@ -24,8 +24,9 @@ interface DiffReviewProps {
     diffs: FileDiff[];
     filesCount: number;
     toolName: string;
-    reviewStatus: "pending" | "accepted" | "rejected";
+    reviewStatus: "pending" | "accepted" | "always" | "rejected";
     onAccept?: () => void;
+    onAlways?: () => void;
     onReject?: () => void;
     isActive: boolean;
 }
@@ -79,6 +80,7 @@ export function DiffReview({
     toolName,
     reviewStatus,
     onAccept,
+    onAlways,
     onReject,
     isActive,
 }: DiffReviewProps) {
@@ -90,6 +92,8 @@ export function DiffReview({
 
             if (input === "a" || input === "A") {
                 onAccept?.();
+            } else if (input === "y" || input === "Y") {
+                onAlways?.();
             } else if (input === "r" || input === "R") {
                 onReject?.();
             } else if (key.return) {
@@ -104,7 +108,7 @@ export function DiffReview({
     const totalAdded = diffs.reduce((sum, d) => sum + d.linesAdded, 0);
     const totalRemoved = diffs.reduce((sum, d) => sum + d.linesRemoved, 0);
     
-    const finalBorderColor = reviewStatus === "accepted" ? "green" :
+    const finalBorderColor = (reviewStatus === "accepted" || reviewStatus === "always") ? "green" :
         reviewStatus === "rejected" ? "red" : borderColor;
 
     return (
@@ -133,6 +137,9 @@ export function DiffReview({
                     <Text color="green" bold>[a]</Text>
                     <Text color="green"> Accept </Text>
                     <Text color="gray"> | </Text>
+                    <Text color="cyan" bold>[y]</Text>
+                    <Text color="cyan"> Always </Text>
+                    <Text color="gray"> | </Text>
                     <Text color="red" bold>[r]</Text>
                     <Text color="red"> Reject</Text>
                 </Box>
@@ -141,6 +148,12 @@ export function DiffReview({
             {reviewStatus === "accepted" && (
                 <Box>
                     <Text color="green" bold>✓ Applied</Text>
+                </Box>
+            )}
+
+            {reviewStatus === "always" && (
+                <Box>
+                    <Text color="cyan" bold>✓ Auto-applied</Text>
                 </Box>
             )}
 

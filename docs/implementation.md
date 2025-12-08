@@ -227,6 +227,14 @@ Span-based tokenizer for reliable command extraction:
 - Exact string matching only (no patterns)
 - Creates `.north/` directory on first write
 
+### storage/autoaccept.ts
+
+- Per-project auto-accept setting for edit tools at `.north/autoaccept.json`
+- Simple JSON format: `{ "editsAutoAccept": true }`
+- API: `isEditsAutoAcceptEnabled(repoRoot)`, `enableEditsAutoAccept(repoRoot)`, `disableEditsAutoAccept(repoRoot)`
+- When enabled, all edit tool results are automatically applied without user confirmation
+- Creates `.north/` directory on first write
+
 ### provider/anthropic.ts
 
 - Wraps `@anthropic-ai/sdk`
@@ -348,9 +356,10 @@ All tools follow the pattern:
 - Green for additions, red for deletions, cyan for hunk headers
 - Truncates diffs over 100 lines with indicator
 - Shows file stats (+lines/-lines)
-- Keyboard shortcuts: `a` accept, `r` reject
-- Status badges: pending (pulsing yellow border), accepted (green), rejected (red)
+- Keyboard shortcuts: `a` accept, `y` always (auto-accept all future edits), `r` reject
+- Status badges: pending (pulsing yellow border), accepted (green), always/auto-applied (cyan), rejected (red)
 - Animation: border color pulses when status is pending to draw attention
+- "Always" option: enables auto-accept for all future edit operations in this project
 
 ### ui/ShellReview.tsx
 
@@ -640,15 +649,19 @@ When Claude requests tools:
 
 When Claude requests an edit tool (approvalPolicy: "write"):
 1. Orchestrator checks if `acceptedPlan` exists - if not, returns `PLAN_REQUIRED` error
-2. If plan exists, tool executes in "prepare" mode - computes diff but doesn't write
-3. Orchestrator creates a `diff_review` transcript entry with status "pending"
-4. Tool loop blocks, waiting for user decision
-5. DiffReview component renders inline diff with Accept/Reject options
-6. User presses `a` (accept) or `r` (reject)
-7. On Accept: edits applied atomically (temp files then rename)
-8. On Reject: nothing written, status set to "rejected"
-9. Tool result sent to Claude with outcome (applied: true/false)
-10. Claude continues processing
+2. Orchestrator checks if auto-accept is enabled (`.north/autoaccept.json`)
+3. **If auto-accept enabled**: edits applied immediately, status set to "always", Claude continues
+4. **If auto-accept disabled**:
+   - Tool executes in "prepare" mode - computes diff but doesn't write
+   - Orchestrator creates a `diff_review` transcript entry with status "pending"
+   - Tool loop blocks, waiting for user decision
+   - DiffReview component renders inline diff with Accept/Always/Reject options
+   - User presses `a` (accept), `y` (always), or `r` (reject)
+   - On Accept: edits applied atomically (temp files then rename)
+   - On Always: enables auto-accept for future edits, applies current edits
+   - On Reject: nothing written, status set to "rejected"
+5. Tool result sent to Claude with outcome (applied: true/false)
+6. Claude continues processing
 
 ### Shell Approval Flow
 

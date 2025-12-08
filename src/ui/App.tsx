@@ -129,6 +129,11 @@ export function App({
         orchestrator.resolveWriteReview(entryId, "accept");
     }
 
+    function handleAlwaysAcceptReview(entryId: string) {
+        if (!orchestrator) return;
+        orchestrator.resolveWriteReview(entryId, "always");
+    }
+
     function handleRejectReview(entryId: string) {
         if (!orchestrator) return;
         orchestrator.resolveWriteReview(entryId, "reject");
@@ -184,6 +189,7 @@ export function App({
                     entries={transcript}
                     pendingReviewId={pendingReviewId}
                     onAcceptReview={handleAcceptReview}
+                    onAlwaysAcceptReview={handleAlwaysAcceptReview}
                     onRejectReview={handleRejectReview}
                     onShellRun={handleShellRun}
                     onShellAlways={handleShellAlways}

@@ -39,6 +39,7 @@ interface TranscriptProps {
     entries: TranscriptEntry[];
     pendingReviewId: string | null;
     onAcceptReview?: (entryId: string) => void;
+    onAlwaysAcceptReview?: (entryId: string) => void;
     onRejectReview?: (entryId: string) => void;
     onShellRun?: (entryId: string) => void;
     onShellAlways?: (entryId: string) => void;
@@ -118,6 +119,7 @@ interface MessageBlockProps {
     entry: TranscriptEntry;
     isActiveReview: boolean;
     onAccept?: () => void;
+    onAlways?: () => void;
     onReject?: () => void;
     onShellRun?: () => void;
     onShellAlways?: () => void;
@@ -133,6 +135,7 @@ function MessageBlock({
     entry,
     isActiveReview,
     onAccept,
+    onAlways,
     onReject,
     onShellRun,
     onShellAlways,
@@ -156,7 +159,7 @@ function MessageBlock({
     }
 
     if (entry.role === "diff_review" && entry.diffContent) {
-        const reviewStatus = entry.reviewStatus as "pending" | "accepted" | "rejected";
+        const reviewStatus = entry.reviewStatus as "pending" | "accepted" | "always" | "rejected";
         return (
             <DiffReview
                 diffs={entry.diffContent}
@@ -164,6 +167,7 @@ function MessageBlock({
                 toolName={entry.toolName || "edit"}
                 reviewStatus={reviewStatus || "pending"}
                 onAccept={onAccept}
+                onAlways={onAlways}
                 onReject={onReject}
                 isActive={isActiveReview}
             />
@@ -223,6 +227,7 @@ export function Transcript({
     entries,
     pendingReviewId,
     onAcceptReview,
+    onAlwaysAcceptReview,
     onRejectReview,
     onShellRun,
     onShellAlways,
@@ -251,6 +256,7 @@ export function Transcript({
                         entry={entry}
                         isActiveReview={isActive}
                         onAccept={isActive ? () => onAcceptReview?.(entry.id) : undefined}
+                        onAlways={isActive ? () => onAlwaysAcceptReview?.(entry.id) : undefined}
                         onReject={isActive ? () => onRejectReview?.(entry.id) : undefined}
                         onShellRun={isActive ? () => onShellRun?.(entry.id) : undefined}
                         onShellAlways={isActive ? () => onShellAlways?.(entry.id) : undefined}
