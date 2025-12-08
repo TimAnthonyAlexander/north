@@ -33,6 +33,19 @@ export function readFileContent(repoRoot: string, filePath: string): { ok: true;
   }
 }
 
+export function preserveTrailingNewline(original: string, modified: string): string {
+  const originalEndsWithNewline = original.endsWith("\n");
+  const modifiedEndsWithNewline = modified.endsWith("\n");
+
+  if (originalEndsWithNewline && !modifiedEndsWithNewline) {
+    return modified + "\n";
+  }
+  if (!originalEndsWithNewline && modifiedEndsWithNewline) {
+    return modified.slice(0, -1);
+  }
+  return modified;
+}
+
 export function computeUnifiedDiff(original: string, modified: string, path: string): FileDiff {
   const originalLines = original.split("\n");
   const modifiedLines = modified.split("\n");
