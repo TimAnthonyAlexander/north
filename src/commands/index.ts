@@ -11,6 +11,7 @@ export type {
     CommandReviewStatus,
     CommandReviewEntry,
     CommandExecutedEntry,
+    Mode,
 } from "./types";
 
 export { createCommandRegistry, type CommandRegistry } from "./registry";
@@ -23,6 +24,7 @@ import { newCommand } from "./commands/new";
 import { helpCommand } from "./commands/help";
 import { modelCommand } from "./commands/model";
 import { summarizeCommand } from "./commands/summarize";
+import { modeCommand } from "./commands/mode";
 
 export function createCommandRegistryWithAllCommands(): CommandRegistry {
     const registry = createCommandRegistry();
@@ -31,6 +33,7 @@ export function createCommandRegistryWithAllCommands(): CommandRegistry {
     registry.register(helpCommand);
     registry.register(modelCommand);
     registry.register(summarizeCommand);
+    registry.register(modeCommand);
     return registry;
 }
 

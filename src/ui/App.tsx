@@ -11,7 +11,7 @@ import {
 } from "../orchestrator/index";
 import type { Logger } from "../logging/index";
 import { disposeAllShellServices } from "../shell/index";
-import type { CommandRegistry } from "../commands/index";
+import type { CommandRegistry, Mode } from "../commands/index";
 
 interface AppProps {
     projectPath: string;
@@ -58,6 +58,7 @@ export function App({
     const [contextUsage, setContextUsage] = useState<number>(0);
     const [orchestrator, setOrchestrator] = useState<Orchestrator | null>(null);
     const [commandRegistry, setCommandRegistry] = useState<CommandRegistry | undefined>(undefined);
+    const [nextMode, setNextMode] = useState<Mode>("agent");
 
     useEffect(() => {
         const orch = createOrchestratorWithTools(
@@ -120,7 +121,7 @@ export function App({
     function handleSubmit(content: string) {
         if (!orchestrator) return;
         onUserPrompt(content.length);
-        void orchestrator.sendMessage(content);
+        void orchestrator.sendMessage(content, nextMode);
     }
 
     function handleAcceptReview(entryId: string) {
@@ -158,6 +159,21 @@ export function App({
         orchestrator.resolveCommandReview(entryId, null);
     }
 
+    function handlePlanAccept(entryId: string) {
+        if (!orchestrator) return;
+        orchestrator.resolvePlanReview(entryId, "accept");
+    }
+
+    function handlePlanRevise(entryId: string) {
+        if (!orchestrator) return;
+        orchestrator.resolvePlanReview(entryId, "revise");
+    }
+
+    function handlePlanReject(entryId: string) {
+        if (!orchestrator) return;
+        orchestrator.resolvePlanReview(entryId, "reject");
+    }
+
     const composerDisabled = isProcessing || pendingReviewId !== null;
 
     return (
@@ -173,6 +189,9 @@ export function App({
                     onShellDeny={handleShellDeny}
                     onCommandSelect={handleCommandSelect}
                     onCommandCancel={handleCommandCancel}
+                    onPlanAccept={handlePlanAccept}
+                    onPlanRevise={handlePlanRevise}
+                    onPlanReject={handlePlanReject}
                 />
             </Box>
             <Box paddingX={1}>
@@ -180,10 +199,17 @@ export function App({
                     onSubmit={handleSubmit}
                     disabled={composerDisabled}
                     commandRegistry={commandRegistry}
+                    mode={nextMode}
+                    onModeChange={setNextMode}
                 />
             </Box>
             <Box paddingX={1} marginBottom={1}>
-                <StatusLine model={currentModel} projectPath={projectPath} contextUsage={contextUsage} />
+                <StatusLine 
+                    model={currentModel} 
+                    projectPath={projectPath} 
+                    contextUsage={contextUsage}
+                    mode={nextMode}
+                />
             </Box>
         </Box>
     );

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Box, Text, useInput } from "ink";
-import { getTokenAtCursor, MODELS, type CommandRegistry } from "../commands/index";
+import { getTokenAtCursor, MODELS, type CommandRegistry, type Mode } from "../commands/index";
 
 interface Suggestion {
     value: string;
@@ -12,6 +12,8 @@ interface ComposerProps {
     onSubmit: (content: string) => void;
     disabled: boolean;
     commandRegistry?: CommandRegistry;
+    mode: Mode;
+    onModeChange: (mode: Mode) => void;
 }
 
 function insertNewline(value: string, cursorPos: number): { value: string; cursor: number } {
@@ -90,7 +92,40 @@ function getSuggestions(
     return null;
 }
 
-export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps) {
+function cycleMode(currentMode: Mode): Mode {
+    switch (currentMode) {
+        case "ask":
+            return "agent";
+        case "agent":
+            return "plan";
+        case "plan":
+            return "ask";
+    }
+}
+
+function getModeColor(mode: Mode): string {
+    switch (mode) {
+        case "ask":
+            return "blue";
+        case "agent":
+            return "green";
+        case "plan":
+            return "yellow";
+    }
+}
+
+function getModeLabel(mode: Mode): string {
+    switch (mode) {
+        case "ask":
+            return "ASK";
+        case "agent":
+            return "AGENT";
+        case "plan":
+            return "PLAN";
+    }
+}
+
+export function Composer({ onSubmit, disabled, commandRegistry, mode, onModeChange }: ComposerProps) {
     const [value, setValue] = useState("");
     const [cursorPos, setCursorPos] = useState(0);
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -123,18 +158,22 @@ export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps)
                 }
             }
 
-            if (key.tab && hasSuggestions) {
-                const suggestion = suggestions[selectedIndex];
-                if (suggestion && suggestionState) {
-                    const before = value.slice(0, suggestionState.tokenStart);
-                    const after = value.slice(suggestionState.tokenEnd);
-                    const needsSpace = after.length === 0 || !/^\s/.test(after);
-                    const spacing = needsSpace ? " " : "";
-                    const newValue = before + suggestion.value + spacing + after;
-                    const newCursor = suggestionState.tokenStart + suggestion.value.length + (needsSpace ? 1 : 0);
-                    setValue(newValue);
-                    setCursorPos(newCursor);
-                    setSelectedIndex(0);
+            if (key.tab) {
+                if (hasSuggestions) {
+                    const suggestion = suggestions[selectedIndex];
+                    if (suggestion && suggestionState) {
+                        const before = value.slice(0, suggestionState.tokenStart);
+                        const after = value.slice(suggestionState.tokenEnd);
+                        const needsSpace = after.length === 0 || !/^\s/.test(after);
+                        const spacing = needsSpace ? " " : "";
+                        const newValue = before + suggestion.value + spacing + after;
+                        const newCursor = suggestionState.tokenStart + suggestion.value.length + (needsSpace ? 1 : 0);
+                        setValue(newValue);
+                        setCursorPos(newCursor);
+                        setSelectedIndex(0);
+                    }
+                } else {
+                    onModeChange(cycleMode(mode));
                 }
                 return;
             }
@@ -252,6 +291,9 @@ export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps)
     const lines = displayValue.split("\n");
     const showPlaceholder = !value && !disabled;
 
+    const modeColor = getModeColor(mode);
+    const modeLabel = getModeLabel(mode);
+
     return (
         <Box flexDirection="column" borderStyle="round" borderColor={disabled ? "gray" : "green"} paddingX={1} width="100%">
             <Box>
@@ -260,7 +302,7 @@ export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps)
                 </Text>
                 <Box flexDirection="column" flexGrow={1}>
                     {showPlaceholder ? (
-                        <Text color="#999999">Type a message... (Ctrl+J for newline)</Text>
+                        <Text color="#999999">Type a message... (Ctrl+J for newline, Tab to switch mode)</Text>
                     ) : (
                         lines.map((line, i) => (
                             <Text key={i} wrap="wrap">
@@ -268,6 +310,11 @@ export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps)
                             </Text>
                         ))
                     )}
+                </Box>
+                <Box marginLeft={1}>
+                    <Text color={modeColor} bold>
+                        [{modeLabel}]
+                    </Text>
                 </Box>
             </Box>
             {hasSuggestions && !disabled && (

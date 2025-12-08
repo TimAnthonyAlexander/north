@@ -32,6 +32,7 @@ src/
 │       ├── new.ts        # /new - reset chat
 │       ├── help.ts       # /help - list commands
 │       ├── model.ts      # /model - switch Claude model
+│       ├── mode.ts       # /mode - switch conversation mode (ask/agent/plan)
 │       └── summarize.ts  # /summarize - summarize and trim transcript
 ├── logging/
 │   └── index.ts          # Append-only JSON-lines logger
@@ -61,6 +62,8 @@ src/
 │   ├── edit_insert_at_line.ts # Insert at line number
 │   ├── edit_create_file.ts    # Create or overwrite file
 │   ├── edit_apply_batch.ts    # Atomic batch edits
+│   ├── plan_create.ts    # Create implementation plan (requires approval)
+│   ├── plan_update.ts    # Update existing plan (requires approval)
 │   └── shell_run.ts      # Shell command execution (requires approval)
 ├── ui/
 │   ├── App.tsx           # Root Ink component, SIGINT handling, review wiring
@@ -68,7 +71,8 @@ src/
 │   ├── CommandReview.tsx # Interactive picker for commands (e.g., model selection)
 │   ├── DiffReview.tsx    # Inline diff viewer with accept/reject
 │   ├── ShellReview.tsx   # Shell command approval with run/always/deny
-│   ├── StatusLine.tsx    # Model name, project path display
+│   ├── PlanReview.tsx    # Plan approval with accept/revise/reject
+│   ├── StatusLine.tsx    # Model name, mode indicator, project path display
 │   └── Transcript.tsx    # User/assistant/tool/review/command entry rendering
 └── utils/
     ├── repo.ts           # Repo root detection
@@ -95,6 +99,7 @@ Registry-driven command system with span-based parsing, cursor-aware autocomplet
 #### commands/types.ts
 
 Defines core types:
+- `Mode`: "ask" | "agent" | "plan" - conversation mode type
 - `CommandDefinition`: name, description, usage, execute function
 - `CommandContext`: orchestrator methods available to commands
 - `ParsedArgs`: positional args and flags from parsing
@@ -152,11 +157,13 @@ Span-based tokenizer for reliable command extraction:
 ### orchestrator/index.ts
 
 - Owns `transcript` (array of `TranscriptEntry`)
-- Owns `isProcessing`, `pendingReviewId`, `currentModel`, `rollingSummary`
+- Owns `isProcessing`, `pendingReviewId`, `currentModel`, `rollingSummary`, `acceptedPlan`
 - Owns `contextUsedTokens`, `contextLimitTokens`, `contextUsage` for context tracking
 - Receives `cursorRulesText` in context (loaded once at startup)
 - Owns command registry via `createCommandRegistryWithAllCommands()`
 - Preprocesses user input for slash commands before sending to Claude
+- Accepts mode parameter in `sendMessage(content, mode)` to filter available tools
+- Enforces plan requirement: write tools blocked until plan is accepted
 - Implements tool call loop:
   1. Parse and execute any slash commands in input
   2. Add `command_executed` entry for each command
@@ -168,8 +175,10 @@ Span-based tokenizer for reliable command extraction:
   8. Stream response text (throttled at ~32ms)
   9. If `stopReason === "tool_use"`:
      - Execute each tool via registry
-     - For `approvalPolicy: "write"`: create `diff_review` entry, block for user decision
+     - For `approvalPolicy: "write"`: check plan exists, create `diff_review` entry, block for user decision
      - For `approvalPolicy: "shell"`: check allowlist, create `shell_review` if not allowed
+     - For `approvalPolicy: "plan"`: create `plan_review` entry, block for user decision
+     - On plan accept: switch to agent mode for subsequent iterations
      - On accept/run: apply edits or execute command, send result to Claude
      - On reject/deny: send rejection/denial to Claude
   10. Continue until Claude stops requesting tools
@@ -181,6 +190,7 @@ Span-based tokenizer for reliable command extraction:
 - Exposes `resolveWriteReview(reviewId, decision)` for UI to signal accept/reject
 - Exposes `resolveShellReview(reviewId, decision)` for UI to signal run/always/deny
 - Exposes `resolveCommandReview(reviewId, decision)` for UI to signal selection/cancel
+- Exposes `resolvePlanReview(reviewId, decision)` for UI to signal accept/revise/reject
 - Exposes `getCommandRegistry()` for Composer autocomplete
 - Exposes `cancel()` for interrupting ongoing operations (CTRL+C during processing)
 - Exposes `stop()` for clean exit (CTRL+C when idle)
@@ -271,15 +281,17 @@ All tools follow the pattern:
 
 - Root Ink component, wires orchestrator to UI state
 - SIGINT handling: cancel if processing, exit if idle
-- Delegates review decisions to orchestrator methods
-- Tracks `isProcessing` and `pendingReviewId` for UI state
+- Delegates review decisions to orchestrator methods (write, shell, command, plan)
+- Tracks `isProcessing`, `pendingReviewId`, and `nextMode` for UI state
+- Passes mode to orchestrator on message submission
 - Layout: Transcript (scrollable top), StatusLine (sticky bottom), Composer (sticky bottom)
 
 ### ui/StatusLine.tsx
 
 - Full-width status bar using `width="100%"` and `justifyContent="space-between"`
 - Left side: project name with truncation for long names (`wrap="truncate"`)
-- Right side: current model name and context usage meter
+- Right side: mode indicator, current model name, and context usage meter
+- Mode indicator: color-coded badge ([ASK] blue, [AGENT] green, [PLAN] yellow)
 - Context meter: color-coded circle (green < 60%, yellow 60-85%, red > 85%) + percentage
 - Updates in real-time as context fills
 
@@ -287,11 +299,15 @@ All tools follow the pattern:
 
 - Multiline input with Ctrl+J for newlines
 - Shows "Ctrl+C to cancel" hint when disabled/waiting
+- Mode cycling with Tab key (when no autocomplete suggestions):
+  - Cycles: ask → agent → plan → ask
+  - Mode applies to next message only (per-request mode)
+  - Visual indicator shows current mode in top-right
 - Cursor-aware slash command autocomplete:
   - Detects `/` tokens at cursor position
   - Queries command registry for suggestions
   - Shows dropdown with command name + description
-  - Tab to insert, Up/Down to navigate, Esc to close
+  - Tab to insert (when suggestions present), Up/Down to navigate, Esc to close
 - Model argument autocomplete for `/model` command:
   - Detects when cursor follows `/model `
   - Shows model aliases with display names
@@ -307,6 +323,7 @@ All tools follow the pattern:
 - Command executed messages: blue ⚙ icon with result
 - Diff review entries: bordered box with diff content
 - Shell review entries: command approval prompt
+- Plan review entries: bordered box with plan text and accept/revise/reject options
 - Command review entries: interactive picker
 - Error tool results: red text
 - Streaming indicator (●) with magenta pulse animation
@@ -340,6 +357,15 @@ All tools follow the pattern:
 - Keyboard shortcuts: `r` run, `a` always (adds to allowlist), `d` deny
 - Status badges: pending (pulsing yellow border), ran/always (green), denied (red)
 - Animation: border color pulses when status is pending to draw attention
+
+### ui/PlanReview.tsx
+
+- Renders plan approval prompt with full plan text
+- Shows plan version number
+- Keyboard shortcuts: `a` accept, `r` revise (requests plan_update), `x` reject
+- Status badges: pending (pulsing yellow border), accepted (green), revised/rejected (yellow/red)
+- Animation: border color pulses when status is pending to draw attention
+- On accept: plan stored in orchestrator, enables write tools, automatically continues in agent mode
 
 ### utils/editing.ts
 
@@ -505,6 +531,63 @@ Model selection via `/model`:
 - `currentModel` stored in orchestrator state
 - Context limit updates automatically on model change
 
+### Mode System
+
+North supports three conversation modes that control tool availability:
+
+**Mode Types:**
+- **Ask Mode**: Read-only - only read tools available (read_file, search_text, find_files, list_root, read_readme, detect_languages, hotfiles)
+- **Agent Mode**: Full access - all tools available, but write tools require an accepted plan
+- **Plan Mode**: Planning - read tools + plan_create/plan_update tools available
+
+**Mode Selection:**
+- Mode is per-request, not global state
+- Set via `/mode` command (with optional argument or interactive picker)
+- Cycle with Tab key in Composer: ask → agent → plan → ask
+- Tab cycles mode only when no autocomplete suggestions are present
+- Current mode shown in Composer badge and StatusLine
+
+**Tool Filtering:**
+- Orchestrator's `sendMessage(content, mode)` accepts mode parameter
+- Tools filtered via `filterToolsForMode(mode, allSchemas)` before sending to Claude
+- Only tools allowed by current mode are included in API request
+
+**Plan Requirement:**
+- All write tools (edit_*) require an accepted plan before execution
+- If no plan exists, write tools return `PLAN_REQUIRED` error
+- Plan must be created via `plan_create` tool and accepted by user
+- Plan persists until `/new` command (chat reset)
+
+### Plan Review Flow
+
+Creating and using plans:
+
+1. **Plan Creation** (in Plan or Agent mode):
+   - LLM calls `plan_create` with detailed plan text
+   - Orchestrator creates `plan_review` transcript entry with status "pending"
+   - PlanReview component renders plan with keyboard shortcuts
+
+2. **User Decision**:
+   - Press `a`: Accept plan → stored in `acceptedPlan` state, enables write tools
+   - Press `r`: Request revision → LLM should call `plan_update` with revised plan
+   - Press `x`: Reject plan → returned to LLM, no write tools enabled
+
+3. **Plan Acceptance**:
+   - Accepted plan stored: `{ planId, version, text }`
+   - Conversation loop automatically switches to Agent mode for subsequent iterations
+   - Write tools now allowed (will pass plan existence check)
+   - LLM receives success response and can proceed with implementation
+
+4. **Plan Updates**:
+   - LLM can call `plan_update(planId, newPlanText)` to revise plan
+   - Creates new plan_review entry with incremented version
+   - Requires user acceptance again before write tools work with updated plan
+
+5. **Plan Persistence**:
+   - Plan cleared only by `/new` command (chat reset)
+   - Persists across mode switches
+   - Persists across model switches
+
 ### Context Tracking & Auto-Summarization
 
 North tracks context usage in real-time to prevent overflow:
@@ -545,15 +628,16 @@ When Claude requests tools:
 ### Write Approval Flow
 
 When Claude requests an edit tool (approvalPolicy: "write"):
-1. Tool executes in "prepare" mode - computes diff but doesn't write
-2. Orchestrator creates a `diff_review` transcript entry with status "pending"
-3. Tool loop blocks, waiting for user decision
-4. DiffReview component renders inline diff with Accept/Reject options
-5. User presses `a` (accept) or `r` (reject)
-6. On Accept: edits applied atomically (temp files then rename)
-7. On Reject: nothing written, status set to "rejected"
-8. Tool result sent to Claude with outcome (applied: true/false)
-9. Claude continues processing
+1. Orchestrator checks if `acceptedPlan` exists - if not, returns `PLAN_REQUIRED` error
+2. If plan exists, tool executes in "prepare" mode - computes diff but doesn't write
+3. Orchestrator creates a `diff_review` transcript entry with status "pending"
+4. Tool loop blocks, waiting for user decision
+5. DiffReview component renders inline diff with Accept/Reject options
+6. User presses `a` (accept) or `r` (reject)
+7. On Accept: edits applied atomically (temp files then rename)
+8. On Reject: nothing written, status set to "rejected"
+9. Tool result sent to Claude with outcome (applied: true/false)
+10. Claude continues processing
 
 ### Shell Approval Flow
 

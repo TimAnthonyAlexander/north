@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Box, Text } from "ink";
-import type { TranscriptEntry, ShellReviewStatus, CommandReviewStatus } from "../orchestrator/index";
+import type { TranscriptEntry, ShellReviewStatus, CommandReviewStatus, PlanReviewStatus } from "../orchestrator/index";
 import { DiffReview } from "./DiffReview";
 import { ShellReview } from "./ShellReview";
 import { CommandReview } from "./CommandReview";
+import { PlanReview } from "./PlanReview";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const PULSE_COLORS = ["magenta", "#ff6ec7", "#ff8fd5", "#ffa0dc", "#ff8fd5", "#ff6ec7"] as const;
@@ -44,6 +45,9 @@ interface TranscriptProps {
     onShellDeny?: (entryId: string) => void;
     onCommandSelect?: (entryId: string, selectedId: string) => void;
     onCommandCancel?: (entryId: string) => void;
+    onPlanAccept?: (entryId: string) => void;
+    onPlanRevise?: (entryId: string) => void;
+    onPlanReject?: (entryId: string) => void;
 }
 
 function UserMessage({ entry }: { entry: TranscriptEntry }) {
@@ -120,6 +124,9 @@ interface MessageBlockProps {
     onShellDeny?: () => void;
     onCommandSelect?: (selectedId: string) => void;
     onCommandCancel?: () => void;
+    onPlanAccept?: () => void;
+    onPlanRevise?: () => void;
+    onPlanReject?: () => void;
 }
 
 function MessageBlock({
@@ -132,6 +139,9 @@ function MessageBlock({
     onShellDeny,
     onCommandSelect,
     onCommandCancel,
+    onPlanAccept,
+    onPlanRevise,
+    onPlanReject,
 }: MessageBlockProps) {
     if (entry.role === "user") {
         return <UserMessage entry={entry} />;
@@ -191,6 +201,21 @@ function MessageBlock({
         );
     }
 
+    if (entry.role === "plan_review" && entry.planText) {
+        const planStatus = (entry.reviewStatus || "pending") as PlanReviewStatus;
+        return (
+            <PlanReview
+                planText={entry.planText}
+                planVersion={entry.planVersion || 1}
+                status={planStatus}
+                onAccept={onPlanAccept}
+                onRevise={onPlanRevise}
+                onReject={onPlanReject}
+                isActive={isActiveReview}
+            />
+        );
+    }
+
     return <AssistantMessage entry={entry} />;
 }
 
@@ -204,6 +229,9 @@ export function Transcript({
     onShellDeny,
     onCommandSelect,
     onCommandCancel,
+    onPlanAccept,
+    onPlanRevise,
+    onPlanReject,
 }: TranscriptProps) {
     if (entries.length === 0) {
         return (
@@ -229,6 +257,9 @@ export function Transcript({
                         onShellDeny={isActive ? () => onShellDeny?.(entry.id) : undefined}
                         onCommandSelect={isActive ? (id) => onCommandSelect?.(entry.id, id) : undefined}
                         onCommandCancel={isActive ? () => onCommandCancel?.(entry.id) : undefined}
+                        onPlanAccept={isActive ? () => onPlanAccept?.(entry.id) : undefined}
+                        onPlanRevise={isActive ? () => onPlanRevise?.(entry.id) : undefined}
+                        onPlanReject={isActive ? () => onPlanReject?.(entry.id) : undefined}
                     />
                 );
             })}

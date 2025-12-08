@@ -1,11 +1,13 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { basename } from "path";
+import type { Mode } from "../commands/index";
 
 interface StatusLineProps {
     model: string;
     projectPath: string;
     contextUsage: number;
+    mode: Mode;
 }
 
 function getContextColor(usage: number): string {
@@ -14,10 +16,34 @@ function getContextColor(usage: number): string {
     return "red";
 }
 
-export function StatusLine({ model, projectPath, contextUsage }: StatusLineProps) {
+function getModeColor(mode: Mode): string {
+    switch (mode) {
+        case "ask":
+            return "blue";
+        case "agent":
+            return "green";
+        case "plan":
+            return "yellow";
+    }
+}
+
+function getModeLabel(mode: Mode): string {
+    switch (mode) {
+        case "ask":
+            return "ASK";
+        case "agent":
+            return "AGENT";
+        case "plan":
+            return "PLAN";
+    }
+}
+
+export function StatusLine({ model, projectPath, contextUsage, mode }: StatusLineProps) {
     const projectName = basename(projectPath);
     const usagePercent = Math.round(contextUsage * 100);
     const contextColor = getContextColor(contextUsage);
+    const modeColor = getModeColor(mode);
+    const modeLabel = getModeLabel(mode);
 
     return (
         <Box width="100%" paddingX={1} justifyContent="space-between">
@@ -31,6 +57,8 @@ export function StatusLine({ model, projectPath, contextUsage }: StatusLineProps
                 </Text>
             </Box>
             <Box flexDirection="row" gap={1}>
+                <Text color={modeColor} bold>[{modeLabel}]</Text>
+                <Text color="#999999">•</Text>
                 <Text color="magenta">{model}</Text>
                 <Text color="#999999">•</Text>
                 <Text color={contextColor}>● {usagePercent}%</Text>
