@@ -111,7 +111,7 @@ export function App({
     function handleSubmit(content: string) {
         if (!orchestrator) return;
         onUserPrompt(content.length);
-        orchestrator.sendMessage(content);
+        void orchestrator.sendMessage(content);
     }
 
     function handleAcceptReview(entryId: string) {

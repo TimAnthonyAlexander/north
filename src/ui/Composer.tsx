@@ -105,7 +105,9 @@ export function Composer({ onSubmit, disabled, commandRegistry }: ComposerProps)
     const hasSuggestions = suggestions.length > 0;
 
     useEffect(() => {
-        if (selectedIndex >= suggestions.length && suggestions.length > 0) {
+        if (suggestions.length === 0) {
+            if (selectedIndex !== 0) setSelectedIndex(0);
+        } else if (selectedIndex >= suggestions.length) {
             setSelectedIndex(suggestions.length - 1);
         }
     }, [suggestions.length, selectedIndex]);
