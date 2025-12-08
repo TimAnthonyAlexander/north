@@ -37,7 +37,8 @@ export function PlanReview({
     onReject,
     isActive,
 }: PlanReviewProps) {
-    const borderColor = status === "pending" ? useBorderPulse(BORDER_PULSE_COLORS, 600) : getBorderColor(status);
+    const pulsedColor = useBorderPulse(BORDER_PULSE_COLORS, 600);
+    const borderColor = status === "pending" ? pulsedColor : getBorderColor(status);
 
     useInput(
         (input, _key) => {
