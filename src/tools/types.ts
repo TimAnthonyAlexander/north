@@ -113,7 +113,7 @@ export interface HotfilesOutput {
 }
 
 export interface EditOperation {
-  type: "replace" | "insert" | "create";
+  type: "replace" | "create";
   path: string;
   content: string;
   originalContent?: string;
