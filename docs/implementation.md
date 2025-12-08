@@ -194,23 +194,15 @@ Span-based tokenizer for reliable command extraction:
 
 ### shell/index.ts
 
-- Creates and manages one PTY session per project root
-- Uses `bun-pty` for cross-platform PTY support (hardcoded to `/bin/bash` to avoid zsh flag issues)
-- **Lazy loading**: `bun-pty` is dynamically imported only when first shell command runs
-- **Native library bundling**: The bun-pty native library (.dylib/.so/.dll) is bundled at build time:
-  - `scripts/postbuild.ts` copies the native library to `dist/lib/`
-  - `src/index.ts` sets `BUN_PTY_LIB` environment variable at startup to point to bundled library
-  - Allows north to run from any directory without requiring node_modules
-- Single-flight commands: rejects if a command is already running
-- Sentinel-based output parsing:
-  - Uses `printf` with newline-framed markers for robustness
-  - Markers are cryptographically randomized per command (UUID-based) to prevent spoofing
-  - Buffers PTY output until end marker detected
-  - Extracts command output between markers
-- Timeout handling: destroys and recreates PTY session on timeout (prevents poisoned state)
-- Note: PTY merges stdout/stderr; `stderr` field is always empty
+- Simple shell command execution using Bun's built-in `Bun.spawn()` API
+- No external dependencies - works in standalone compiled binaries
+- Each command spawns a fresh bash process (no persistent session)
+- Uses `bash -c` for command execution
+- Timeout handling: kills process after timeout (default 60s)
+- Properly separates stdout and stderr streams
+- Per-project service caching for consistent interface
 - API: `getShellService(repoRoot, logger)` returns service with `run(command, options)` and `dispose()`
-- `disposeAllShellServices()` cleans up all sessions on exit
+- `disposeAllShellServices()` cleans up all cached services on exit
 
 ### storage/allowlist.ts
 
@@ -621,7 +613,6 @@ Truncation is always explicit with `truncated: true` in results.
 | `@anthropic-ai/sdk` | ^0.39.0 | Claude API client |
 | `ink` | ^5.1.0 | Terminal UI framework |
 | `react` | ^18.3.1 | UI component model |
-| `bun-pty` | ^0.4.2 | Cross-platform PTY for persistent shell |
 
 ## Running
 
@@ -633,7 +624,7 @@ bun run dev
 bun run dev --path /some/repo --log-level debug
 
 # Build for distribution
-bun run build         # builds to dist/ and bundles native library
+bun run build         # builds to dist/
 bun run link          # symlinks for global 'north' command
 
 # Build standalone binaries
@@ -644,14 +635,13 @@ bun run build:binary:linux
 
 ## Build Process
 
-The build process includes special handling for the bun-pty native library:
+Simple and straightforward:
 
 1. **JavaScript bundling**: `bun build` compiles TypeScript to `dist/index.js`
-2. **Native library bundling**: `scripts/postbuild.ts` copies the platform-specific native library (`.dylib`/`.so`/`.dll`) from `node_modules/bun-pty/rust-pty/target/release/` to `dist/lib/`
-3. **Runtime setup**: `src/index.ts` detects the bundled library at startup and sets the `BUN_PTY_LIB` environment variable before any imports
-4. **Lazy loading**: The shell module dynamically imports `bun-pty` only when needed, allowing graceful error handling if the library is unavailable
+2. **Binary compilation**: `bun build --compile` creates a standalone executable with Bun runtime embedded
+3. **No native dependencies**: Uses only Bun's built-in APIs (`Bun.spawn()`) for shell commands
 
-This approach allows north to run from any directory without requiring node_modules to be present, while still supporting shell commands when properly installed.
+The compiled binary is completely self-contained and can be distributed as a single file with no external dependencies.
 
 ## Environment
 

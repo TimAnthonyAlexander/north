@@ -1,33 +1,4 @@
 #!/usr/bin/env bun
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const platform = process.platform;
-const arch = process.arch;
-
-if (!process.env.BUN_PTY_LIB) {
-    let libFileName: string;
-    if (platform === "darwin") {
-        libFileName = arch === "arm64" ? "librust_pty_arm64.dylib" : "librust_pty.dylib";
-    } else if (platform === "linux") {
-        libFileName = arch === "arm64" ? "librust_pty_arm64.so" : "librust_pty.so";
-    } else if (platform === "win32") {
-        libFileName = "rust_pty.dll";
-    } else {
-        libFileName = "";
-    }
-
-    if (libFileName) {
-        const bundledLibPath = join(__dirname, "lib", libFileName);
-        if (existsSync(bundledLibPath)) {
-            process.env.BUN_PTY_LIB = bundledLibPath;
-        }
-    }
-}
-
 import React from "react";
 import { render } from "ink";
 import { App } from "./ui/App";
