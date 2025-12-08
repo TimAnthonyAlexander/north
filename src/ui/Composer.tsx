@@ -105,7 +105,7 @@ export function Composer({ onSubmit, disabled }: ComposerProps) {
   const showPlaceholder = !value && !disabled;
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={disabled ? "gray" : "green"} paddingX={1}>
+    <Box flexDirection="column" borderStyle="round" borderColor={disabled ? "gray" : "green"} paddingX={1} width="100%">
       <Box>
         <Text color="green" bold>
           {"› "}
