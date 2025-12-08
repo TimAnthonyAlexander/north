@@ -6,7 +6,7 @@ import {
 } from "../provider/anthropic";
 import { createToolRegistryWithAllTools, filterToolsForMode } from "../tools/index";
 import type { Logger } from "../logging/index";
-import type { FileDiff, EditPrepareResult, ShellRunInput } from "../tools/types";
+import type { FileDiff, EditPrepareResult, ShellRunInput, EditOperation } from "../tools/types";
 import { applyEditsAtomically } from "../utils/editing";
 import { isCommandAllowed, allowCommand } from "../storage/allowlist";
 import { isEditsAutoAcceptEnabled, enableEditsAutoAccept } from "../storage/autoaccept";
@@ -50,7 +50,7 @@ export interface TranscriptEntry {
     filesCount?: number;
     toolName?: string;
     reviewStatus?: ReviewStatus | CommandReviewStatus;
-    applyPayload?: unknown;
+    applyPayload?: EditOperation[];
     shellCommand?: string;
     shellCwd?: string | null;
     shellTimeoutMs?: number | null;
@@ -61,6 +61,8 @@ export interface TranscriptEntry {
     planId?: string;
     planText?: string;
     planVersion?: number;
+    toolCallId?: string;
+    shellResult?: { ok: boolean; data?: unknown; error?: string };
 }
 
 export interface OrchestratorState {
@@ -346,7 +348,7 @@ export function createOrchestratorWithTools(
                     messages.push(provider.buildAssistantMessage(entry.content, toolCalls));
                 }
             } else if (entry.role === "tool" && entry.toolResult) {
-                const toolCallId = (entry as any).toolCallId;
+                const toolCallId = entry.toolCallId;
                 if (
                     toolCallId &&
                     !writeToolCallIds.has(toolCallId) &&
@@ -360,7 +362,7 @@ export function createOrchestratorWithTools(
                     });
                 }
             } else if (entry.role === "diff_review" && entry.reviewStatus !== "pending") {
-                const toolCallId = (entry as any).toolCallId;
+                const toolCallId = entry.toolCallId;
                 if (toolCallId) {
                     const applied = entry.reviewStatus === "accepted";
                     const resultData: Record<string, unknown> = { ok: true, applied };
@@ -376,8 +378,8 @@ export function createOrchestratorWithTools(
                     });
                 }
             } else if (entry.role === "shell_review" && entry.reviewStatus !== "pending") {
-                const toolCallId = (entry as any).toolCallId;
-                const shellResult = (entry as any).shellResult;
+                const toolCallId = entry.toolCallId;
+                const shellResult = entry.shellResult;
                 if (toolCallId && shellResult) {
                     pendingToolResults.push({
                         toolCallId,
@@ -386,7 +388,7 @@ export function createOrchestratorWithTools(
                     });
                 }
             } else if (entry.role === "plan_review" && entry.reviewStatus !== "pending") {
-                const toolCallId = (entry as any).toolCallId;
+                const toolCallId = entry.toolCallId;
                 if (toolCallId) {
                     const accepted = entry.reviewStatus === "accepted";
                     const revised = entry.reviewStatus === "revised";
@@ -494,8 +496,8 @@ export function createOrchestratorWithTools(
                 planText: planText,
                 planVersion: planData.version,
                 reviewStatus: "pending",
+                toolCallId: toolCall.id,
             };
-            (reviewEntry as any).toolCallId = toolCall.id;
             transcript.push(reviewEntry);
 
             updateEntry(toolEntryId, {
@@ -541,9 +543,9 @@ export function createOrchestratorWithTools(
                 shellCwd: cwd,
                 shellTimeoutMs: timeoutMs,
                 reviewStatus: "always",
+                toolCallId: toolCall.id,
+                shellResult: result,
             };
-            (reviewEntry as any).toolCallId = toolCall.id;
-            (reviewEntry as any).shellResult = result;
             transcript.push(reviewEntry);
 
             updateEntry(toolEntryId, { toolResult: { ok: true, data: { autoApproved: true } } });
@@ -565,8 +567,8 @@ export function createOrchestratorWithTools(
             shellCwd: cwd,
             shellTimeoutMs: timeoutMs,
             reviewStatus: "pending",
+            toolCallId: toolCall.id,
         };
-        (reviewEntry as any).toolCallId = toolCall.id;
         transcript.push(reviewEntry);
 
         updateEntry(toolEntryId, {
@@ -600,8 +602,8 @@ export function createOrchestratorWithTools(
             ts: Date.now(),
             toolName,
             toolResult: undefined,
+            toolCallId: toolCall.id,
         };
-        (toolEntry as any).toolCallId = toolCall.id;
         transcript.push(toolEntry);
         emitState();
 
@@ -651,7 +653,7 @@ export function createOrchestratorWithTools(
                 const applyStart = Date.now();
                 const applyResult = applyEditsAtomically(
                     context.repoRoot,
-                    prepareResult.applyPayload as any
+                    prepareResult.applyPayload
                 );
                 const applyDuration = Date.now() - applyStart;
                 callbacks.onWriteApplyComplete?.(applyDuration, applyResult.ok);
@@ -666,8 +668,8 @@ export function createOrchestratorWithTools(
                     filesCount: prepareResult.stats.filesChanged,
                     reviewStatus: "always",
                     applyPayload: prepareResult.applyPayload,
+                    toolCallId: toolCall.id,
                 };
-                (reviewEntry as any).toolCallId = toolCall.id;
                 transcript.push(reviewEntry);
 
                 updateEntry(toolEntryId, {
@@ -689,8 +691,8 @@ export function createOrchestratorWithTools(
                 filesCount: prepareResult.stats.filesChanged,
                 reviewStatus: "pending",
                 applyPayload: prepareResult.applyPayload,
+                toolCallId: toolCall.id,
             };
-            (reviewEntry as any).toolCallId = toolCall.id;
             transcript.push(reviewEntry);
 
             updateEntry(toolEntryId, {
@@ -786,10 +788,7 @@ export function createOrchestratorWithTools(
             callbacks.onWriteApplyStart?.();
             const startTime = Date.now();
 
-            const applyResult = applyEditsAtomically(
-                context.repoRoot,
-                reviewEntry.applyPayload as any
-            );
+            const applyResult = applyEditsAtomically(context.repoRoot, reviewEntry.applyPayload);
 
             const durationMs = Date.now() - startTime;
             callbacks.onWriteApplyComplete?.(durationMs, applyResult.ok);
@@ -827,7 +826,7 @@ export function createOrchestratorWithTools(
                     denied: true,
                 },
             };
-            (reviewEntry as any).shellResult = result;
+            reviewEntry.shellResult = result;
             updateEntry(reviewEntry.id, { reviewStatus: "denied" });
         } else {
             if (decision === "always") {
@@ -835,7 +834,7 @@ export function createOrchestratorWithTools(
             }
 
             const result = await executeShellCommand(command, cwd, timeoutMs);
-            (reviewEntry as any).shellResult = result;
+            reviewEntry.shellResult = result;
 
             updateEntry(reviewEntry.id, {
                 reviewStatus: decision === "always" ? "always" : "ran",

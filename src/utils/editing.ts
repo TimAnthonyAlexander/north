@@ -211,8 +211,9 @@ export function applyEditsAtomically(repoRoot: string, operations: EditOperation
         for (const { tempPath, finalPath } of tempFiles) {
             try {
                 renameSync(tempPath, finalPath);
-            } catch (err: any) {
-                if (err.code === "EXDEV") {
+            } catch (err) {
+                const nodeErr = err as NodeJS.ErrnoException;
+                if (nodeErr.code === "EXDEV") {
                     copyFileSync(tempPath, finalPath);
                     unlinkSync(tempPath);
                 } else {
