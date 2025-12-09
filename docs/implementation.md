@@ -247,10 +247,12 @@ Span-based tokenizer for reliable command extraction:
 
 ### storage/autoaccept.ts
 
-- Per-project auto-accept setting for edit tools at `.north/autoaccept.json`
-- Simple JSON format: `{ "editsAutoAccept": true }`
-- API: `isEditsAutoAcceptEnabled(repoRoot)`, `enableEditsAutoAccept(repoRoot)`, `disableEditsAutoAccept(repoRoot)`
-- When enabled, all edit tool results are automatically applied without user confirmation
+- Per-project auto-accept settings at `.north/autoaccept.json`
+- JSON format: `{ "editsAutoAccept": boolean, "shellAutoApprove": boolean }`
+- Edit API: `isEditsAutoAcceptEnabled(repoRoot)`, `enableEditsAutoAccept(repoRoot)`, `disableEditsAutoAccept(repoRoot)`
+- Shell API: `isShellAutoApproveEnabled(repoRoot)`, `enableShellAutoApprove(repoRoot)`, `disableShellAutoApprove(repoRoot)`
+- When edits auto-accept enabled, all edit tool results are automatically applied without user confirmation
+- When shell auto-approve enabled, all shell commands run automatically without individual approval
 - Creates `.north/` directory on first write
 
 ### provider/index.ts (Provider Factory)
@@ -466,9 +468,10 @@ The provider system prompts now explicitly instruct the LLM to:
 
 - Renders shell command approval prompt
 - Shows command and optional cwd
-- Keyboard shortcuts: `r` run, `a` always (adds to allowlist), `d` deny
-- Status badges: pending (pulsing yellow border), ran/always (green), denied (red)
+- Keyboard shortcuts: `r` run, `a` always (adds to allowlist), `y` auto all (approves all future commands), `d` deny
+- Status badges: pending (pulsing yellow border), ran/always/auto (green), denied (red)
 - Animation: border color pulses when status is pending to draw attention
+- "Auto All" option: enables global auto-approve for all future shell commands in this project
 
 ### utils/editing.ts
 
@@ -803,17 +806,22 @@ When Claude requests an edit tool (approvalPolicy: "write"):
 ### Shell Approval Flow
 
 When Claude requests `shell_run` (approvalPolicy: "shell"):
-1. Orchestrator checks if command is in `.north/allowlist.json`
-2. If allowed: execute immediately in persistent PTY, return result
-3. If not allowed: create `shell_review` transcript entry with status "pending"
-4. Tool loop blocks, waiting for user decision
-5. ShellReview component renders command with Run/Always/Deny options
-6. User presses `r` (run), `a` (always), or `d` (deny)
-7. On Run: execute command, status set to "ran"
-8. On Always: add to allowlist, execute command, status set to "always"
-9. On Deny: return `{ denied: true }` to Claude, status set to "denied"
-10. Tool result sent to Claude with outcome
-11. Claude continues processing
+1. Orchestrator checks if global auto-approve is enabled (`.north/autoaccept.json`)
+2. If auto-approve enabled: execute immediately, status set to "auto", return result
+3. If not auto-approved, check if command is in `.north/allowlist.json`
+4. If allowed: execute immediately, status set to "always", return result
+5. If not allowed: create `shell_review` transcript entry with status "pending"
+6. Tool loop blocks, waiting for user decision
+7. ShellReview component renders command with Run/Always/Auto All/Deny options
+8. User presses `r` (run), `a` (always), `y` (auto all), or `d` (deny)
+9. On Run: execute command, status set to "ran"
+10. On Always: add to allowlist, execute command, status set to "always"
+11. On Auto All: enable global auto-approve, execute command, status set to "auto"
+12. On Deny: return `{ denied: true }` to Claude, status set to "denied"
+13. Tool result sent to Claude with outcome
+14. Claude continues processing
+
+**Approval Priority:** Global auto-approve (step 1) takes precedence over command allowlist (step 3). Once auto-approve is enabled, all commands run automatically without checking the allowlist.
 
 ### Cursor Rules Loading
 

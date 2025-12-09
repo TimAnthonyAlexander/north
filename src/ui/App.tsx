@@ -27,7 +27,7 @@ interface AppProps {
     onWriteApplyStart?: () => void;
     onWriteApplyComplete?: (durationMs: number, ok: boolean) => void;
     onShellReviewShown?: (command: string, cwd?: string | null, timeoutMs?: number | null) => void;
-    onShellReviewDecision?: (decision: "run" | "always" | "deny", command: string) => void;
+    onShellReviewDecision?: (decision: "run" | "always" | "auto" | "deny", command: string) => void;
     onShellRunStart?: (command: string, cwd?: string | null, timeoutMs?: number | null) => void;
     onShellRunComplete?: (
         command: string,
@@ -156,6 +156,11 @@ export function App({
         orchestrator.resolveShellReview(entryId, "always");
     }
 
+    function handleShellAuto(entryId: string) {
+        if (!orchestrator) return;
+        orchestrator.resolveShellReview(entryId, "auto");
+    }
+
     function handleShellDeny(entryId: string) {
         if (!orchestrator) return;
         orchestrator.resolveShellReview(entryId, "deny");
@@ -185,6 +190,7 @@ export function App({
                     onRejectReview={handleRejectReview}
                     onShellRun={handleShellRun}
                     onShellAlways={handleShellAlways}
+                    onShellAuto={handleShellAuto}
                     onShellDeny={handleShellDeny}
                     onCommandSelect={handleCommandSelect}
                     onCommandCancel={handleCommandCancel}

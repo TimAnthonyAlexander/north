@@ -3,6 +3,7 @@ import { join } from "path";
 
 interface AutoAcceptData {
     editsAutoAccept: boolean;
+    shellAutoApprove: boolean;
 }
 
 const NORTH_DIR = ".north";
@@ -22,15 +23,18 @@ function ensureNorthDir(repoRoot: string): void {
 function loadAutoAcceptData(repoRoot: string): AutoAcceptData {
     const path = getAutoAcceptPath(repoRoot);
     if (!existsSync(path)) {
-        return { editsAutoAccept: false };
+        return { editsAutoAccept: false, shellAutoApprove: false };
     }
 
     try {
         const content = readFileSync(path, "utf-8");
         const data = JSON.parse(content);
-        return { editsAutoAccept: Boolean(data.editsAutoAccept) };
+        return {
+            editsAutoAccept: Boolean(data.editsAutoAccept),
+            shellAutoApprove: Boolean(data.shellAutoApprove),
+        };
     } catch {
-        return { editsAutoAccept: false };
+        return { editsAutoAccept: false, shellAutoApprove: false };
     }
 }
 
@@ -46,9 +50,26 @@ export function isEditsAutoAcceptEnabled(repoRoot: string): boolean {
 }
 
 export function enableEditsAutoAccept(repoRoot: string): void {
-    saveAutoAcceptData(repoRoot, { editsAutoAccept: true });
+    const data = loadAutoAcceptData(repoRoot);
+    saveAutoAcceptData(repoRoot, { ...data, editsAutoAccept: true });
 }
 
 export function disableEditsAutoAccept(repoRoot: string): void {
-    saveAutoAcceptData(repoRoot, { editsAutoAccept: false });
+    const data = loadAutoAcceptData(repoRoot);
+    saveAutoAcceptData(repoRoot, { ...data, editsAutoAccept: false });
+}
+
+export function isShellAutoApproveEnabled(repoRoot: string): boolean {
+    const data = loadAutoAcceptData(repoRoot);
+    return data.shellAutoApprove;
+}
+
+export function enableShellAutoApprove(repoRoot: string): void {
+    const data = loadAutoAcceptData(repoRoot);
+    saveAutoAcceptData(repoRoot, { ...data, shellAutoApprove: true });
+}
+
+export function disableShellAutoApprove(repoRoot: string): void {
+    const data = loadAutoAcceptData(repoRoot);
+    saveAutoAcceptData(repoRoot, { ...data, shellAutoApprove: false });
 }

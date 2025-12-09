@@ -10,7 +10,12 @@ import type { Logger } from "../logging/index";
 import type { FileDiff, EditPrepareResult, ShellRunInput, EditOperation } from "../tools/types";
 import { applyEditsAtomically } from "../utils/editing";
 import { isCommandAllowed, allowCommand } from "../storage/allowlist";
-import { isEditsAutoAcceptEnabled, enableEditsAutoAccept } from "../storage/autoaccept";
+import {
+    isEditsAutoAcceptEnabled,
+    enableEditsAutoAccept,
+    isShellAutoApproveEnabled,
+    enableShellAutoApprove,
+} from "../storage/autoaccept";
 import { getShellService } from "../shell/index";
 import {
     createCommandRegistryWithAllCommands,
@@ -28,7 +33,7 @@ import { estimatePromptTokens } from "../utils/tokens";
 import { isRetryableError, calculateBackoff, sleep, DEFAULT_RETRY_CONFIG } from "../utils/retry";
 import * as path from "node:path";
 
-export type ShellReviewStatus = "pending" | "ran" | "always" | "denied";
+export type ShellReviewStatus = "pending" | "ran" | "always" | "auto" | "denied";
 export type WriteReviewStatus = "pending" | "accepted" | "always" | "rejected";
 export type ReviewStatus = WriteReviewStatus | ShellReviewStatus;
 export type { CommandReviewStatus };
@@ -84,7 +89,7 @@ export interface OrchestratorCallbacks {
     onWriteApplyStart?: () => void;
     onWriteApplyComplete?: (durationMs: number, ok: boolean) => void;
     onShellReviewShown?: (command: string, cwd?: string | null, timeoutMs?: number | null) => void;
-    onShellReviewDecision?: (decision: "run" | "always" | "deny", command: string) => void;
+    onShellReviewDecision?: (decision: "run" | "always" | "auto" | "deny", command: string) => void;
     onShellRunStart?: (command: string, cwd?: string | null, timeoutMs?: number | null) => void;
     onShellRunComplete?: (
         command: string,
@@ -102,7 +107,7 @@ export interface OrchestratorContext {
     cursorRulesText: string | null;
 }
 
-export type ShellDecision = "run" | "always" | "deny";
+export type ShellDecision = "run" | "always" | "auto" | "deny";
 export type CommandDecision = string | null;
 export type WriteDecision = "accept" | "always" | "reject";
 
@@ -440,6 +445,35 @@ export function createOrchestratorWithTools(
 
         shellToolCallIds.add(toolCall.id);
 
+        if (isShellAutoApproveEnabled(context.repoRoot)) {
+            updateEntry(toolEntryId, {
+                content: `shell_run (auto-approved)`,
+            });
+            emitState();
+
+            const result = await executeShellCommand(command, cwd, timeoutMs);
+
+            const reviewEntry: TranscriptEntry = {
+                id: generateId(),
+                role: "shell_review",
+                content: "",
+                ts: Date.now(),
+                toolName: "shell_run",
+                shellCommand: command,
+                shellCwd: cwd,
+                shellTimeoutMs: timeoutMs,
+                reviewStatus: "auto",
+                toolCallId: toolCall.id,
+                shellResult: result,
+            };
+            transcript.push(reviewEntry);
+
+            updateEntry(toolEntryId, { toolResult: { ok: true, data: { autoApproved: true } } });
+            emitState();
+
+            return { needsReview: false, entry: reviewEntry };
+        }
+
         if (isCommandAllowed(context.repoRoot, command)) {
             updateEntry(toolEntryId, {
                 content: `shell_run (allowed)`,
@@ -711,13 +745,15 @@ export function createOrchestratorWithTools(
         } else {
             if (decision === "always") {
                 allowCommand(context.repoRoot, command);
+            } else if (decision === "auto") {
+                enableShellAutoApprove(context.repoRoot);
             }
 
             const result = await executeShellCommand(command, cwd, timeoutMs);
             reviewEntry.shellResult = result;
 
             updateEntry(reviewEntry.id, {
-                reviewStatus: decision === "always" ? "always" : "ran",
+                reviewStatus: decision === "always" ? "always" : decision === "auto" ? "auto" : "ran",
             });
         }
 

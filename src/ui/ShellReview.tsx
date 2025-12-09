@@ -1,7 +1,7 @@
 import React, { useState, useEffect, memo } from "react";
 import { Box, Text, useInput } from "ink";
 
-export type ShellReviewStatus = "pending" | "ran" | "always" | "denied";
+export type ShellReviewStatus = "pending" | "ran" | "always" | "auto" | "denied";
 
 const BORDER_PULSE_COLORS = ["yellow", "#ffff87", "#ffffaf", "#ffff87"] as const;
 
@@ -26,6 +26,7 @@ interface ShellReviewProps {
     status: ShellReviewStatus;
     onRun?: () => void;
     onAlways?: () => void;
+    onAuto?: () => void;
     onDeny?: () => void;
     isActive: boolean;
     animationsEnabled?: boolean;
@@ -37,6 +38,7 @@ function getBorderColor(status: ShellReviewStatus): string {
             return "yellow";
         case "ran":
         case "always":
+        case "auto":
             return "green";
         case "denied":
             return "red";
@@ -49,6 +51,7 @@ export const ShellReview = memo(function ShellReview({
     status,
     onRun,
     onAlways,
+    onAuto,
     onDeny,
     isActive,
     animationsEnabled = true,
@@ -64,6 +67,8 @@ export const ShellReview = memo(function ShellReview({
                 onRun?.();
             } else if (input === "a" || input === "A") {
                 onAlways?.();
+            } else if (input === "y" || input === "Y") {
+                onAuto?.();
             } else if (input === "d" || input === "D") {
                 onDeny?.();
             }
@@ -113,6 +118,11 @@ export const ShellReview = memo(function ShellReview({
                     </Text>
                     <Text color="blue"> Always </Text>
                     <Text color="gray"> | </Text>
+                    <Text color="cyan" bold>
+                        [y]
+                    </Text>
+                    <Text color="cyan"> Auto All </Text>
+                    <Text color="gray"> | </Text>
                     <Text color="red" bold>
                         [d]
                     </Text>
@@ -132,6 +142,14 @@ export const ShellReview = memo(function ShellReview({
                 <Box>
                     <Text color="green" bold>
                         ✓ Executed (added to allowlist)
+                    </Text>
+                </Box>
+            )}
+
+            {status === "auto" && (
+                <Box>
+                    <Text color="cyan" bold>
+                        ✓ Auto-approved all commands
                     </Text>
                 </Box>
             )}

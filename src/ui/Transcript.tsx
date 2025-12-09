@@ -85,6 +85,7 @@ interface TranscriptProps {
     onRejectReview?: (entryId: string) => void;
     onShellRun?: (entryId: string) => void;
     onShellAlways?: (entryId: string) => void;
+    onShellAuto?: (entryId: string) => void;
     onShellDeny?: (entryId: string) => void;
     onCommandSelect?: (entryId: string, selectedId: string) => void;
     onCommandCancel?: (entryId: string) => void;
@@ -221,6 +222,7 @@ interface MessageBlockProps {
     onReject?: () => void;
     onShellRun?: () => void;
     onShellAlways?: () => void;
+    onShellAuto?: () => void;
     onShellDeny?: () => void;
     onCommandSelect?: (selectedId: string) => void;
     onCommandCancel?: () => void;
@@ -236,6 +238,7 @@ const MessageBlock = memo(function MessageBlock({
     onReject,
     onShellRun,
     onShellAlways,
+    onShellAuto,
     onShellDeny,
     onCommandSelect,
     onCommandCancel,
@@ -294,6 +297,7 @@ const MessageBlock = memo(function MessageBlock({
                 status={shellStatus}
                 onRun={onShellRun}
                 onAlways={onShellAlways}
+                onAuto={onShellAuto}
                 onDeny={onShellDeny}
                 isActive={isActiveReview}
                 animationsEnabled={animationsEnabled}
@@ -439,6 +443,7 @@ export function Transcript({
     onRejectReview,
     onShellRun,
     onShellAlways,
+    onShellAuto,
     onShellDeny,
     onCommandSelect,
     onCommandCancel,
@@ -496,6 +501,7 @@ export function Transcript({
                         onReject={isActive ? () => onRejectReview?.(entry.id) : undefined}
                         onShellRun={isActive ? () => onShellRun?.(entry.id) : undefined}
                         onShellAlways={isActive ? () => onShellAlways?.(entry.id) : undefined}
+                        onShellAuto={isActive ? () => onShellAuto?.(entry.id) : undefined}
                         onShellDeny={isActive ? () => onShellDeny?.(entry.id) : undefined}
                         onCommandSelect={
                             isActive ? (id) => onCommandSelect?.(entry.id, id) : undefined
