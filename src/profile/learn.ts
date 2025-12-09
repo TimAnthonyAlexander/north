@@ -163,7 +163,7 @@ async function queryTopicWithTools(
                         },
                         onComplete: (result) => {
                             resolve({
-                                text: result.text,
+                                text,
                                 toolCalls: result.toolCalls,
                                 stopReason: result.stopReason,
                             });
