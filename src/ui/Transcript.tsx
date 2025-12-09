@@ -13,6 +13,38 @@ import { getAssistantName } from "../commands/models";
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const PULSE_COLORS = ["magenta", "#ff6ec7", "#ff8fd5", "#ffa0dc", "#ff8fd5", "#ff6ec7"] as const;
 
+const THINKING_PHRASES = [
+    "Thinking",
+    "Planning",
+    "Pondering",
+    "Reasoning",
+    "Analyzing",
+    "Considering",
+    "Processing",
+    "Contemplating",
+    "Strategizing",
+    "Formulating",
+    "Evaluating",
+    "Synthesizing",
+    "Researching",
+    "Connecting dots",
+    "Reading the codebase",
+    "Consulting the docs",
+    "Casting magical spells",
+    "Summoning knowledge",
+    "Channeling inner wisdom",
+    "Brewing solutions",
+    "Architecting brilliance",
+    "Decoding the matrix",
+    "Consulting the oracle",
+    "Mining insights",
+    "Weaving logic",
+];
+
+function getRandomThinkingPhrase(): string {
+    return THINKING_PHRASES[Math.floor(Math.random() * THINKING_PHRASES.length)];
+}
+
 const ANIMATION_DISABLE_THRESHOLD = 100;
 
 function useSpinner(active: boolean, interval = 80) {
@@ -83,6 +115,7 @@ const AssistantMessage = memo(function AssistantMessage({
 }) {
     const hasContent = content.length > 0;
     const pulseColor = usePulse(isStreaming && animationsEnabled, PULSE_COLORS, 500);
+    const thinkingPhrase = useMemo(() => getRandomThinkingPhrase(), []);
 
     return (
         <Box flexDirection="column" marginBottom={1}>
@@ -97,7 +130,9 @@ const AssistantMessage = memo(function AssistantMessage({
             )}
             {!hasContent && isStreaming && (
                 <Box marginLeft={2}>
-                    <Text color="gray">...</Text>
+                    <Text color="gray" italic>
+                        {thinkingPhrase}...
+                    </Text>
                 </Box>
             )}
         </Box>
