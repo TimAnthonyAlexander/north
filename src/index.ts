@@ -5,6 +5,7 @@ import { App } from "./ui/App";
 import { initLogger, type LogLevel } from "./logging/index";
 import { detectRepoRoot } from "./utils/repo";
 import { loadCursorRules } from "./rules/index";
+import { hasProfile, loadProfile, hasDeclined } from "./storage/profile";
 
 function parseArgs(): { path?: string; logLevel: LogLevel } {
     const args = process.argv.slice(2);
@@ -52,11 +53,22 @@ async function main() {
     const cursorRulesResult = await loadCursorRules(projectPath);
     const cursorRulesText = cursorRulesResult?.text || null;
 
+    let projectProfileText: string | null = null;
+    let needsLearningPrompt = false;
+
+    if (hasProfile(projectPath)) {
+        projectProfileText = loadProfile(projectPath);
+    } else if (!hasDeclined(projectPath)) {
+        needsLearningPrompt = true;
+    }
+
     const { waitUntilExit } = render(
         React.createElement(App, {
             projectPath,
             logger,
             cursorRulesText,
+            projectProfileText,
+            needsLearningPrompt,
             onRequestStart(requestId: string, model: string) {
                 logger.info("model_request_start", { requestId, model });
             },

@@ -16,6 +16,7 @@ import {
     isShellAutoApproveEnabled,
     enableShellAutoApprove,
 } from "../storage/autoaccept";
+import { markDeclined, saveProfile } from "../storage/profile";
 import { getShellService } from "../shell/index";
 import {
     createCommandRegistryWithAllCommands,
@@ -31,12 +32,15 @@ import { DEFAULT_MODEL, getModelContextLimit } from "../commands/models";
 import { getSavedModel } from "../storage/config";
 import { estimatePromptTokens } from "../utils/tokens";
 import { isRetryableError, calculateBackoff, sleep, DEFAULT_RETRY_CONFIG } from "../utils/retry";
+import { runLearningSession } from "../profile/learn";
 import * as path from "node:path";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "auto" | "denied";
 export type WriteReviewStatus = "pending" | "accepted" | "always" | "rejected";
 export type ReviewStatus = WriteReviewStatus | ShellReviewStatus;
 export type { CommandReviewStatus };
+
+export type LearningPromptStatus = "pending" | "accepted" | "declined";
 
 export interface TranscriptEntry {
     id: string;
@@ -47,7 +51,9 @@ export interface TranscriptEntry {
         | "diff_review"
         | "shell_review"
         | "command_review"
-        | "command_executed";
+        | "command_executed"
+        | "learning_prompt"
+        | "learning_progress";
     content: string;
     ts: number;
     isStreaming?: boolean;
@@ -66,6 +72,9 @@ export interface TranscriptEntry {
     commandSelectedId?: string;
     toolCallId?: string;
     shellResult?: { ok: boolean; data?: unknown; error?: string };
+    learningPromptStatus?: LearningPromptStatus;
+    learningPercent?: number;
+    learningTopic?: string;
 }
 
 export interface OrchestratorState {
@@ -76,6 +85,10 @@ export interface OrchestratorState {
     contextUsedTokens: number;
     contextLimitTokens: number;
     contextUsage: number;
+    learningPromptId: string | null;
+    learningInProgress: boolean;
+    learningPercent: number;
+    learningTopic: string;
 }
 
 export interface OrchestratorCallbacks {
@@ -105,17 +118,22 @@ export interface OrchestratorContext {
     repoRoot: string;
     logger: Logger;
     cursorRulesText: string | null;
+    projectProfileText: string | null;
 }
 
 export type ShellDecision = "run" | "always" | "auto" | "deny";
 export type CommandDecision = string | null;
 export type WriteDecision = "accept" | "always" | "reject";
 
+export type LearningDecision = "accept" | "decline";
+
 export interface Orchestrator {
     sendMessage(content: string, mode: Mode): Promise<void>;
     resolveWriteReview(reviewId: string, decision: WriteDecision): void;
     resolveShellReview(reviewId: string, decision: ShellDecision): void;
     resolveCommandReview(reviewId: string, decision: CommandDecision): void;
+    resolveLearningPrompt(reviewId: string, decision: LearningDecision): void;
+    startLearningSession(): Promise<void>;
     getModel(): string;
     getCommandRegistry(): CommandRegistry;
     cancel(): void;
@@ -140,6 +158,11 @@ interface PendingShellReview {
 interface PendingCommandReview {
     id: string;
     resolve: (decision: CommandDecision) => void;
+}
+
+interface PendingLearningPrompt {
+    id: string;
+    resolve: (decision: LearningDecision) => void;
 }
 
 const STREAM_THROTTLE_MS = 32;
@@ -225,9 +248,15 @@ export function createOrchestratorWithTools(
     let pendingWriteReview: PendingWriteReview | null = null;
     let pendingShellReview: PendingShellReview | null = null;
     let pendingCommandReview: PendingCommandReview | null = null;
+    let pendingLearningPrompt: PendingLearningPrompt | null = null;
     let stopped = false;
     let currentModel: string = initialModel;
     let rollingSummary: StructuredSummary | null = null;
+
+    let learningPromptId: string | null = null;
+    let learningInProgress = false;
+    let learningPercent = 0;
+    let learningTopic = "";
 
     let contextUsedTokens = 0;
     let contextLimitTokens = getModelContextLimit(currentModel);
@@ -248,6 +277,10 @@ export function createOrchestratorWithTools(
             contextUsedTokens,
             contextLimitTokens,
             contextUsage,
+            learningPromptId,
+            learningInProgress,
+            learningPercent,
+            learningTopic,
         });
     }
 
@@ -306,6 +339,18 @@ export function createOrchestratorWithTools(
             });
         }
 
+        if (context.projectProfileText) {
+            messages.push({
+                role: "user",
+                content: context.projectProfileText,
+            });
+            messages.push({
+                role: "assistant",
+                content:
+                    "I understand this project profile and will use it as context for our conversation.",
+            });
+        }
+
         if (rollingSummary) {
             messages.push({
                 role: "user",
@@ -319,7 +364,12 @@ export function createOrchestratorWithTools(
         }
 
         for (const entry of transcript) {
-            if (entry.role === "command_review" || entry.role === "command_executed") {
+            if (
+                entry.role === "command_review" ||
+                entry.role === "command_executed" ||
+                entry.role === "learning_prompt" ||
+                entry.role === "learning_progress"
+            ) {
                 continue;
             }
             if (entry.role === "user") {
@@ -933,7 +983,89 @@ Respond with ONLY the JSON, no other text.`;
             listCommands() {
                 return commandRegistry.list();
             },
+            triggerLearning() {
+                void startLearningSessionInternal();
+            },
         };
+    }
+
+    async function startLearningSessionInternal() {
+        if (learningInProgress || stopped) return;
+
+        learningInProgress = true;
+        learningPercent = 0;
+        learningTopic = "";
+
+        const progressEntryId = generateId();
+        transcript.push({
+            id: progressEntryId,
+            role: "learning_progress",
+            content: "",
+            ts: Date.now(),
+            learningPercent: 0,
+            learningTopic: "",
+        });
+        emitState();
+
+        try {
+            const profileText = await runLearningSession(
+                context.repoRoot,
+                toolRegistry,
+                provider,
+                context.logger,
+                (percent: number, topic: string) => {
+                    learningPercent = percent;
+                    learningTopic = topic;
+                    updateEntry(progressEntryId, {
+                        learningPercent: percent,
+                        learningTopic: topic,
+                    });
+                    emitState();
+                }
+            );
+
+            saveProfile(context.repoRoot, profileText);
+
+            const idx = transcript.findIndex((e) => e.id === progressEntryId);
+            if (idx !== -1) {
+                transcript.splice(idx, 1);
+            }
+
+            const completionEntry: TranscriptEntry = {
+                id: generateId(),
+                role: "assistant",
+                content: "I've finished learning the project. Let me know how I can help!",
+                ts: Date.now(),
+            };
+            transcript.push(completionEntry);
+
+            context.logger.info("learning_complete", {});
+        } catch (err) {
+            context.logger.error(
+                "learning_error",
+                err instanceof Error ? err : new Error(String(err))
+            );
+
+            const idx = transcript.findIndex((e) => e.id === progressEntryId);
+            if (idx !== -1) {
+                transcript.splice(idx, 1);
+            }
+
+            const errorEntry: TranscriptEntry = {
+                id: generateId(),
+                role: "assistant",
+                content:
+                    "I encountered an error while learning the project. You can try again with the /learn command.",
+                ts: Date.now(),
+            };
+            transcript.push(errorEntry);
+        } finally {
+            learningInProgress = false;
+            learningPercent = 0;
+            learningTopic = "";
+            learningPromptId = null;
+            emitState();
+        }
     }
 
     async function executeCommands(content: string): Promise<string> {
@@ -1219,6 +1351,16 @@ Respond with ONLY the JSON, no other text.`;
             }
         },
 
+        resolveLearningPrompt(reviewId: string, decision: LearningDecision) {
+            if (pendingLearningPrompt && pendingLearningPrompt.id === reviewId) {
+                pendingLearningPrompt.resolve(decision);
+            }
+        },
+
+        async startLearningSession() {
+            await startLearningSessionInternal();
+        },
+
         getModel() {
             return currentModel;
         },
@@ -1248,8 +1390,13 @@ Respond with ONLY the JSON, no other text.`;
                 pendingCommandReview.resolve(null);
                 pendingCommandReview = null;
             }
+            if (pendingLearningPrompt) {
+                pendingLearningPrompt.resolve("decline");
+                pendingLearningPrompt = null;
+            }
 
             pendingReviewId = null;
+            learningPromptId = null;
         },
 
         stop() {

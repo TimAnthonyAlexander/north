@@ -4,10 +4,13 @@ import type {
     TranscriptEntry,
     ShellReviewStatus,
     CommandReviewStatus,
+    LearningPromptStatus,
 } from "../orchestrator/index";
 import { DiffReview } from "./DiffReview";
 import { ShellReview } from "./ShellReview";
 import { CommandReview } from "./CommandReview";
+import { LearningPrompt } from "./LearningPrompt";
+import { LearningProgress } from "./LearningProgress";
 import { getAssistantName } from "../commands/models";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -80,6 +83,10 @@ interface TranscriptProps {
     entries: TranscriptEntry[];
     pendingReviewId: string | null;
     currentModel: string;
+    learningPromptId: string | null;
+    learningInProgress: boolean;
+    learningPercent: number;
+    learningTopic: string;
     onAcceptReview?: (entryId: string) => void;
     onAlwaysAcceptReview?: (entryId: string) => void;
     onRejectReview?: (entryId: string) => void;
@@ -89,6 +96,8 @@ interface TranscriptProps {
     onShellDeny?: (entryId: string) => void;
     onCommandSelect?: (entryId: string, selectedId: string) => void;
     onCommandCancel?: (entryId: string) => void;
+    onLearningAccept?: (entryId: string) => void;
+    onLearningDecline?: (entryId: string) => void;
 }
 
 const UserMessage = memo(function UserMessage({ content }: { content: string }) {
@@ -226,6 +235,8 @@ interface MessageBlockProps {
     onShellDeny?: () => void;
     onCommandSelect?: (selectedId: string) => void;
     onCommandCancel?: () => void;
+    onLearningAccept?: () => void;
+    onLearningDecline?: () => void;
 }
 
 const MessageBlock = memo(function MessageBlock({
@@ -242,6 +253,8 @@ const MessageBlock = memo(function MessageBlock({
     onShellDeny,
     onCommandSelect,
     onCommandCancel,
+    onLearningAccept,
+    onLearningDecline,
 }: MessageBlockProps) {
     if (entry.role === "user") {
         return <UserMessage content={entry.content} />;
@@ -321,6 +334,28 @@ const MessageBlock = memo(function MessageBlock({
         );
     }
 
+    if (entry.role === "learning_prompt") {
+        const learningStatus = (entry.learningPromptStatus || "pending") as LearningPromptStatus;
+        return (
+            <LearningPrompt
+                status={learningStatus}
+                onAccept={onLearningAccept}
+                onDecline={onLearningDecline}
+                isActive={isActiveReview}
+                animationsEnabled={animationsEnabled}
+            />
+        );
+    }
+
+    if (entry.role === "learning_progress") {
+        return (
+            <LearningProgress
+                percent={entry.learningPercent || 0}
+                currentTopic={entry.learningTopic || ""}
+            />
+        );
+    }
+
     return (
         <AssistantMessage
             content={entry.content}
@@ -342,6 +377,12 @@ function isEntryStatic(entry: TranscriptEntry, pendingReviewId: string | null): 
     }
     if (entry.role === "command_review") {
         return entry.reviewStatus !== "pending";
+    }
+    if (entry.role === "learning_prompt") {
+        return entry.learningPromptStatus !== "pending";
+    }
+    if (entry.role === "learning_progress") {
+        return false;
     }
 
     if (entry.id === pendingReviewId) return false;
@@ -424,6 +465,26 @@ const StaticEntry = memo(function StaticEntry({
         );
     }
 
+    if (entry.role === "learning_prompt") {
+        const learningStatus = (entry.learningPromptStatus || "pending") as LearningPromptStatus;
+        return (
+            <LearningPrompt
+                status={learningStatus}
+                isActive={false}
+                animationsEnabled={false}
+            />
+        );
+    }
+
+    if (entry.role === "learning_progress") {
+        return (
+            <LearningProgress
+                percent={entry.learningPercent || 0}
+                currentTopic={entry.learningTopic || ""}
+            />
+        );
+    }
+
     return (
         <AssistantMessage
             content={entry.content}
@@ -438,6 +499,10 @@ export function Transcript({
     entries,
     pendingReviewId,
     currentModel,
+    learningPromptId,
+    learningInProgress,
+    learningPercent,
+    learningTopic,
     onAcceptReview,
     onAlwaysAcceptReview,
     onRejectReview,
@@ -447,6 +512,8 @@ export function Transcript({
     onShellDeny,
     onCommandSelect,
     onCommandCancel,
+    onLearningAccept,
+    onLearningDecline,
 }: TranscriptProps) {
     const animationsEnabled = entries.length < ANIMATION_DISABLE_THRESHOLD;
     const assistantName = getAssistantName(currentModel);
@@ -472,7 +539,7 @@ export function Transcript({
         return { staticEntries: staticList, dynamicEntries: dynamicList };
     }, [entries, pendingReviewId]);
 
-    if (entries.length === 0) {
+    if (entries.length === 0 && !learningPromptId) {
         return (
             <Box marginBottom={1}>
                 <Text color="#999999">Start a conversation by typing below.</Text>
@@ -482,6 +549,18 @@ export function Transcript({
 
     return (
         <Box flexDirection="column">
+            {learningPromptId && !learningInProgress && (
+                <LearningPrompt
+                    status="pending"
+                    onAccept={() => onLearningAccept?.(learningPromptId)}
+                    onDecline={() => onLearningDecline?.(learningPromptId)}
+                    isActive={true}
+                    animationsEnabled={animationsEnabled}
+                />
+            )}
+            {learningInProgress && (
+                <LearningProgress percent={learningPercent} currentTopic={learningTopic} />
+            )}
             <Static items={staticEntries}>
                 {(entry) => (
                     <StaticEntry key={entry.id} entry={entry} assistantName={assistantName} />
@@ -507,6 +586,12 @@ export function Transcript({
                             isActive ? (id) => onCommandSelect?.(entry.id, id) : undefined
                         }
                         onCommandCancel={isActive ? () => onCommandCancel?.(entry.id) : undefined}
+                        onLearningAccept={
+                            isActive ? () => onLearningAccept?.(entry.id) : undefined
+                        }
+                        onLearningDecline={
+                            isActive ? () => onLearningDecline?.(entry.id) : undefined
+                        }
                     />
                 );
             })}

@@ -1,0 +1,230 @@
+import type { Provider, ToolSchema } from "../provider/index";
+import type { ToolRegistry } from "../tools/registry";
+import type { Logger } from "../logging/index";
+
+interface DiscoveryTopic {
+    id: string;
+    title: string;
+    prompt: string;
+}
+
+const DISCOVERY_TOPICS: DiscoveryTopic[] = [
+    {
+        id: "summary",
+        title: "Project Summary",
+        prompt:
+            "Find out for this project what it is, who it is for, what the main user workflows are, and what it explicitly does not do. Write a short, concrete summary.",
+    },
+    {
+        id: "architecture",
+        title: "Architecture Map",
+        prompt:
+            "Find out for this project what the major modules/subsystems are, how they relate, and where the main entry points are (apps, commands, servers, workers). Summarize the structure in a compact map.",
+    },
+    {
+        id: "conventions",
+        title: "Code Style and Conventions",
+        prompt:
+            "Find out for this project what the coding conventions are: naming, folder layout, formatting, patterns for errors/logging, and any lint/format rules. Write rules the assistant should follow when editing code here.",
+    },
+    {
+        id: "vocabulary",
+        title: "Domain Model Vocabulary",
+        prompt:
+            "Find out for this project the key domain concepts and entities, the terms used in code, and where those concepts live in the repo. List the vocabulary and point to the canonical locations.",
+    },
+    {
+        id: "data_flow",
+        title: "Data Flow and State",
+        prompt:
+            "Find out for this project where state is stored and how data flows through the system (persistence, caches, files, in-memory state). Describe the main data paths and boundaries.",
+    },
+    {
+        id: "dependencies",
+        title: "External Dependencies and Integrations",
+        prompt:
+            "Find out for this project the important dependencies and external integrations (frameworks, libraries, services, APIs). Note where configuration lives and where integration code is implemented.",
+    },
+    {
+        id: "workflow",
+        title: "Build, Run, and Test Workflow",
+        prompt:
+            "Find out for this project how to run it locally, how to run tests, lint/format, and build/release. Provide the core commands and where to look for details.",
+    },
+    {
+        id: "hotspots",
+        title: "Hot Spots and Change Patterns",
+        prompt:
+            "Find out for this project which files and areas change most often and what kinds of changes typically happen there. Identify any sensitive areas that need extra caution.",
+    },
+    {
+        id: "playbook",
+        title: "Common Tasks Playbook",
+        prompt:
+            "Find out for this project where to implement common changes (new feature, new endpoint, new UI view, new command, new background job, new migration/config). Write a short 'where to put things' playbook.",
+    },
+    {
+        id: "safety",
+        title: "Safety Rails and Footguns",
+        prompt:
+            "Find out for this project the known pitfalls: security constraints, performance traps, invariants, migration gotchas, cross-platform issues, and any strict rules. Write a checklist the assistant should respect.",
+    },
+];
+
+const READ_ONLY_TOOLS = [
+    "list_root",
+    "read_file",
+    "search_text",
+    "find_files",
+    "read_readme",
+    "detect_languages",
+    "hotfiles",
+    "get_line_count",
+    "get_file_symbols",
+    "get_file_outline",
+];
+
+export async function runLearningSession(
+    repoRoot: string,
+    toolRegistry: ToolRegistry,
+    provider: Provider,
+    logger: Logger,
+    onProgress: (percent: number, topic: string) => void
+): Promise<string> {
+    const allSchemas = toolRegistry.getSchemas();
+    const readOnlySchemas = allSchemas.filter((schema) => READ_ONLY_TOOLS.includes(schema.name));
+
+    const sections: string[] = [];
+
+    for (let i = 0; i < DISCOVERY_TOPICS.length; i++) {
+        const topic = DISCOVERY_TOPICS[i];
+        const percent = Math.round(((i + 1) / DISCOVERY_TOPICS.length) * 100);
+
+        onProgress(percent, topic.title);
+
+        try {
+            const response = await queryTopicWithTools(
+                topic,
+                readOnlySchemas,
+                provider,
+                toolRegistry,
+                repoRoot,
+                logger
+            );
+
+            if (response && response.trim()) {
+                sections.push(`## ${topic.title}\n\n${response.trim()}`);
+            }
+        } catch (err) {
+            logger.error("learning_topic_error", err as Error, {
+                topicId: topic.id,
+                topicTitle: topic.title,
+            });
+            sections.push(`## ${topic.title}\n\nUnable to gather information for this topic.`);
+        }
+    }
+
+    const profileHeader = "# Project Profile\n\nGenerated by North project learning.\n\n";
+    return profileHeader + sections.join("\n\n");
+}
+
+async function queryTopicWithTools(
+    topic: DiscoveryTopic,
+    toolSchemas: ToolSchema[],
+    provider: Provider,
+    toolRegistry: ToolRegistry,
+    repoRoot: string,
+    logger: Logger
+): Promise<string> {
+    let accumulatedText = "";
+    let conversationMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
+
+    conversationMessages.push({
+        role: "user",
+        content: topic.prompt,
+    });
+
+    const maxIterations = 5;
+    let iteration = 0;
+
+    while (iteration < maxIterations) {
+        iteration++;
+
+        const streamResult = await new Promise<{
+            text: string;
+            toolCalls: Array<{ id: string; name: string; input: unknown }>;
+            stopReason: string | null;
+        }>((resolve, reject) => {
+            let text = "";
+            const toolCalls: Array<{ id: string; name: string; input: unknown }> = [];
+
+            provider
+                .stream(
+                    conversationMessages.map((msg) => ({
+                        role: msg.role,
+                        content: msg.content,
+                    })),
+                    {
+                        onChunk: (chunk) => {
+                            text += chunk;
+                        },
+                        onToolCall: (toolCall) => {
+                            toolCalls.push(toolCall);
+                        },
+                        onComplete: (result) => {
+                            resolve({
+                                text: result.text,
+                                toolCalls: result.toolCalls,
+                                stopReason: result.stopReason,
+                            });
+                        },
+                        onError: (error) => {
+                            reject(error);
+                        },
+                    },
+                    {
+                        tools: toolSchemas,
+                        systemOverride:
+                            "You are helping North learn about a codebase. Use the available tools to explore and answer the question concisely. Focus on concrete, actionable insights.",
+                    }
+                )
+                .catch(reject);
+        });
+
+        accumulatedText += streamResult.text;
+
+        if (streamResult.stopReason === "tool_use" && streamResult.toolCalls.length > 0) {
+            conversationMessages.push({
+                role: "assistant",
+                content: streamResult.text,
+            });
+
+            const toolResults: Array<{ toolCallId: string; result: string; isError?: boolean }> =
+                [];
+
+            for (const toolCall of streamResult.toolCalls) {
+                const result = await toolRegistry.execute(toolCall.name, toolCall.input, {
+                    repoRoot,
+                    logger,
+                });
+
+                toolResults.push({
+                    toolCallId: toolCall.id,
+                    result: JSON.stringify(result),
+                    isError: !result.ok,
+                });
+            }
+
+            const toolResultMessage = provider.buildToolResultMessage(toolResults);
+            conversationMessages.push({
+                role: "user",
+                content: JSON.stringify(toolResultMessage.content),
+            });
+        } else {
+            break;
+        }
+    }
+
+    return accumulatedText.trim();
+}
+

@@ -12,11 +12,14 @@ import {
 import type { Logger } from "../logging/index";
 import { disposeAllShellServices } from "../shell/index";
 import { DEFAULT_MODEL, type CommandRegistry, type Mode } from "../commands/index";
+import { markDeclined } from "../storage/profile";
 
 interface AppProps {
     projectPath: string;
     logger: Logger;
     cursorRulesText: string | null;
+    projectProfileText: string | null;
+    needsLearningPrompt: boolean;
     onRequestStart: (requestId: string, model: string) => void;
     onRequestComplete: (requestId: string, durationMs: number, error?: Error) => void;
     onUserPrompt: (length: number) => void;
@@ -42,6 +45,8 @@ export function App({
     projectPath,
     logger,
     cursorRulesText,
+    projectProfileText,
+    needsLearningPrompt,
     onRequestStart,
     onRequestComplete,
     onUserPrompt,
@@ -65,6 +70,10 @@ export function App({
     const [orchestrator, setOrchestrator] = useState<Orchestrator | null>(null);
     const [commandRegistry, setCommandRegistry] = useState<CommandRegistry | undefined>(undefined);
     const [nextMode, setNextMode] = useState<Mode>("agent");
+    const [learningPromptId, setLearningPromptId] = useState<string | null>(null);
+    const [learningInProgress, setLearningInProgress] = useState(false);
+    const [learningPercent, setLearningPercent] = useState(0);
+    const [learningTopic, setLearningTopic] = useState("");
 
     useEffect(() => {
         const orch = createOrchestratorWithTools(
@@ -75,6 +84,10 @@ export function App({
                     setPendingReviewId(state.pendingReviewId);
                     setCurrentModel(state.currentModel);
                     setContextUsage(state.contextUsage);
+                    setLearningPromptId(state.learningPromptId);
+                    setLearningInProgress(state.learningInProgress);
+                    setLearningPercent(state.learningPercent);
+                    setLearningTopic(state.learningTopic);
                 },
                 onRequestStart,
                 onRequestComplete,
@@ -97,10 +110,16 @@ export function App({
                 repoRoot: projectPath,
                 logger,
                 cursorRulesText,
+                projectProfileText,
             }
         );
         setOrchestrator(orch);
         setCommandRegistry(orch.getCommandRegistry());
+
+        if (needsLearningPrompt) {
+            const promptId = `learning-prompt-${Date.now()}`;
+            setLearningPromptId(promptId);
+        }
 
         return () => {
             orch.stop();
@@ -176,7 +195,20 @@ export function App({
         orchestrator.resolveCommandReview(entryId, null);
     }
 
-    const composerDisabled = isProcessing || pendingReviewId !== null;
+    function handleLearningAccept(entryId: string) {
+        if (!orchestrator) return;
+        orchestrator.resolveLearningPrompt(entryId, "accept");
+        void orchestrator.startLearningSession();
+    }
+
+    function handleLearningDecline(entryId: string) {
+        if (!orchestrator) return;
+        markDeclined(projectPath);
+        orchestrator.resolveLearningPrompt(entryId, "decline");
+        setLearningPromptId(null);
+    }
+
+    const composerDisabled = isProcessing || pendingReviewId !== null || learningPromptId !== null;
 
     return (
         <Box flexDirection="column" height="100%">
@@ -185,6 +217,10 @@ export function App({
                     entries={transcript}
                     pendingReviewId={pendingReviewId}
                     currentModel={currentModel}
+                    learningPromptId={learningPromptId}
+                    learningInProgress={learningInProgress}
+                    learningPercent={learningPercent}
+                    learningTopic={learningTopic}
                     onAcceptReview={handleAcceptReview}
                     onAlwaysAcceptReview={handleAlwaysAcceptReview}
                     onRejectReview={handleRejectReview}
@@ -194,6 +230,8 @@ export function App({
                     onShellDeny={handleShellDeny}
                     onCommandSelect={handleCommandSelect}
                     onCommandCancel={handleCommandCancel}
+                    onLearningAccept={handleLearningAccept}
+                    onLearningDecline={handleLearningDecline}
                 />
             </Box>
             <Box paddingX={1}>

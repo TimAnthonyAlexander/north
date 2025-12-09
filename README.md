@@ -20,46 +20,6 @@ An AI pair programmer that lives in your terminal. Supports Claude (Anthropic) a
 
 **Terminal-native speed.** No Electron overhead, no browser tabs, no VS Code plugin lifecycle. North launches instantly and runs lean.
 
-### How North Compares
-
-| | **North** | **Claude Code** | **Cursor** | **Aider** | **OpenAI Codex CLI** | **Gemini CLI** | **GitHub Copilot** | **Cline** | **Windsurf** |
-|---|---|---|---|---|---|---|---|---|---|
-| **Pricing** | Direct API keys (you pay provider) | Claude Pro/Max subscription (and other auth options exist) | Subscription tiers; Pro includes usage and "unlimited Auto" routing | Open-source; you pay model/provider usage | Uses OpenAI; CLI is open-source | Free tier quotas + paid tiers (Google account based) | Subscription plans (Free/Pro/...); CLI included in paid | Extension is free; pay inference via your provider (or Cline provider) | Subscription credit plans (Pro/Teams/...) |
-| **Environment** | Terminal | Terminal CLI | Desktop IDE | Terminal | Terminal | Terminal | IDE + terminal CLI tool | VS Code extension | Desktop IDE |
-| **Context** | 200K + auto-summary | Model-dependent (Claude) | Model-dependent; plan mentions "maximum context windows" | Model-dependent; you choose provider/model | Model-dependent; agent runs locally and uses chosen model | Up to 1M token context (Gemini 2.5 Pro) | Model-dependent; plan-gated premium requests | Model-dependent; depends on chosen provider/model | "Fast Context" marketed; model-dependent |
-| **Control** | Approve every edit/command | Permission rules are configurable and can be remembered | Agent Review exists; can manage multi-file diffs | Git-based workflow and diffs are core | Supports approval modes and review flows | Built-in tools (file ops, shell); user-driven CLI flow | Chat/agent features with plan request allowances; CLI is available | Agentic edits inside VS Code; depends on configuration | IDE agent workflow; plan-based usage |
-| **Transparency** | Full diff review | Permission + settings model; CLI-first visibility | Review UI for diffs | Very transparent via patches/commits | Review + diff-oriented workflows | CLI output + open-source; tool actions visible | Mixed (suggestions, chat, agent features) | Visible edits in-editor; still an IDE extension | IDE-based; visibility depends on workflow |
-
-### Feature Capabilities
-
-**Legend:** ✓ = yes, ✗ = no, ~ = partial / limited / depends on plan or model
-
-| Capability | **North** | **Claude Code** | **Codex CLI** | **Gemini CLI** | **Aider** | **Cline** | **Cursor** | **Windsurf** | **Copilot CLI** |
-|---|---|---|---|---|---|---|---|---|---|
-| **Terminal-native interactive UI** | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | ✓ |
-| **BYOK (bring your own API key)** | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | ✗ |
-| **Multi-provider switching** | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ | ✓ | ~ | ✗ |
-| **Explicit approvals for writes/shell** | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ~ |
-| **Fine-grained allowlist controls** | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ~ | ~ | ✗ |
-| **Deterministic edit primitives** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **Inline diff review (first-class UX)** | ✓ | ~ | ~ | ~ | ✓ | ✓ | ✓ | ✓ | ✗ |
-| **Cursor rules ingestion** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
-| **No vendor subscription required** | ✓ | ~ | ~ | ✓ | ✓ | ✓ | ~ | ~ | ✗ |
-| **Open-source core** | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ |
-| **1M-token context option** | ✗ | ✗ | ✗ | ✓ | ~ | ✗ | ✗ | ✗ | ✗ |
-| **MCP / external tool servers** | ✗ | ✗ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✗ |
-| **GitHub PR agent workflows** | ✗ | ✗ | ✓ | ~ | ✗ | ~ | ✗ | ✗ | ✗ |
-
-**Where North stands out:**
-
-North is the only tool that combines **terminal-native**, **multi-provider BYOK**, and **deterministic edit primitives** with exact-match verification. The safety model doesn't require trust: every risky operation shows an inline diff with explicit approval. You're not locked to one editor, one vendor, or one AI provider.
-
-**North's roadmap opportunities:**
-
-- **MCP plugin ecosystem** (Codex CLI, Gemini CLI, and Cline have mature plugin support)
-- **PR automation workflows** (Codex CLI leads here with tag bots and automated reviews)
-- **Ultra-large context** (Gemini CLI offers 1M-token context windows with Gemini 2.5 Pro)
-
 ## Features
 
 ### Two Modes, Zero Friction
@@ -289,6 +249,48 @@ bun test --watch               # run tests in watch mode
 - Enable hooks: `bun run prepare` or `git config core.hooksPath .githooks`
 
 **Architecture:** [docs/implementation.md](docs/implementation.md)
+
+## Comparisons
+
+### How North Compares
+
+| | **North** | **Claude Code** | **Cursor** | **Aider** | **OpenAI Codex CLI** | **Gemini CLI** | **GitHub Copilot** | **Cline** | **Windsurf** |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **Pricing** | Direct API keys (you pay provider) | Claude Pro/Max subscription (and other auth options exist) | Subscription tiers; Pro includes usage and "unlimited Auto" routing | Open-source; you pay model/provider usage | Uses OpenAI; CLI is open-source | Free tier quotas + paid tiers (Google account based) | Subscription plans (Free/Pro/Pro+/Business/Enterprise); CLI included in paid | Extension is free; pay inference via your provider (or Cline provider) | Subscription credit plans (Pro/Teams/Enterprise) |
+| **Environment** | Terminal | Terminal CLI | Desktop IDE | Terminal | Terminal | Terminal | IDE + terminal CLI tool | VS Code extension | Desktop IDE |
+| **Context** | 200K + auto-summary | Model-dependent (Claude) | Model-dependent; plan mentions "maximum context windows" | Model-dependent; you choose provider/model | Model-dependent; agent runs locally and uses chosen model | Up to 1M token context (Gemini 2.5 Pro) | Model-dependent; plan-gated premium requests | Model-dependent; depends on chosen provider/model | "Fast Context" marketed; model-dependent |
+| **Control** | Approve every edit/command | Permission rules are configurable and can be remembered | Agent Review exists; can manage multi-file diffs | Git-based workflow and diffs are core | Supports approval modes and review flows | Built-in tools (file ops, shell); user-driven CLI flow | Chat/agent features with plan request allowances; CLI is available | Agentic edits inside VS Code; depends on configuration | IDE agent workflow; plan-based usage |
+| **Transparency** | Full diff review | Permission + settings model; CLI-first visibility | Review UI for diffs | Very transparent via patches/commits | Review + diff-oriented workflows | CLI output + open-source; tool actions visible | Mixed (suggestions, chat, agent features) | Visible edits in-editor; still an IDE extension | IDE-based; visibility depends on workflow |
+
+### Feature Capabilities
+
+**Legend:** ✓ = yes, ✗ = no, ~ = partial / limited / depends on plan or model
+
+| Capability | **North** | **Claude Code** | **Codex CLI** | **Gemini CLI** | **Aider** | **Cline** | **Cursor** | **Windsurf** | **Copilot CLI** |
+|---|---|---|---|---|---|---|---|---|---|
+| **Terminal-native interactive UI** | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | ✓ |
+| **BYOK (bring your own API key)** | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | ✗ |
+| **Multi-provider switching** | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ | ✓ | ~ | ✗ |
+| **Explicit approvals for writes/shell** | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ~ |
+| **Fine-grained allowlist controls** | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ~ | ~ | ✗ |
+| **Deterministic edit primitives** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Inline diff review (first-class UX)** | ✓ | ~ | ~ | ~ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| **Cursor rules ingestion** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
+| **No vendor subscription required** | ✓ | ~ | ~ | ✓ | ✓ | ✓ | ~ | ~ | ✗ |
+| **Open-source core** | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ |
+| **1M-token context option** | ✗ | ✗ | ✗ | ✓ | ~ | ✗ | ✗ | ✗ | ✗ |
+| **MCP / external tool servers** | ✗ | ✗ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✗ |
+| **GitHub PR agent workflows** | ✗ | ✗ | ✓ | ~ | ✗ | ~ | ✗ | ✗ | ✗ |
+
+**Where North stands out:**
+
+North is the only tool that combines **terminal-native**, **multi-provider BYOK**, and **deterministic edit primitives** with exact-match verification. The safety model doesn't require trust: every risky operation shows an inline diff with explicit approval. You're not locked to one editor, one vendor, or one AI provider.
+
+**North's roadmap opportunities:**
+
+- **MCP plugin ecosystem** (Codex CLI, Gemini CLI, and Cline have mature plugin support)
+- **PR automation workflows** (Codex CLI leads here with tag bots and automated reviews)
+- **Ultra-large context** (Gemini CLI offers 1M-token context windows with Gemini 2.5 Pro)
 
 ## Privacy
 

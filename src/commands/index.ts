@@ -32,6 +32,7 @@ import { helpCommand } from "./commands/help";
 import { modelCommand } from "./commands/model";
 import { summarizeCommand } from "./commands/summarize";
 import { modeCommand } from "./commands/mode";
+import { learnCommand } from "./commands/learn";
 
 export function createCommandRegistryWithAllCommands(): CommandRegistry {
     const registry = createCommandRegistry();
@@ -41,5 +42,6 @@ export function createCommandRegistryWithAllCommands(): CommandRegistry {
     registry.register(modelCommand);
     registry.register(summarizeCommand);
     registry.register(modeCommand);
+    registry.register(learnCommand);
     return registry;
 }

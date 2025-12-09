@@ -33,7 +33,8 @@ src/
 │       ├── help.ts       # /help - list commands
 │       ├── model.ts      # /model - switch Claude model
 │       ├── mode.ts       # /mode - switch conversation mode (ask/agent)
-│       └── summarize.ts  # /summarize - summarize and trim transcript
+│       ├── summarize.ts  # /summarize - summarize and trim transcript
+│       └── learn.ts      # /learn - learn or relearn project codebase
 ├── logging/
 │   └── index.ts          # Append-only JSON-lines logger
 ├── orchestrator/
@@ -50,7 +51,10 @@ src/
 ├── storage/
 │   ├── allowlist.ts      # Per-project shell command allowlist (.north/allowlist.json)
 │   ├── autoaccept.ts     # Per-project edit auto-accept settings
-│   └── config.ts         # Global config (~/.config/north/config.json)
+│   ├── config.ts         # Global config (~/.config/north/config.json)
+│   └── profile.ts        # Per-project learning profile storage
+├── profile/
+│   └── learn.ts          # Project learning orchestration and discovery topics
 ├── tools/
 │   ├── index.ts          # Tool exports and registry factory
 │   ├── types.ts          # Tool type definitions (including edit and shell types)
@@ -71,13 +75,15 @@ src/
 │   ├── edit_apply_batch.ts    # Atomic batch edits
 │   └── shell_run.ts      # Shell command execution (requires approval)
 ├── ui/
-│   ├── App.tsx           # Root Ink component, SIGINT handling, review wiring
-│   ├── Composer.tsx      # Multiline input with slash command autocomplete
-│   ├── CommandReview.tsx # Interactive picker for commands (e.g., model selection)
-│   ├── DiffReview.tsx    # Inline diff viewer with accept/reject
-│   ├── ShellReview.tsx   # Shell command approval with run/always/deny
-│   ├── StatusLine.tsx    # Model name, mode indicator, project path display
-│   └── Transcript.tsx    # User/assistant/tool/review/command entry rendering
+│   ├── App.tsx            # Root Ink component, SIGINT handling, review wiring
+│   ├── Composer.tsx       # Multiline input with slash command autocomplete
+│   ├── CommandReview.tsx  # Interactive picker for commands (e.g., model selection)
+│   ├── DiffReview.tsx     # Inline diff viewer with accept/reject
+│   ├── ShellReview.tsx    # Shell command approval with run/always/deny
+│   ├── LearningPrompt.tsx # Project learning Y/N prompt
+│   ├── LearningProgress.tsx # Learning progress indicator
+│   ├── StatusLine.tsx     # Model name, mode indicator, project path display
+│   └── Transcript.tsx     # User/assistant/tool/review/command entry rendering
 └── utils/
     ├── repo.ts           # Repo root detection
     ├── ignore.ts         # Gitignore parsing and file walking
@@ -254,6 +260,29 @@ Span-based tokenizer for reliable command extraction:
 - When edits auto-accept enabled, all edit tool results are automatically applied without user confirmation
 - When shell auto-approve enabled, all shell commands run automatically without individual approval
 - Creates `.north/` directory on first write
+
+### storage/profile.ts
+
+- Per-project learning profile storage at `~/.north/projects/<hash>/profile.md`
+- Hash-based project identification using SHA-256 of repo root path (16 chars)
+- Profile stored in markdown format with H2 sections for each discovery topic
+- Declined state tracked via `declined.json` marker file
+- API: `hasProfile(repoRoot)`, `loadProfile(repoRoot)`, `saveProfile(repoRoot, content)`
+- API: `hasDeclined(repoRoot)`, `markDeclined(repoRoot)`, `clearDeclined(repoRoot)`
+- `getProjectHash(repoRoot)` generates stable hash for directory identification
+- Storage location keeps repos clean (no commits of generated content)
+
+### profile/learn.ts
+
+- Project learning orchestration with 10 discovery topics
+- Topics: summary, architecture, conventions, vocabulary, data flow, dependencies, workflow, hotspots, playbook, safety
+- Runs sequential LLM sessions with read-only tools for each topic
+- Uses custom system prompt focused on concise exploration
+- Progress callback for UI updates (percent + topic name)
+- Tool filtering: only read-only tools available during learning
+- Returns complete markdown profile with H2 sections
+- Maximum 5 tool use iterations per topic to prevent infinite loops
+- Error handling: continues to next topic on failure
 
 ### provider/index.ts (Provider Factory)
 
@@ -856,6 +885,73 @@ North automatically loads Cursor project rules at startup:
 
 <rule body content>
 ```
+
+### Project Learning
+
+North can learn a project on first run and store a persistent profile for context in future conversations.
+
+**Startup Flow:**
+
+1. **Profile Detection** (in `index.ts`):
+   - Checks if profile exists via `hasProfile(repoRoot)`
+   - If profile exists: loads it with `loadProfile(repoRoot)`
+   - If no profile and not declined: sets `needsLearningPrompt = true`
+
+2. **Learning Prompt** (first-time projects):
+   - App renders `LearningPrompt` component when `learningPromptId` is set
+   - User presses `y` (accept) or `n` (decline)
+   - On decline: marks project as declined via `markDeclined(repoRoot)`
+   - On accept: triggers `orchestrator.startLearningSession()`
+
+3. **Learning Session**:
+   - Runs 10 sequential discovery topics via `runLearningSession()`
+   - Each topic: focused LLM query with read-only tools
+   - Progress updates via callback: `onProgress(percent, topicTitle)`
+   - UI shows `LearningProgress` component with percent and current topic
+   - Profile saved to `~/.north/projects/<hash>/profile.md`
+
+4. **Profile Injection** (in `buildMessagesForClaude()`):
+   - If `projectProfileText` exists, inject after cursor rules
+   - Format: markdown with H2 sections for each topic
+   - Position: Cursor rules → Project profile → Rolling summary → Transcript
+
+**Discovery Topics:**
+
+1. **Project Summary** - What it is, who it's for, workflows, what it doesn't do
+2. **Architecture Map** - Major modules, entry points, structure
+3. **Code Style and Conventions** - Naming, layout, formatting, lint rules
+4. **Domain Model Vocabulary** - Key concepts, terms, canonical locations
+5. **Data Flow and State** - Persistence, caches, data paths
+6. **External Dependencies** - Frameworks, libraries, services, config
+7. **Build, Run, and Test Workflow** - Commands and workflows
+8. **Hot Spots and Change Patterns** - Frequently changed areas
+9. **Common Tasks Playbook** - Where to implement common changes
+10. **Safety Rails and Footguns** - Known pitfalls and constraints
+
+**Storage:**
+
+- Profile: `~/.north/projects/<hash>/profile.md`
+- Declined marker: `~/.north/projects/<hash>/declined.json`
+- Hash: SHA-256 of repo root path (first 16 chars)
+- Format: Markdown with `# Project Profile` header + H2 sections
+
+**`/learn` Command:**
+
+- Clears declined marker via `clearDeclined(repoRoot)`
+- Triggers learning session via `ctx.triggerLearning()`
+- Overwrites existing profile if present
+- Use case: manually update profile after major project changes
+
+**UI Components:**
+
+- `LearningPrompt`: Y/N prompt with border pulse animation (pending)
+- `LearningProgress`: Percent + topic name display during learning
+
+**State Management:**
+
+- Orchestrator tracks: `learningPromptId`, `learningInProgress`, `learningPercent`, `learningTopic`
+- Transcript entries: `learning_prompt` (with status), `learning_progress` (with percent/topic)
+- Learning entries excluded from `buildMessagesForClaude()` (UI-only)
 
 ### Cancellation Flow (CTRL+C)
 

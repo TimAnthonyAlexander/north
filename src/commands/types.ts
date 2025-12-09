@@ -54,6 +54,7 @@ export interface CommandContext {
     ) => Promise<string | null>;
     getTranscript: () => unknown[];
     listCommands: () => CommandDefinition[];
+    triggerLearning: () => void;
 }
 
 export interface CommandResult {
