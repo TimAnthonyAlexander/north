@@ -34,17 +34,17 @@ The status line shows your current mode with a color-coded badge: **[ASK]** in b
 Every file edit shows an inline diff before writing. Every shell command requires explicit permission. You stay in control.
 
 ```
-┌─ Editing src/components/Button.tsx ─────────────────────┐
-│  - export const Button = ({ label }) => (               │
-│  + export const Button = ({ label, variant = "primary" }) => ( │
-│      <button className={styles.button}>                 │
-│  +     <span className={`badge ${variant}`} />          │
-│        {label}                                          │
-│      </button>                                          │
-│    );                                                   │
-├─────────────────────────────────────────────────────────┤
-│  [a] Accept  [y] Always  [r] Reject                     │
-└─────────────────────────────────────────────────────────┘
+┌─ Editing src/components/Button.tsx ────────────────┐
+│  - export const Button = ({ label }) => (          │
+│  + export const Button = ({ label, icon }) => (    │
+│      <button className={styles.button}>            │
+│  +     {icon && <Icon name={icon} />}              │
+│        {label}                                     │
+│      </button>                                     │
+│    );                                              │
+├────────────────────────────────────────────────────┤
+│  [a] Accept  [y] Always  [r] Reject                │
+└────────────────────────────────────────────────────┘
 ```
 
 Press `y` once to auto-accept all future edits in a session. Or build a shell command allowlist so trusted operations (`bun test`, `npm run build`) run without prompts.
