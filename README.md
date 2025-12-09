@@ -160,8 +160,10 @@ bun run build:binary:linux        # Linux x64
 
 - `Enter` — Send message
 - `Shift+Enter` or `Ctrl+J` — Add newline
+- `@` — Start file mention (fuzzy search project files)
 - `Tab` — Cycle modes (ask → agent) or accept autocomplete suggestion
 - `Up/Down` — Navigate autocomplete suggestions
+- `Space` (during file autocomplete) — Cancel file mention, type literal `@`
 - `Esc` — Close autocomplete
 - `Ctrl+C` — Cancel operation (when processing) or exit (when idle)
 
