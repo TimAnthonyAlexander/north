@@ -163,16 +163,26 @@ export function Composer({
                     if (suggestion && suggestionState) {
                         const before = value.slice(0, suggestionState.tokenStart);
                         const after = value.slice(suggestionState.tokenEnd);
-                        const needsSpace = after.length === 0 || !/^\s/.test(after);
-                        const spacing = needsSpace ? " " : "";
-                        const newValue = before + suggestion.value + spacing + after;
-                        const newCursor =
-                            suggestionState.tokenStart +
-                            suggestion.value.length +
-                            (needsSpace ? 1 : 0);
-                        setValue(newValue);
-                        setCursorPos(newCursor);
-                        setSelectedIndex(0);
+
+                        if (suggestion.value.startsWith("/")) {
+                            const newValue = (before + suggestion.value + after).trim();
+                            onSubmit(newValue);
+                            setValue("");
+                            setCursorPos(0);
+                            setSelectedIndex(0);
+                            setShowSuggestions(true);
+                        } else {
+                            const needsSpace = after.length === 0 || !/^\s/.test(after);
+                            const spacing = needsSpace ? " " : "";
+                            const newValue = before + suggestion.value + spacing + after;
+                            const newCursor =
+                                suggestionState.tokenStart +
+                                suggestion.value.length +
+                                (needsSpace ? 1 : 0);
+                            setValue(newValue);
+                            setCursorPos(newCursor);
+                            setSelectedIndex(0);
+                        }
                     }
                 } else {
                     onModeChange(cycleMode(mode));
@@ -199,16 +209,26 @@ export function Composer({
                     if (suggestion && suggestionState) {
                         const before = value.slice(0, suggestionState.tokenStart);
                         const after = value.slice(suggestionState.tokenEnd);
-                        const needsSpace = after.length === 0 || !/^\s/.test(after);
-                        const spacing = needsSpace ? " " : "";
-                        const newValue = before + suggestion.value + spacing + after;
-                        const newCursor =
-                            suggestionState.tokenStart +
-                            suggestion.value.length +
-                            (needsSpace ? 1 : 0);
-                        setValue(newValue);
-                        setCursorPos(newCursor);
-                        setSelectedIndex(0);
+
+                        if (suggestion.value.startsWith("/")) {
+                            const newValue = (before + suggestion.value + after).trim();
+                            onSubmit(newValue);
+                            setValue("");
+                            setCursorPos(0);
+                            setSelectedIndex(0);
+                            setShowSuggestions(true);
+                        } else {
+                            const needsSpace = after.length === 0 || !/^\s/.test(after);
+                            const spacing = needsSpace ? " " : "";
+                            const newValue = before + suggestion.value + spacing + after;
+                            const newCursor =
+                                suggestionState.tokenStart +
+                                suggestion.value.length +
+                                (needsSpace ? 1 : 0);
+                            setValue(newValue);
+                            setCursorPos(newCursor);
+                            setSelectedIndex(0);
+                        }
                     }
                 } else if (value.trim().length > 0) {
                     onSubmit(value);
