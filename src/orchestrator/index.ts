@@ -23,6 +23,7 @@ import {
     type Mode,
 } from "../commands/index";
 import { DEFAULT_MODEL, getModelContextLimit } from "../commands/models";
+import { getSavedModel } from "../storage/config";
 import { estimatePromptTokens } from "../utils/tokens";
 import * as path from "node:path";
 
@@ -207,7 +208,8 @@ export function createOrchestratorWithTools(
     callbacks: OrchestratorCallbacks,
     context: OrchestratorContext
 ): Orchestrator {
-    let provider: Provider = createProviderForModel(DEFAULT_MODEL);
+    const initialModel = getSavedModel() || DEFAULT_MODEL;
+    let provider: Provider = createProviderForModel(initialModel);
     const toolRegistry = createToolRegistryWithAllTools();
     const commandRegistry = createCommandRegistryWithAllCommands();
 
@@ -218,7 +220,7 @@ export function createOrchestratorWithTools(
     let pendingShellReview: PendingShellReview | null = null;
     let pendingCommandReview: PendingCommandReview | null = null;
     let stopped = false;
-    let currentModel: string = DEFAULT_MODEL;
+    let currentModel: string = initialModel;
     let rollingSummary: StructuredSummary | null = null;
 
     let contextUsedTokens = 0;

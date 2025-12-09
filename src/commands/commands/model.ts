@@ -6,10 +6,11 @@ import type {
     PickerOption,
 } from "../types";
 import { MODELS, resolveModelId, getModelDisplay } from "../models";
+import { saveSelectedModel } from "../../storage/config";
 
 export const modelCommand: CommandDefinition = {
     name: "model",
-    description: "Switch Claude model",
+    description: "Switch model (persisted globally)",
     usage: "/model [modelId]",
 
     async execute(ctx: CommandContext, args: ParsedArgs): Promise<CommandResult> {
@@ -26,6 +27,7 @@ export const modelCommand: CommandDefinition = {
             }
 
             ctx.setModel(resolvedId);
+            saveSelectedModel(resolvedId);
             return {
                 ok: true,
                 message: `Switched to ${getModelDisplay(resolvedId)}`,
@@ -45,6 +47,7 @@ export const modelCommand: CommandDefinition = {
         }
 
         ctx.setModel(selected);
+        saveSelectedModel(selected);
         return {
             ok: true,
             message: `Switched to ${getModelDisplay(selected)}`,

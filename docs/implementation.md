@@ -228,6 +228,13 @@ Span-based tokenizer for reliable command extraction:
 
 - Per-project shell command allowlist at `.north/allowlist.json`
 - Simple JSON format: `{ "allowedCommands": ["pnpm test", "bun test"] }`
+
+### storage/config.ts
+
+- Global configuration at `~/.config/north/config.json`
+- Stores user preferences that persist across sessions
+- Currently stores: `selectedModel` (persisted model selection)
+- API: `getSavedModel()` returns saved model ID or null, `saveSelectedModel(modelId)` persists selection
 - API: `isCommandAllowed(repoRoot, command)`, `allowCommand(repoRoot, command)`, `getAllowedCommands(repoRoot)`
 - Exact string matching only (no patterns)
 - Creates `.north/` directory on first write

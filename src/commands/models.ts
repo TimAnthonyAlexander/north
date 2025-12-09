@@ -164,3 +164,8 @@ export function getModelContextLimit(modelId: string): number {
     }
     return 200_000;
 }
+
+export function getAssistantName(modelId: string): string {
+    const provider = getModelProvider(modelId);
+    return provider === "openai" ? "GPT" : "Claude";
+}

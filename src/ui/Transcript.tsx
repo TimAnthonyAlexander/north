@@ -8,6 +8,7 @@ import type {
 import { DiffReview } from "./DiffReview";
 import { ShellReview } from "./ShellReview";
 import { CommandReview } from "./CommandReview";
+import { getAssistantName } from "../commands/models";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const PULSE_COLORS = ["magenta", "#ff6ec7", "#ff8fd5", "#ffa0dc", "#ff8fd5", "#ff6ec7"] as const;
@@ -45,6 +46,7 @@ function usePulse(active: boolean, colors: readonly string[], interval = 500) {
 interface TranscriptProps {
     entries: TranscriptEntry[];
     pendingReviewId: string | null;
+    currentModel: string;
     onAcceptReview?: (entryId: string) => void;
     onAlwaysAcceptReview?: (entryId: string) => void;
     onRejectReview?: (entryId: string) => void;
@@ -72,10 +74,12 @@ const AssistantMessage = memo(function AssistantMessage({
     content,
     isStreaming,
     animationsEnabled,
+    assistantName,
 }: {
     content: string;
     isStreaming: boolean;
     animationsEnabled: boolean;
+    assistantName: string;
 }) {
     const hasContent = content.length > 0;
     const pulseColor = usePulse(isStreaming && animationsEnabled, PULSE_COLORS, 500);
@@ -83,7 +87,7 @@ const AssistantMessage = memo(function AssistantMessage({
     return (
         <Box flexDirection="column" marginBottom={1}>
             <Text bold color="magenta">
-                Claude
+                {assistantName}
                 {isStreaming && <Text color={pulseColor}> ●</Text>}
             </Text>
             {hasContent && (
@@ -174,6 +178,7 @@ interface MessageBlockProps {
     entry: TranscriptEntry;
     isActiveReview: boolean;
     animationsEnabled: boolean;
+    assistantName: string;
     onAccept?: () => void;
     onAlways?: () => void;
     onReject?: () => void;
@@ -188,6 +193,7 @@ const MessageBlock = memo(function MessageBlock({
     entry,
     isActiveReview,
     animationsEnabled,
+    assistantName,
     onAccept,
     onAlways,
     onReject,
@@ -278,6 +284,7 @@ const MessageBlock = memo(function MessageBlock({
             content={entry.content}
             isStreaming={entry.isStreaming ?? false}
             animationsEnabled={animationsEnabled}
+            assistantName={assistantName}
         />
     );
 });
@@ -291,7 +298,13 @@ function isEntryStatic(entry: TranscriptEntry, pendingReviewId: string | null): 
     return true;
 }
 
-const StaticEntry = memo(function StaticEntry({ entry }: { entry: TranscriptEntry }) {
+const StaticEntry = memo(function StaticEntry({
+    entry,
+    assistantName,
+}: {
+    entry: TranscriptEntry;
+    assistantName: string;
+}) {
     if (entry.role === "user") {
         return <UserMessage content={entry.content} />;
     }
@@ -361,13 +374,19 @@ const StaticEntry = memo(function StaticEntry({ entry }: { entry: TranscriptEntr
     }
 
     return (
-        <AssistantMessage content={entry.content} isStreaming={false} animationsEnabled={false} />
+        <AssistantMessage
+            content={entry.content}
+            isStreaming={false}
+            animationsEnabled={false}
+            assistantName={assistantName}
+        />
     );
 });
 
 export function Transcript({
     entries,
     pendingReviewId,
+    currentModel,
     onAcceptReview,
     onAlwaysAcceptReview,
     onRejectReview,
@@ -378,6 +397,7 @@ export function Transcript({
     onCommandCancel,
 }: TranscriptProps) {
     const animationsEnabled = entries.length < ANIMATION_DISABLE_THRESHOLD;
+    const assistantName = getAssistantName(currentModel);
 
     const { staticEntries, dynamicEntries } = useMemo(() => {
         const staticList: TranscriptEntry[] = [];
@@ -405,7 +425,9 @@ export function Transcript({
     return (
         <Box flexDirection="column">
             <Static items={staticEntries}>
-                {(entry) => <StaticEntry key={entry.id} entry={entry} />}
+                {(entry) => (
+                    <StaticEntry key={entry.id} entry={entry} assistantName={assistantName} />
+                )}
             </Static>
             {dynamicEntries.map((entry) => {
                 const isActive = entry.id === pendingReviewId;
@@ -415,6 +437,7 @@ export function Transcript({
                         entry={entry}
                         isActiveReview={isActive}
                         animationsEnabled={animationsEnabled}
+                        assistantName={assistantName}
                         onAccept={isActive ? () => onAcceptReview?.(entry.id) : undefined}
                         onAlways={isActive ? () => onAlwaysAcceptReview?.(entry.id) : undefined}
                         onReject={isActive ? () => onRejectReview?.(entry.id) : undefined}

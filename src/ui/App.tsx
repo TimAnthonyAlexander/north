@@ -179,6 +179,7 @@ export function App({
                 <Transcript
                     entries={transcript}
                     pendingReviewId={pendingReviewId}
+                    currentModel={currentModel}
                     onAcceptReview={handleAcceptReview}
                     onAlwaysAcceptReview={handleAlwaysAcceptReview}
                     onRejectReview={handleRejectReview}
