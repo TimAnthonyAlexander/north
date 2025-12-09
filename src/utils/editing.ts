@@ -6,6 +6,7 @@ import {
     mkdirSync,
     copyFileSync,
     unlinkSync,
+    realpathSync,
 } from "fs";
 import { join, isAbsolute, normalize, dirname } from "path";
 import { tmpdir } from "os";
@@ -20,7 +21,25 @@ export function resolveSafePath(repoRoot: string, filePath: string): string | nu
         return null;
     }
 
-    return normalized;
+    try {
+        const realPath = realpathSync(normalized);
+        const realRoot = realpathSync(normalizedRoot);
+        if (!realPath.startsWith(realRoot)) {
+            return null;
+        }
+        return realPath;
+    } catch {
+        const parentDir = dirname(normalized);
+        try {
+            const realParent = realpathSync(parentDir);
+            const realRoot = realpathSync(normalizedRoot);
+            if (!realParent.startsWith(realRoot)) {
+                return null;
+            }
+        } catch {
+        }
+        return normalized;
+    }
 }
 
 export function readFileContent(

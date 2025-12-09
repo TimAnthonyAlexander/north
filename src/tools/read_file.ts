@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, statSync } from "fs";
-import { join, isAbsolute, normalize } from "path";
+import { existsSync, readFileSync, statSync, realpathSync } from "fs";
+import { join, isAbsolute, normalize, dirname } from "path";
 import type {
     ToolDefinition,
     ToolContext,
@@ -14,12 +14,31 @@ const MAX_LINES = 500;
 function resolvePath(repoRoot: string, filePath: string): string | null {
     const resolved = isAbsolute(filePath) ? filePath : join(repoRoot, filePath);
     const normalized = normalize(resolved);
+    const normalizedRoot = normalize(repoRoot);
 
-    if (!normalized.startsWith(repoRoot)) {
+    if (!normalized.startsWith(normalizedRoot)) {
         return null;
     }
 
-    return normalized;
+    try {
+        const realPath = realpathSync(normalized);
+        const realRoot = realpathSync(normalizedRoot);
+        if (!realPath.startsWith(realRoot)) {
+            return null;
+        }
+        return realPath;
+    } catch {
+        const parentDir = dirname(normalized);
+        try {
+            const realParent = realpathSync(parentDir);
+            const realRoot = realpathSync(normalizedRoot);
+            if (!realParent.startsWith(realRoot)) {
+                return null;
+            }
+        } catch {
+        }
+        return normalized;
+    }
 }
 
 export const readFileTool: ToolDefinition<ReadFileInput, ReadFileOutput> = {
