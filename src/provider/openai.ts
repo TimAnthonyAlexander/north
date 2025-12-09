@@ -25,13 +25,12 @@ interface OpenAIContentBlock {
     text?: string;
 }
 
-interface OpenAITool {
+export interface OpenAITool {
     type: "function";
-    function: {
-        name: string;
-        description: string;
-        parameters: unknown;
-    };
+    name: string;
+    description?: string;
+    parameters: unknown;
+    strict?: boolean;
 }
 
 interface OpenAIOutputItem {
@@ -41,6 +40,7 @@ interface OpenAIOutputItem {
     name?: string;
     arguments?: string;
     role?: string;
+    status?: string;
     content?: OpenAIContentBlock[];
 }
 
@@ -52,9 +52,9 @@ interface OpenAIStreamEvent {
     content_index?: number;
     delta?: string;
     text?: string;
-    call_id?: string;
     name?: string;
     arguments?: string;
+    item?: OpenAIOutputItem;
     response?: {
         id: string;
         status: string;
@@ -126,14 +126,13 @@ The conversation may include extra context (recent files, edits, errors, tool re
 2. Use shell tools only for commands the user has approved or requested.
 </calling_external_apis>`;
 
-function convertToolsToOpenAI(tools: ToolSchema[]): OpenAITool[] {
+export function convertToolsToOpenAI(tools: ToolSchema[]): OpenAITool[] {
     return tools.map((t) => ({
         type: "function" as const,
-        function: {
-            name: t.name,
-            description: t.description,
-            parameters: t.input_schema,
-        },
+        name: t.name,
+        description: t.description,
+        parameters: t.input_schema,
+        strict: true,
     }));
 }
 
@@ -177,6 +176,12 @@ function convertMessagesToOpenAI(messages: Message[]): OpenAIInputItem[] {
     return items;
 }
 
+interface ToolCallInProgress {
+    id: string;
+    name: string;
+    arguments: string;
+}
+
 async function parseSSEStream(
     response: Response,
     callbacks: StreamCallbacks,
@@ -186,10 +191,7 @@ async function parseSSEStream(
     const toolCalls: ToolCall[] = [];
     let stopReason: string | null = null;
 
-    const toolCallsInProgress = new Map<
-        string,
-        { id: string; name: string; arguments: string; call_id: string }
-    >();
+    const toolCallsInProgress = new Map<string, ToolCallInProgress>();
 
     const reader = response.body?.getReader();
     if (!reader) {
@@ -219,10 +221,6 @@ async function parseSSEStream(
 
                 if (line.startsWith("data: ")) {
                     const data = line.slice(6).trim();
-                    if (data === "[DONE]") {
-                        stopReason = "end_turn";
-                        continue;
-                    }
 
                     try {
                         const event: OpenAIStreamEvent = JSON.parse(data);
@@ -235,62 +233,77 @@ async function parseSSEStream(
                                 }
                                 break;
 
+                            case "response.output_item.added":
+                                if (event.item?.type === "function_call" && event.item.id) {
+                                    toolCallsInProgress.set(event.item.id, {
+                                        id: event.item.id,
+                                        name: event.item.name || "",
+                                        arguments: event.item.arguments || "",
+                                    });
+                                }
+                                break;
+
                             case "response.function_call_arguments.delta":
                                 if (event.item_id && event.delta) {
                                     const existing = toolCallsInProgress.get(event.item_id);
                                     if (existing) {
                                         existing.arguments += event.delta;
+                                    } else {
+                                        toolCallsInProgress.set(event.item_id, {
+                                            id: event.item_id,
+                                            name: "",
+                                            arguments: event.delta,
+                                        });
                                     }
                                 }
                                 break;
 
                             case "response.function_call_arguments.done":
-                                if (event.item_id && event.call_id) {
+                                if (event.item_id) {
                                     const existing = toolCallsInProgress.get(event.item_id);
                                     if (existing) {
-                                        existing.arguments = event.arguments || existing.arguments;
-                                        existing.call_id = event.call_id;
-                                    }
-                                }
-                                break;
+                                        if (event.name) existing.name = event.name;
+                                        if (event.arguments) existing.arguments = event.arguments;
 
-                            case "response.output_item.added":
-                                if (
-                                    event.response?.output &&
-                                    Array.isArray(event.response.output)
-                                ) {
-                                    for (const item of event.response.output) {
-                                        if (item.type === "function_call" && item.id && item.name) {
-                                            toolCallsInProgress.set(item.id, {
-                                                id: item.id,
-                                                name: item.name,
-                                                arguments: item.arguments || "",
-                                                call_id: item.call_id || item.id,
-                                            });
+                                        let parsedInput: unknown = {};
+                                        try {
+                                            parsedInput = JSON.parse(existing.arguments || "{}");
+                                        } catch {
+                                            // JSON parsing failed
+                                        }
+
+                                        const toolCall: ToolCall = {
+                                            id: existing.id,
+                                            name: existing.name,
+                                            input: parsedInput,
+                                        };
+
+                                        if (!toolCalls.some((tc) => tc.id === toolCall.id)) {
+                                            toolCalls.push(toolCall);
+                                            callbacks.onToolCall?.(toolCall);
                                         }
                                     }
                                 }
                                 break;
 
-                            case "response.content_part.added":
-                                break;
-
-                            case "response.done":
+                            case "response.completed":
                                 if (event.response?.output) {
                                     for (const item of event.response.output) {
-                                        if (item.type === "function_call" && item.call_id) {
-                                            let parsedInput: unknown = {};
-                                            try {
-                                                parsedInput = JSON.parse(item.arguments || "{}");
-                                            } catch {
-                                                // JSON parsing failed
-                                            }
-                                            const toolCall: ToolCall = {
-                                                id: item.call_id,
-                                                name: item.name || "",
-                                                input: parsedInput,
-                                            };
-                                            if (!toolCalls.some((tc) => tc.id === toolCall.id)) {
+                                        if (item.type === "function_call" && item.id) {
+                                            if (!toolCalls.some((tc) => tc.id === item.id)) {
+                                                let parsedInput: unknown = {};
+                                                try {
+                                                    parsedInput = JSON.parse(
+                                                        item.arguments || "{}"
+                                                    );
+                                                } catch {
+                                                    // JSON parsing failed
+                                                }
+                                                const toolCall: ToolCall = {
+                                                    id: item.id,
+                                                    name: item.name || "",
+                                                    input: parsedInput,
+                                                };
                                                 toolCalls.push(toolCall);
                                                 callbacks.onToolCall?.(toolCall);
                                             }
@@ -298,31 +311,39 @@ async function parseSSEStream(
                                             for (const contentBlock of item.content) {
                                                 if (
                                                     contentBlock.type === "output_text" &&
-                                                    contentBlock.text
+                                                    contentBlock.text &&
+                                                    !fullText
                                                 ) {
-                                                    if (!fullText.includes(contentBlock.text)) {
-                                                        fullText = contentBlock.text;
-                                                    }
+                                                    fullText = contentBlock.text;
                                                 }
                                             }
                                         }
                                     }
                                 }
 
-                                if (toolCalls.length > 0) {
-                                    stopReason = "tool_use";
-                                } else {
-                                    stopReason = "end_turn";
-                                }
+                                stopReason = toolCalls.length > 0 ? "tool_use" : "end_turn";
+                                break;
+
+                            case "response.failed": {
+                                const errorMsg =
+                                    event.error?.message ||
+                                    event.response?.status ||
+                                    "Response failed";
+                                throw new Error(errorMsg);
+                            }
+
+                            case "response.incomplete":
+                                stopReason = "end_turn";
                                 break;
 
                             case "error":
                                 throw new Error(event.error?.message || "Unknown error");
                         }
                     } catch (parseError) {
-                        if (parseError instanceof Error && parseError.message !== "Unknown error") {
-                            throw parseError;
+                        if (parseError instanceof SyntaxError) {
+                            continue;
                         }
+                        throw parseError;
                     }
                 }
             }
@@ -332,7 +353,7 @@ async function parseSSEStream(
     }
 
     for (const [, tc] of toolCallsInProgress) {
-        if (!toolCalls.some((existing) => existing.id === tc.call_id)) {
+        if (!toolCalls.some((existing) => existing.id === tc.id)) {
             let parsedInput: unknown = {};
             try {
                 parsedInput = JSON.parse(tc.arguments || "{}");
@@ -340,7 +361,7 @@ async function parseSSEStream(
                 // JSON parsing failed
             }
             const toolCall: ToolCall = {
-                id: tc.call_id,
+                id: tc.id,
                 name: tc.name,
                 input: parsedInput,
             };
@@ -349,8 +370,8 @@ async function parseSSEStream(
         }
     }
 
-    if (toolCalls.length > 0 && stopReason !== "cancelled") {
-        stopReason = "tool_use";
+    if (stopReason === null) {
+        stopReason = toolCalls.length > 0 ? "tool_use" : "end_turn";
     }
 
     return { text: fullText, toolCalls, stopReason };

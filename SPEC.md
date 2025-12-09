@@ -21,9 +21,11 @@ Runtime and language:
 - TypeScript only
 
 Model:
-- Claude only
-- Default: Sonnet 4.5
+- Anthropic Claude (Sonnet 4, Opus 4, Opus 4.1, Sonnet 4.5, Haiku 4.5, Opus 4.5)
+- OpenAI GPT-5 family (GPT-5.1, GPT-5.1 Codex variants, GPT-5, GPT-5 Mini, GPT-5 Nano)
+- Default: Claude Sonnet 4
 - Streaming required
+- Runtime model switching supported (even across providers)
 
 ## 2) UX requirements
 
@@ -78,9 +80,12 @@ Keep the implementation as a small set of modules with single responsibility.
 - Receives streaming output
 - Handles tool calls and retries
 
-3) Provider (Anthropic)
-- Streaming client
-- Tool calling protocol adapter
+3) Provider (Anthropic + OpenAI)
+- Provider factory selects implementation based on model
+- Anthropic provider: uses Messages API with `@anthropic-ai/sdk`
+- OpenAI provider: uses Responses API with native fetch + SSE streaming
+- Streaming client with unified callback interface
+- Tool calling protocol adapter (converts tools to provider-specific format)
 - Token budgeting and truncation rules
 
 4) Tool Registry
@@ -318,14 +323,14 @@ Primary command:
 Optional flags:
 - `--path <repoRoot>` (override repo root detection)
 - `--log-level info|debug` (debug includes more tool metadata, still avoid content dumps)
-- `--model sonnet-4.5` (default anyway)
+- `--model <name>` (e.g., sonnet-4, gpt-5.1-codex)
 
 Slash commands in UI (v0):
 - `/help`
-- `/clear` (clears transcript display, not memory)
-- `/memory` (show current memory entries)
-- `/allowlist` (show allowed commands)
-- `/model` (show current model)
+- `/new` (start fresh conversation)
+- `/model [name]` (switch model, supports Claude and GPT)
+- `/mode [ask|agent]` (switch conversation mode)
+- `/summarize` (compress conversation history)
 
 ## 11) Future MCP compatibility (do not implement now)
 

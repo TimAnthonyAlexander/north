@@ -2,7 +2,7 @@
 
 **The terminal-native AI coding assistant that actually ships.**
 
-A Claude-powered pair programmer that lives in your terminal. No IDE lock-in, no subscription tiers, no bloat—just you, Claude, and your codebase.
+An AI pair programmer that lives in your terminal. Supports Claude (Anthropic) and GPT-5 (OpenAI). No IDE lock-in, no subscription tiers, no bloat—just you, the model of your choice, and your codebase.
 
 ![North in action](screenshot1.png)
 ![One Shot Website](screenshot2.png)
@@ -14,7 +14,7 @@ A Claude-powered pair programmer that lives in your terminal. No IDE lock-in, no
 
 **One-shots production-ready code.** Complex React components, full API endpoints, beautiful landing pages—North builds them in a single pass. The kind of output that takes other tools 10+ iterations.
 
-**Direct API access.** You bring your own Anthropic key. No middleman pricing, no usage caps, no "you've hit your daily limit." Pay only for what you use at Anthropic's rates.
+**Direct API access.** You bring your own API key (Anthropic or OpenAI). No middleman pricing, no usage caps, no "you've hit your daily limit." Pay only for what you use at provider rates.
 
 **200K context that manages itself.** Auto-summarization kicks in at 92% context usage, compressing conversation history into structured summaries. No manual context pruning, no "start a new chat" interruptions.
 
@@ -60,15 +60,18 @@ Press `y` once to auto-accept all future edits in a session. Or build a shell co
 
 ### Model Switching
 
-Switch between Claude models on the fly:
+Switch between models on the fly—even across providers:
 
 ```
-/model opus-4.5    # Switch to Opus 4.5
-/model sonnet-4    # Switch to Sonnet 4 (default)
-/model haiku-4.5   # Switch to Haiku 4.5 for speed
+/model opus-4.5       # Switch to Claude Opus 4.5
+/model sonnet-4       # Switch to Claude Sonnet 4 (default)
+/model gpt-5.1-codex  # Switch to GPT-5.1 Codex
+/model gpt-5-mini     # Switch to GPT-5 Mini for speed
 ```
 
-Available models: Sonnet 4, Opus 4, Opus 4.1, Sonnet 4.5, Haiku 4.5, Opus 4.5
+**Anthropic models:** Sonnet 4, Opus 4, Opus 4.1, Sonnet 4.5, Haiku 4.5, Opus 4.5
+
+**OpenAI models:** GPT-5.1, GPT-5.1 Codex, GPT-5.1 Codex Mini, GPT-5.1 Codex Max, GPT-5, GPT-5 Mini, GPT-5 Nano
 
 ### Cursor Rules Compatible
 
@@ -78,7 +81,7 @@ Drop your `.cursor/rules/*.mdc` files in and North automatically loads them. Sam
 
 | Command | Description |
 |---------|-------------|
-| `/model [name]` | Switch Claude model |
+| `/model [name]` | Switch model (Claude or GPT) |
 | `/mode [ask\|agent]` | Switch conversation mode |
 | `/summarize` | Compress conversation history |
 | `/new` | Start fresh conversation |
@@ -87,7 +90,7 @@ Drop your `.cursor/rules/*.mdc` files in and North automatically loads them. Sam
 
 ## Install
 
-Requires [Bun](https://bun.sh) and an Anthropic API key.
+Requires [Bun](https://bun.sh) and at least one API key (Anthropic or OpenAI).
 
 ```bash
 git clone https://github.com/timanthonyalexander/north.git
@@ -95,10 +98,11 @@ cd north
 bun install
 ```
 
-Set your API key:
+Set your API key(s):
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
+export ANTHROPIC_API_KEY="sk-ant-..."  # For Claude models
+export OPENAI_API_KEY="sk-..."         # For GPT models
 ```
 
 Run:
@@ -178,7 +182,7 @@ Architecture: [docs/implementation.md](docs/implementation.md)
 
 ## Privacy
 
-Logs record events and metadata (tool names, durations, token counts) but not file contents or prompts. Your messages go directly to Anthropic's API—no intermediary servers, no data collection.
+Logs record events and metadata (tool names, durations, token counts) but not file contents or prompts. Your messages go directly to the provider's API (Anthropic or OpenAI)—no intermediary servers, no data collection.
 
 ---
 

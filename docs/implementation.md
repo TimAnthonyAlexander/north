@@ -78,6 +78,9 @@ src/
     ├── ignore.ts         # Gitignore parsing and file walking
     ├── editing.ts        # Diff computation and atomic file writes
     └── tokens.ts         # Token estimation for context tracking
+
+tests/
+└── openai-provider.test.ts  # OpenAI provider unit tests
 ```
 
 ## Module Responsibilities
@@ -957,9 +960,28 @@ Simple and straightforward:
 
 The compiled binary is completely self-contained and can be distributed as a single file with no external dependencies.
 
+## Testing
+
+Uses Bun's built-in test runner:
+
+```bash
+bun test                    # run all tests
+bun test --watch            # watch mode
+bun test tests/openai*.ts   # run specific tests
+```
+
+**Test coverage:**
+- `tests/openai-provider.test.ts`: OpenAI provider tests
+  - Tool schema conversion (verifies Responses API format)
+  - Provider factory and message builders
+  - SSE streaming event parsing
+  - Error handling
+
 ## Environment
 
-Requires `ANTHROPIC_API_KEY` environment variable.
+**Required:**
+- `ANTHROPIC_API_KEY`: For Claude models
+- `OPENAI_API_KEY`: For GPT models (at least one required)
 
 ## Logs
 

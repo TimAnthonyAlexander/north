@@ -19,6 +19,7 @@
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",
+    "test": "bun test",
     "check": "bun run typecheck && bun run lint && bun run format:check"
   },
   "dependencies": {
