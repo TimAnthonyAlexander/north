@@ -528,6 +528,25 @@ Model selection via `/model`:
 - `currentModel` stored in orchestrator state
 - Context limit updates automatically on model change
 
+### System Prompt Structure
+
+The system prompt in `src/provider/anthropic.ts` uses a Cursor-inspired structured format with XML-like sections:
+
+**Sections:**
+- `<communication>` - Tone, formatting, honesty rules (no lying, no guessing paths)
+- `<tool_calling>` - Schema adherence, one-sentence justification before each call, never expose tool names
+- `<search_and_reading>` - Bias toward self-discovery, gather context before concluding
+- `<making_code_changes>` - Read before edit, one edit per turn or atomic batch, no large pastes
+- `<debugging>` - Edit only if confident, retry logic (re-read once on mismatch, max 3 lint loops)
+- `<calling_external_apis>` - Only when explicitly requested
+
+**Key behaviors enforced:**
+- "If you did not read it, do not claim it exists"
+- Never guess file paths or symbol names
+- Describe actions in natural language ("I'll search the repo") not tool names
+- Plan briefly, then execute one coherent edit per turn
+- Retry once on edit mismatch, then ask for clarification
+
 ### Mode System
 
 North supports two conversation modes that control tool availability:
