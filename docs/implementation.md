@@ -650,9 +650,11 @@ All file operations use symlink-aware path validation to prevent path traversal 
 - `resolvePath()` in `tools/read_file.ts` - Used by read operations
 
 **Non-existent file handling:**
-- When file doesn't exist (e.g., during creation), validates parent directory
-- Ensures parent directory exists and resolves within repo
+- When file doesn't exist (e.g., during creation), recursively validates parent directories
+- Walks up the directory tree until finding an existing directory, then validates it
+- Ensures at least one ancestor directory exists and resolves within repo
 - Prevents creating files via symlink directory chains that escape repo
+- Supports creating files in deeply nested directories that don't exist yet (e.g., `deep/nested/dir/file.txt`)
 
 **Attack prevented:**
 A symlink inside the repo pointing to `/etc/passwd` or other sensitive files would fail validation because the real path would resolve outside the repo boundary.

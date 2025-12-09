@@ -29,17 +29,24 @@ export function resolveSafePath(repoRoot: string, filePath: string): string | nu
         }
         return realPath;
     } catch {
-        const parentDir = dirname(normalized);
-        try {
-            const realParent = realpathSync(parentDir);
-            const realRoot = realpathSync(normalizedRoot);
-            if (!realParent.startsWith(realRoot)) {
-                return null;
+        let currentPath = normalized;
+        let parentDir = dirname(currentPath);
+        
+        while (parentDir !== currentPath && parentDir.startsWith(normalizedRoot)) {
+            try {
+                const realParent = realpathSync(parentDir);
+                const realRoot = realpathSync(normalizedRoot);
+                if (!realParent.startsWith(realRoot)) {
+                    return null;
+                }
+                return normalized;
+            } catch {
+                currentPath = parentDir;
+                parentDir = dirname(currentPath);
             }
-        } catch {
-            return null;
         }
-        return normalized;
+        
+        return null;
     }
 }
 
