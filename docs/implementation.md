@@ -418,7 +418,11 @@ All tools follow the pattern:
 
 ### utils/editing.ts
 
-- `resolveSafePath()`: validates paths stay within repo root
+- `resolveSafePath()`: validates paths stay within repo root with symlink resolution
+  - First checks normalized path is within repo
+  - Resolves symlinks using `realpathSync()` to prevent path traversal attacks
+  - Verifies resolved real path is still within repo boundary
+  - For non-existent files (during creation), validates parent directory instead
 - `readFileContent()`: safe file reading with error handling
 - `preserveTrailingNewline()`: ensures trailing newline consistency after edits
 - `computeUnifiedDiff()`: generates unified diff format
@@ -543,6 +547,28 @@ App.handleSigint()
 ```
 
 ## Key Implementation Details
+
+### Path Security
+
+All file operations use symlink-aware path validation to prevent path traversal attacks:
+
+**Security layers:**
+1. **Normalization**: Resolve `..` and `.` segments in paths
+2. **Boundary check**: Verify normalized path is within repo root
+3. **Symlink resolution**: Use `realpathSync()` to resolve symlinks
+4. **Final verification**: Ensure resolved real path is still within repo boundary
+
+**Implementation sites:**
+- `resolveSafePath()` in `utils/editing.ts` - Used by all write operations
+- `resolvePath()` in `tools/read_file.ts` - Used by read operations
+
+**Non-existent file handling:**
+- When file doesn't exist (e.g., during creation), validates parent directory
+- Ensures parent directory exists and resolves within repo
+- Prevents creating files via symlink directory chains that escape repo
+
+**Attack prevented:**
+A symlink inside the repo pointing to `/etc/passwd` or other sensitive files would fail validation because the real path would resolve outside the repo boundary.
 
 ### Slash Command Execution
 
