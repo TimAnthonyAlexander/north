@@ -287,21 +287,7 @@ function App() {
               <Box sx={{ maxWidth: '1000px', mx: 'auto' }}>
                 <Grid container spacing={6}>
                   <Grid item xs={12} md={6}>
-                    <Box sx={{ 
-                      pl: { xs: 0, md: 4 }, 
-                      borderLeft: { xs: 'none', md: '4px solid #1e88e5' },
-                      position: 'relative'
-                    }}>
-                      <Box sx={{ 
-                        position: { xs: 'static', md: 'absolute' },
-                        left: { xs: 0, md: -14 },
-                        top: -2,
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        bgcolor: '#1e88e5',
-                        display: { xs: 'none', md: 'block' }
-                      }} />
+                    <Box sx={{ p: 2 }}>
                       <Typography variant="h4" sx={{ 
                         fontWeight: 700, 
                         mb: 3,
@@ -319,7 +305,7 @@ function App() {
                         Complex React components, full API endpoints, beautiful landing pages—built in a single pass. 
                         No scaffolding, no iterations, no "let me fix that."
                       </Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
                         <Chip label="React" size="small" sx={{ bgcolor: 'rgba(30, 136, 229, 0.1)', color: '#1e88e5' }} />
                         <Chip label="TypeScript" size="small" sx={{ bgcolor: 'rgba(30, 136, 229, 0.1)', color: '#1e88e5' }} />
                         <Chip label="APIs" size="small" sx={{ bgcolor: 'rgba(30, 136, 229, 0.1)', color: '#1e88e5' }} />
@@ -328,21 +314,7 @@ function App() {
                   </Grid>
 
                   <Grid item xs={12} md={6}>
-                    <Box sx={{ 
-                      pl: { xs: 0, md: 4 }, 
-                      borderLeft: { xs: 'none', md: '4px solid #00e676' },
-                      position: 'relative'
-                    }}>
-                      <Box sx={{ 
-                        position: { xs: 'static', md: 'absolute' },
-                        left: { xs: 0, md: -14 },
-                        top: -2,
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        bgcolor: '#00e676',
-                        display: { xs: 'none', md: 'block' }
-                      }} />
+                    <Box sx={{ p: 2 }}>
                       <Typography variant="h4" sx={{ 
                         fontWeight: 700, 
                         mb: 3,
@@ -360,7 +332,7 @@ function App() {
                         Bring your own API key. No middleman pricing, no usage caps, no daily limits. 
                         You pay Anthropic/OpenAI directly at cost.
                       </Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
                         <Chip label="Claude" size="small" sx={{ bgcolor: 'rgba(0, 230, 118, 0.1)', color: '#00e676' }} />
                         <Chip label="GPT" size="small" sx={{ bgcolor: 'rgba(0, 230, 118, 0.1)', color: '#00e676' }} />
                         <Chip label="No Limits" size="small" sx={{ bgcolor: 'rgba(0, 230, 118, 0.1)', color: '#00e676' }} />
@@ -369,21 +341,7 @@ function App() {
                   </Grid>
 
                   <Grid item xs={12} md={6}>
-                    <Box sx={{ 
-                      pl: { xs: 0, md: 4 }, 
-                      borderLeft: { xs: 'none', md: '4px solid #9c27b0' },
-                      position: 'relative'
-                    }}>
-                      <Box sx={{ 
-                        position: { xs: 'static', md: 'absolute' },
-                        left: { xs: 0, md: -14 },
-                        top: -2,
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        bgcolor: '#9c27b0',
-                        display: { xs: 'none', md: 'block' }
-                      }} />
+                    <Box sx={{ p: 2 }}>
                       <Typography variant="h4" sx={{ 
                         fontWeight: 700, 
                         mb: 3,
@@ -401,7 +359,7 @@ function App() {
                         Visual context indicators (🟢🟡🔴) with auto-summarization at 92% usage. 
                         Never lose context, never hit limits unexpectedly.
                       </Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
                         <Chip label="Real-time" size="small" sx={{ bgcolor: 'rgba(156, 39, 176, 0.1)', color: '#9c27b0' }} />
                         <Chip label="Auto-compress" size="small" sx={{ bgcolor: 'rgba(156, 39, 176, 0.1)', color: '#9c27b0' }} />
                         <Chip label="Visual" size="small" sx={{ bgcolor: 'rgba(156, 39, 176, 0.1)', color: '#9c27b0' }} />
@@ -410,21 +368,7 @@ function App() {
                   </Grid>
 
                   <Grid item xs={12} md={6}>
-                    <Box sx={{ 
-                      pl: { xs: 0, md: 4 }, 
-                      borderLeft: { xs: 'none', md: '4px solid #f44336' },
-                      position: 'relative'
-                    }}>
-                      <Box sx={{ 
-                        position: { xs: 'static', md: 'absolute' },
-                        left: { xs: 0, md: -14 },
-                        top: -2,
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        bgcolor: '#f44336',
-                        display: { xs: 'none', md: 'block' }
-                      }} />
+                    <Box sx={{ p: 2 }}>
                       <Typography variant="h4" sx={{ 
                         fontWeight: 700, 
                         mb: 3,
@@ -442,7 +386,7 @@ function App() {
                         Switch between Claude and GPT models on the fly. Session state persists. 
                         Use the best model for each task without starting over.
                       </Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
                         <Chip label="Sonnet" size="small" sx={{ bgcolor: 'rgba(244, 67, 54, 0.1)', color: '#f44336' }} />
                         <Chip label="Opus" size="small" sx={{ bgcolor: 'rgba(244, 67, 54, 0.1)', color: '#f44336' }} />
                         <Chip label="GPT-4" size="small" sx={{ bgcolor: 'rgba(244, 67, 54, 0.1)', color: '#f44336' }} />
