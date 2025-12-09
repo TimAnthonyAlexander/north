@@ -1,9 +1,10 @@
 import {
-    createProvider,
+    createProviderForModel,
+    type Provider,
     type Message,
     type ToolCall,
     type ToolSchema,
-} from "../provider/anthropic";
+} from "../provider/index";
 import { createToolRegistryWithAllTools, filterToolsForMode } from "../tools/index";
 import type { Logger } from "../logging/index";
 import type { FileDiff, EditPrepareResult, ShellRunInput, EditOperation } from "../tools/types";
@@ -206,7 +207,7 @@ export function createOrchestratorWithTools(
     callbacks: OrchestratorCallbacks,
     context: OrchestratorContext
 ): Orchestrator {
-    const provider = createProvider();
+    let provider: Provider = createProviderForModel(DEFAULT_MODEL);
     const toolRegistry = createToolRegistryWithAllTools();
     const commandRegistry = createCommandRegistryWithAllCommands();
 
@@ -729,6 +730,7 @@ export function createOrchestratorWithTools(
             repoRoot: context.repoRoot,
             setModel(modelId: string) {
                 currentModel = modelId;
+                provider = createProviderForModel(modelId);
                 contextLimitTokens = getModelContextLimit(modelId);
                 if (contextUsedTokens > 0) {
                     contextUsage = contextUsedTokens / contextLimitTokens;

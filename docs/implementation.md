@@ -39,7 +39,9 @@ src/
 ├── orchestrator/
 │   └── index.ts          # Conversation state, message flow, tool loop, commands, reviews
 ├── provider/
-│   └── anthropic.ts      # Claude streaming client with tool support
+│   ├── index.ts          # Provider factory, selects provider by model
+│   ├── anthropic.ts      # Claude streaming client (Anthropic Messages API)
+│   └── openai.ts         # GPT streaming client (OpenAI Responses API)
 ├── rules/
 │   ├── index.ts          # Rules module exports
 │   └── cursor.ts         # Cursor rules loader (.cursor/rules/*.mdc)
@@ -107,11 +109,17 @@ Defines core types:
 #### commands/models.ts
 
 Centralized model list shared by `/model` command and Composer autocomplete:
-- `MODELS`: array of `{ alias, pinned, display, contextLimitTokens }`
-- `resolveModelId(input)`: maps alias or pinned ID to pinned ID
+- `ProviderType`: "anthropic" | "openai"
+- `MODELS`: array of `{ alias, pinned, display, contextLimitTokens, provider }`
+- `resolveModelId(input)`: maps alias or pinned ID to pinned ID (supports both Claude and GPT prefixes)
 - `getModelDisplay(modelId)`: returns human-readable name
 - `getModelContextLimit(modelId)`: returns context limit in tokens
-- `DEFAULT_MODEL`: default pinned model ID
+- `getModelProvider(modelId)`: returns provider type for model
+- `DEFAULT_MODEL`: default pinned model ID (Claude Sonnet 4)
+
+**Supported Models:**
+- Anthropic: sonnet-4, opus-4, opus-4-1, sonnet-4-5, haiku-4-5, opus-4-5
+- OpenAI: gpt-5.1, gpt-5.1-codex, gpt-5.1-codex-mini, gpt-5.1-codex-max, gpt-5, gpt-5-mini, gpt-5-nano
 
 #### commands/registry.ts
 
@@ -229,17 +237,48 @@ Span-based tokenizer for reliable command extraction:
 - When enabled, all edit tool results are automatically applied without user confirmation
 - Creates `.north/` directory on first write
 
-### provider/anthropic.ts
+### provider/index.ts (Provider Factory)
+
+- Exports `createProviderForModel(modelId)`: creates correct provider based on model prefix
+- `getModelProvider(modelId)`: returns "anthropic" or "openai" based on model
+- Re-exports common types: `Provider`, `Message`, `StreamCallbacks`, `ToolCall`, etc.
+- Orchestrator uses this to dynamically switch providers when `/model` changes
+
+### provider/anthropic.ts (Anthropic Provider)
 
 - Wraps `@anthropic-ai/sdk`
 - Default model: `claude-sonnet-4-20250514`
-- Streaming via `client.messages.stream()`
+- Streaming via `client.messages.stream()` (Messages API)
 - Supports tool definitions and tool_use blocks
 - Per-request options: `model`, `tools`, `systemOverride`, `signal` (AbortSignal)
 - `systemOverride` replaces default system prompt (used for summarization)
 - Callbacks: `onChunk`, `onToolCall`, `onComplete`, `onError`
 - Abort support: checks signal during stream loop, returns `stopReason: "cancelled"`
-- Helpers for building tool result messages
+- Helpers for building tool result and assistant messages
+
+### provider/openai.ts (OpenAI Provider)
+
+- Uses native fetch with SSE streaming (no SDK dependency)
+- Endpoint: `https://api.openai.com/v1/responses` (Responses API)
+- Default model: `gpt-5.1`
+- Streaming via SSE events: `response.output_text.delta`, `response.function_call_arguments.delta`
+- Tool format converted to OpenAI function format: `{ type: "function", function: { name, description, parameters } }`
+- Tool results sent as `function_call_output` items with matching `call_id`
+- Per-request options: same interface as Anthropic provider
+- Abort support: passes AbortSignal to fetch, returns `stopReason: "cancelled"`
+- Env var: `OPENAI_API_KEY` required
+
+**Supported OpenAI Models:**
+
+| Alias | Model ID | Description |
+|-------|----------|-------------|
+| gpt-5.1 | gpt-5.1 | GPT-5.1 flagship |
+| gpt-5.1-codex | gpt-5.1-codex | Optimized for coding |
+| gpt-5.1-codex-mini | gpt-5.1-codex-mini | Faster coding variant |
+| gpt-5.1-codex-max | gpt-5.1-codex-max | Maximum capability coding |
+| gpt-5 | gpt-5 | GPT-5 flagship |
+| gpt-5-mini | gpt-5-mini | Faster GPT-5 variant |
+| gpt-5-nano | gpt-5-nano | Fastest/cheapest GPT-5 |
 
 ### tools/registry.ts
 
@@ -523,14 +562,20 @@ The `/summarize` command:
 
 Model selection via `/model`:
 - With argument: `resolveModelId()` maps alias → pinned ID
-- Without argument: shows picker with all models
-- Provider accepts model per-request (no recreation)
+- Without argument: shows picker with all models (both Anthropic and OpenAI)
+- `getModelProvider(modelId)` determines which provider to use
+- `createProviderForModel()` creates appropriate provider instance
+- Switching between providers (e.g., Claude → GPT) recreates provider
 - `currentModel` stored in orchestrator state
 - Context limit updates automatically on model change
 
+**Environment Variables:**
+- `ANTHROPIC_API_KEY`: required for Claude models
+- `OPENAI_API_KEY`: required for GPT models
+
 ### System Prompt Structure
 
-The system prompt in `src/provider/anthropic.ts` uses a Cursor-inspired structured format with XML-like sections:
+Both providers (`anthropic.ts` and `openai.ts`) use identical system prompts with a Cursor-inspired structured format using XML-like sections:
 
 **Sections:**
 - `<communication>` - Tone, formatting, honesty rules (no lying, no guessing paths)
