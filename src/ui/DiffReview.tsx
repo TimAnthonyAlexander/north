@@ -149,6 +149,7 @@ export const DiffReview = memo(function DiffReview({
     return (
         <Box
             flexDirection="column"
+            width="100%"
             marginBottom={1}
             borderStyle="round"
             borderColor={finalBorderColor}

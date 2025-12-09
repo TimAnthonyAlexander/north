@@ -267,7 +267,8 @@ const MessageBlock = memo(function MessageBlock({
         );
     }
 
-    if (entry.role === "diff_review" && entry.diffContent) {
+    if (entry.role === "diff_review") {
+        if (!entry.diffContent) return null;
         const reviewStatus = entry.reviewStatus as "pending" | "accepted" | "always" | "rejected";
         return (
             <DiffReview
@@ -328,10 +329,18 @@ const MessageBlock = memo(function MessageBlock({
 
 function isEntryStatic(entry: TranscriptEntry, pendingReviewId: string | null): boolean {
     if (entry.isStreaming) return false;
+    
+    if (entry.role === "diff_review") {
+        return entry.reviewStatus !== "pending";
+    }
+    if (entry.role === "shell_review") {
+        return entry.reviewStatus !== "pending";
+    }
+    if (entry.role === "command_review") {
+        return entry.reviewStatus !== "pending";
+    }
+    
     if (entry.id === pendingReviewId) return false;
-    if (entry.role === "diff_review" && entry.reviewStatus === "pending") return false;
-    if (entry.role === "shell_review" && entry.reviewStatus === "pending") return false;
-    if (entry.role === "command_review" && entry.reviewStatus === "pending") return false;
     return true;
 }
 
@@ -369,7 +378,8 @@ const StaticEntry = memo(function StaticEntry({
         );
     }
 
-    if (entry.role === "diff_review" && entry.diffContent) {
+    if (entry.role === "diff_review") {
+        if (!entry.diffContent) return null;
         const reviewStatus = entry.reviewStatus as "pending" | "accepted" | "always" | "rejected";
         return (
             <DiffReview
@@ -439,8 +449,14 @@ export function Transcript({
     const { staticEntries, dynamicEntries } = useMemo(() => {
         const staticList: TranscriptEntry[] = [];
         const dynamicList: TranscriptEntry[] = [];
+        const seenIds = new Set<string>();
 
         for (const entry of entries) {
+            if (seenIds.has(entry.id)) {
+                continue;
+            }
+            seenIds.add(entry.id);
+
             if (isEntryStatic(entry, pendingReviewId)) {
                 staticList.push(entry);
             } else {
