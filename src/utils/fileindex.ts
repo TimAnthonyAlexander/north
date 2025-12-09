@@ -88,4 +88,3 @@ export function fuzzyMatchFiles(query: string, files: string[], limit = 20): str
 
     return matches;
 }
-

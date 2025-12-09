@@ -206,4 +206,3 @@ export function formatAttachedFilesContext(repoRoot: string, filePaths: string[]
 
     return sections.join("\n");
 }
-

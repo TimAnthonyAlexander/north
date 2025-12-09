@@ -273,7 +273,10 @@ export function Composer({
 
                         if (suggestion.type === "command") {
                             const newValue = (before + suggestion.value + after).trim();
-                            const allAttached = [...attachedFiles, ...extractAttachedFiles(newValue)];
+                            const allAttached = [
+                                ...attachedFiles,
+                                ...extractAttachedFiles(newValue),
+                            ];
                             onSubmit(newValue, allAttached);
                             setValue("");
                             setCursorPos(0);
@@ -335,7 +338,10 @@ export function Composer({
 
                         if (suggestion.type === "command") {
                             const newValue = (before + suggestion.value + after).trim();
-                            const allAttached = [...attachedFiles, ...extractAttachedFiles(newValue)];
+                            const allAttached = [
+                                ...attachedFiles,
+                                ...extractAttachedFiles(newValue),
+                            ];
                             onSubmit(newValue, allAttached);
                             setValue("");
                             setCursorPos(0);
@@ -477,7 +483,9 @@ export function Composer({
             return (
                 <>
                     <Text>{before}</Text>
-                    <Text color="green" bold>▏</Text>
+                    <Text color="green" bold>
+                        ▏
+                    </Text>
                     <Text>{after || " "}</Text>
                 </>
             );
@@ -507,17 +515,15 @@ export function Composer({
                 <Box flexDirection="column" flexGrow={1}>
                     {showPlaceholder ? (
                         <Box>
-                            <Text color="green" bold>▏</Text>
+                            <Text color="green" bold>
+                                ▏
+                            </Text>
                             <Text color="#999999">
                                 Type a message... (@ to attach files, Tab to switch mode)
                             </Text>
                         </Box>
                     ) : (
-                        lines.map((line, i) => (
-                            <Box key={i}>
-                                {renderLineWithCursor(line, i)}
-                            </Box>
-                        ))
+                        lines.map((line, i) => <Box key={i}>{renderLineWithCursor(line, i)}</Box>)
                     )}
                 </Box>
                 <Box marginLeft={1}>
