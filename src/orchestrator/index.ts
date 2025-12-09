@@ -803,7 +803,8 @@ export function createOrchestratorWithTools(
             reviewEntry.shellResult = result;
 
             updateEntry(reviewEntry.id, {
-                reviewStatus: decision === "always" ? "always" : decision === "auto" ? "auto" : "ran",
+                reviewStatus:
+                    decision === "always" ? "always" : decision === "auto" ? "auto" : "ran",
             });
         }
 

@@ -31,4 +31,3 @@ export const LearningProgress = memo(function LearningProgress({
         </Box>
     );
 });
-

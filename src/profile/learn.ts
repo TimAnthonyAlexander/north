@@ -12,62 +12,52 @@ const DISCOVERY_TOPICS: DiscoveryTopic[] = [
     {
         id: "summary",
         title: "Project Summary",
-        prompt:
-            "Find out for this project what it is, who it is for, what the main user workflows are, and what it explicitly does not do. Write a short, concrete summary.",
+        prompt: "Find out for this project what it is, who it is for, what the main user workflows are, and what it explicitly does not do. Write a short, concrete summary.",
     },
     {
         id: "architecture",
         title: "Architecture Map",
-        prompt:
-            "Find out for this project what the major modules/subsystems are, how they relate, and where the main entry points are (apps, commands, servers, workers). Summarize the structure in a compact map.",
+        prompt: "Find out for this project what the major modules/subsystems are, how they relate, and where the main entry points are (apps, commands, servers, workers). Summarize the structure in a compact map.",
     },
     {
         id: "conventions",
         title: "Code Style and Conventions",
-        prompt:
-            "Find out for this project what the coding conventions are: naming, folder layout, formatting, patterns for errors/logging, and any lint/format rules. Write rules the assistant should follow when editing code here.",
+        prompt: "Find out for this project what the coding conventions are: naming, folder layout, formatting, patterns for errors/logging, and any lint/format rules. Write rules the assistant should follow when editing code here.",
     },
     {
         id: "vocabulary",
         title: "Domain Model Vocabulary",
-        prompt:
-            "Find out for this project the key domain concepts and entities, the terms used in code, and where those concepts live in the repo. List the vocabulary and point to the canonical locations.",
+        prompt: "Find out for this project the key domain concepts and entities, the terms used in code, and where those concepts live in the repo. List the vocabulary and point to the canonical locations.",
     },
     {
         id: "data_flow",
         title: "Data Flow and State",
-        prompt:
-            "Find out for this project where state is stored and how data flows through the system (persistence, caches, files, in-memory state). Describe the main data paths and boundaries.",
+        prompt: "Find out for this project where state is stored and how data flows through the system (persistence, caches, files, in-memory state). Describe the main data paths and boundaries.",
     },
     {
         id: "dependencies",
         title: "External Dependencies and Integrations",
-        prompt:
-            "Find out for this project the important dependencies and external integrations (frameworks, libraries, services, APIs). Note where configuration lives and where integration code is implemented.",
+        prompt: "Find out for this project the important dependencies and external integrations (frameworks, libraries, services, APIs). Note where configuration lives and where integration code is implemented.",
     },
     {
         id: "workflow",
         title: "Build, Run, and Test Workflow",
-        prompt:
-            "Find out for this project how to run it locally, how to run tests, lint/format, and build/release. Provide the core commands and where to look for details.",
+        prompt: "Find out for this project how to run it locally, how to run tests, lint/format, and build/release. Provide the core commands and where to look for details.",
     },
     {
         id: "hotspots",
         title: "Hot Spots and Change Patterns",
-        prompt:
-            "Find out for this project which files and areas change most often and what kinds of changes typically happen there. Identify any sensitive areas that need extra caution.",
+        prompt: "Find out for this project which files and areas change most often and what kinds of changes typically happen there. Identify any sensitive areas that need extra caution.",
     },
     {
         id: "playbook",
         title: "Common Tasks Playbook",
-        prompt:
-            "Find out for this project where to implement common changes (new feature, new endpoint, new UI view, new command, new background job, new migration/config). Write a short 'where to put things' playbook.",
+        prompt: "Find out for this project where to implement common changes (new feature, new endpoint, new UI view, new command, new background job, new migration/config). Write a short 'where to put things' playbook.",
     },
     {
         id: "safety",
         title: "Safety Rails and Footguns",
-        prompt:
-            "Find out for this project the known pitfalls: security constraints, performance traps, invariants, migration gotchas, cross-platform issues, and any strict rules. Write a checklist the assistant should respect.",
+        prompt: "Find out for this project the known pitfalls: security constraints, performance traps, invariants, migration gotchas, cross-platform issues, and any strict rules. Write a checklist the assistant should respect.",
     },
 ];
 
@@ -137,7 +127,7 @@ async function queryTopicWithTools(
     logger: Logger
 ): Promise<string> {
     let accumulatedText = "";
-    let conversationMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
+    const conversationMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
 
     conversationMessages.push({
         role: "user",
@@ -227,4 +217,3 @@ async function queryTopicWithTools(
 
     return accumulatedText.trim();
 }
-

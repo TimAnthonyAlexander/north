@@ -468,11 +468,7 @@ const StaticEntry = memo(function StaticEntry({
     if (entry.role === "learning_prompt") {
         const learningStatus = (entry.learningPromptStatus || "pending") as LearningPromptStatus;
         return (
-            <LearningPrompt
-                status={learningStatus}
-                isActive={false}
-                animationsEnabled={false}
-            />
+            <LearningPrompt status={learningStatus} isActive={false} animationsEnabled={false} />
         );
     }
 
@@ -586,9 +582,7 @@ export function Transcript({
                             isActive ? (id) => onCommandSelect?.(entry.id, id) : undefined
                         }
                         onCommandCancel={isActive ? () => onCommandCancel?.(entry.id) : undefined}
-                        onLearningAccept={
-                            isActive ? () => onLearningAccept?.(entry.id) : undefined
-                        }
+                        onLearningAccept={isActive ? () => onLearningAccept?.(entry.id) : undefined}
                         onLearningDecline={
                             isActive ? () => onLearningDecline?.(entry.id) : undefined
                         }

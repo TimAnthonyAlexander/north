@@ -104,4 +104,3 @@ export function clearDeclined(repoRoot: string): void {
         }
     }
 }
-
