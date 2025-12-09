@@ -231,9 +231,11 @@ Span-based tokenizer for reliable command extraction:
 - Each command spawns a fresh bash process (no persistent session)
 - Uses `bash -c` for command execution
 - Timeout handling: kills process after timeout (default 60s)
+- Cancellation support: accepts `AbortSignal` option to kill running commands on CTRL+C
 - Properly separates stdout and stderr streams
 - Per-project service caching for consistent interface
 - API: `getShellService(repoRoot, logger)` returns service with `run(command, options)` and `dispose()`
+- Run options: `cwd`, `timeoutMs`, `signal` (AbortSignal for cancellation)
 - `disposeAllShellServices()` cleans up all cached services on exit
 
 ### storage/allowlist.ts
@@ -456,7 +458,9 @@ The provider system prompts now explicitly instruct the LLM to:
 
 ### ui/Composer.tsx
 
-- Multiline input with Ctrl+J for newlines
+- Multiline input with Ctrl+J or Shift+Enter for newlines
+- Paste support: multi-character input and newlines are detected and inserted directly
+- Dynamic height: grows as content is added, reports line count to parent
 - Shows "Ctrl+C to cancel" hint when disabled/waiting
 - Mode cycling with Tab key (when no autocomplete suggestions):
   - Cycles: ask → agent → ask
@@ -739,6 +743,7 @@ Both providers (`anthropic.ts` and `openai.ts`) use identical system prompts wit
 - `<making_code_changes>` - Read before edit, one edit per turn or atomic batch, no large pastes
 - `<debugging>` - Edit only if confident, retry logic (re-read once on mismatch, max 3 lint loops)
 - `<calling_external_apis>` - Only when explicitly requested
+- `<long_running_commands>` - Never start dev servers or processes needing CTRL+C to stop
 
 **Key behaviors enforced:**
 - "If you did not read it, do not claim it exists"
@@ -998,6 +1003,7 @@ The app handles CTRL+C (SIGINT) contextually:
 1. **During processing** (`isProcessing() === true`):
    - Calls `orchestrator.cancel()`
    - Aborts the current AbortController (stops API streaming)
+   - Aborts the shell AbortController (kills any running shell command)
    - Resolves any pending reviews as rejected/denied/cancelled
    - Appends `[Cancelled]` to the assistant's message
    - Returns control to the input field
@@ -1010,8 +1016,10 @@ The app handles CTRL+C (SIGINT) contextually:
 
 Implementation details:
 - `currentAbortController` tracks the active API request
+- `shellAbortController` tracks any running shell command (created per-command)
 - `cancelled` flag checked in conversation loop
 - Provider stream loop checks `signal.aborted` and exits gracefully
+- Shell process killed via `proc.kill()` when abort signal fires
 - Pending write/shell/command reviews auto-resolve on cancel
 
 ### Tool Display Formatting
@@ -1092,8 +1100,9 @@ Terminal (alternate screen)
 
 **State:**
 - `scrollOffset`: lines from bottom (0 = follow mode)
-- `viewportHeight`: terminal rows - composer - status - padding
+- `viewportHeight`: terminal rows - composer - status - padding (dynamic based on composer line count)
 - `viewportWidth`: terminal columns - padding
+- `composerLineCount`: tracked via callback from Composer for dynamic height calculation
 
 **Keyboard:**
 - Up/Down: scroll ±1 line (when composer disabled)

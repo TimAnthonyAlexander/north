@@ -14,6 +14,7 @@ interface ComposerProps {
     commandRegistry?: CommandRegistry;
     mode: Mode;
     onModeChange: (mode: Mode) => void;
+    onLineCountChange?: (lineCount: number) => void;
 }
 
 function insertNewline(value: string, cursorPos: number): { value: string; cursor: number } {
@@ -124,11 +125,17 @@ export function Composer({
     commandRegistry,
     mode,
     onModeChange,
+    onLineCountChange,
 }: ComposerProps) {
     const [value, setValue] = useState("");
     const [cursorPos, setCursorPos] = useState(0);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [showSuggestions, setShowSuggestions] = useState(true);
+
+    useEffect(() => {
+        const lineCount = value.split("\n").length;
+        onLineCountChange?.(lineCount);
+    }, [value, onLineCountChange]);
 
     const suggestionState = useMemo(() => {
         if (!showSuggestions) return null;
@@ -149,6 +156,19 @@ export function Composer({
     useInput(
         (input, key) => {
             if (disabled) return;
+
+            const isPaste =
+                input && (input.length > 1 || input.includes("\n") || input.includes("\r"));
+            if (isPaste) {
+                const normalized = input.replace(/\r\n?/g, "\n");
+                const before = value.slice(0, cursorPos);
+                const after = value.slice(cursorPos);
+                setValue(before + normalized + after);
+                setCursorPos(cursorPos + normalized.length);
+                setShowSuggestions(true);
+                setSelectedIndex(0);
+                return;
+            }
 
             if (key.escape) {
                 if (hasSuggestions) {
@@ -336,7 +356,8 @@ export function Composer({
                 <Box flexDirection="column" flexGrow={1}>
                     {showPlaceholder ? (
                         <Text color="#999999">
-                            Type a message... (Ctrl+J for newline, Tab to switch mode)
+                            Type a message... (Ctrl+J or Shift+Enter for newline, Tab to switch
+                            mode)
                         </Text>
                     ) : (
                         lines.map((line, i) => (

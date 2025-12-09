@@ -10,7 +10,7 @@ export interface ShellRunResult {
 export interface ShellService {
     run(
         command: string,
-        options?: { cwd?: string | null; timeoutMs?: number }
+        options?: { cwd?: string | null; timeoutMs?: number; signal?: AbortSignal }
     ): Promise<ShellRunResult>;
     dispose(): void;
 }
@@ -26,11 +26,16 @@ export function createShellService(options: ShellServiceOptions): ShellService {
     return {
         async run(
             command: string,
-            runOptions?: { cwd?: string | null; timeoutMs?: number }
+            runOptions?: { cwd?: string | null; timeoutMs?: number; signal?: AbortSignal }
         ): Promise<ShellRunResult> {
             const cwd = runOptions?.cwd || repoRoot;
             const timeoutMs = runOptions?.timeoutMs ?? 60000;
+            const signal = runOptions?.signal;
             const startTime = Date.now();
+
+            if (signal?.aborted) {
+                throw new Error("Command cancelled before execution");
+            }
 
             const proc = Bun.spawn(["bash", "-c", command], {
                 cwd,
@@ -41,6 +46,17 @@ export function createShellService(options: ShellServiceOptions): ShellService {
 
             let timeoutId: ReturnType<typeof setTimeout> | null = null;
             let timedOut = false;
+            let cancelled = false;
+
+            const abortHandler = () => {
+                cancelled = true;
+                proc.kill();
+                logger.info("shell_cancelled", { command });
+            };
+
+            if (signal) {
+                signal.addEventListener("abort", abortHandler);
+            }
 
             if (timeoutMs > 0) {
                 timeoutId = setTimeout(() => {
@@ -60,6 +76,13 @@ export function createShellService(options: ShellServiceOptions): ShellService {
                 if (timeoutId) {
                     clearTimeout(timeoutId);
                 }
+                if (signal) {
+                    signal.removeEventListener("abort", abortHandler);
+                }
+
+                if (cancelled) {
+                    throw new Error(`Command cancelled: ${command}`);
+                }
 
                 if (timedOut) {
                     throw new Error(`Command timed out after ${timeoutMs}ms: ${command}`);
@@ -76,6 +99,13 @@ export function createShellService(options: ShellServiceOptions): ShellService {
             } catch (error) {
                 if (timeoutId) {
                     clearTimeout(timeoutId);
+                }
+                if (signal) {
+                    signal.removeEventListener("abort", abortHandler);
+                }
+
+                if (cancelled) {
+                    throw new Error(`Command cancelled: ${command}`);
                 }
 
                 if (timedOut) {

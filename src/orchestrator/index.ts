@@ -266,6 +266,7 @@ export function createOrchestratorWithTools(
     let streamTimer: ReturnType<typeof setTimeout> | null = null;
     let currentAssistantId: string | null = null;
     let currentAbortController: AbortController | null = null;
+    let shellAbortController: AbortController | null = null;
     let cancelled = false;
 
     function emitState() {
@@ -453,11 +454,15 @@ export function createOrchestratorWithTools(
         callbacks.onShellRunStart?.(command, cwdOrUndefined, timeoutOrUndefined);
         const startTime = Date.now();
 
+        shellAbortController = new AbortController();
+        const signal = shellAbortController.signal;
+
         try {
             const shellService = getShellService(context.repoRoot, context.logger);
             const result = await shellService.run(command, {
                 cwd: cwdOrUndefined,
                 timeoutMs: timeoutOrUndefined,
+                signal,
             });
             const durationMs = Date.now() - startTime;
 
@@ -480,7 +485,12 @@ export function createOrchestratorWithTools(
             };
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
+            if (message.includes("cancelled")) {
+                return { ok: false, error: "Command cancelled by user" };
+            }
             return { ok: false, error: message };
+        } finally {
+            shellAbortController = null;
         }
     }
 
@@ -1379,6 +1389,10 @@ Respond with ONLY the JSON, no other text.`;
                 currentAbortController.abort();
             }
 
+            if (shellAbortController) {
+                shellAbortController.abort();
+            }
+
             if (pendingWriteReview) {
                 pendingWriteReview.resolve("reject");
                 pendingWriteReview = null;
@@ -1406,6 +1420,10 @@ Respond with ONLY the JSON, no other text.`;
 
             if (currentAbortController) {
                 currentAbortController.abort();
+            }
+
+            if (shellAbortController) {
+                shellAbortController.abort();
             }
 
             if (pendingWriteReview) {

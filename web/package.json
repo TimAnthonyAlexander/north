@@ -4,14 +4,17 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun --hot src/index.tsx",
+    "dev": "bun --bun vite",
     "build": "bun build src/index.tsx --outdir=dist --target=browser",
-    "start": "bun run dist/index.js"
+    "start": "bun run dist/index.js",
+    "preview": "bun --bun vite preview"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3"
+    "@types/react-dom": "^19.2.3",
+    "vite": "^6.0.1",
+    "@vitejs/plugin-react": "^4.3.4"
   },
   "peerDependencies": {
     "typescript": "^5"

@@ -80,6 +80,7 @@ export function App({
     const [learningPercent, setLearningPercent] = useState(0);
     const [learningTopic, setLearningTopic] = useState("");
     const [scrollOffset, setScrollOffset] = useState(0);
+    const [composerLineCount, setComposerLineCount] = useState(1);
 
     useEffect(() => {
         const orch = createOrchestratorWithTools(
@@ -217,7 +218,8 @@ export function App({
     const composerDisabled = isProcessing || pendingReviewId !== null || learningPromptId !== null;
     const inputActive = !composerDisabled;
 
-    const composerHeight = 5;
+    const composerBaseHeight = 4;
+    const composerHeight = composerBaseHeight + Math.max(1, composerLineCount);
     const statusHeight = 1;
     const paddingHeight = 2;
     const viewportHeight = Math.max(
@@ -268,6 +270,7 @@ export function App({
                     commandRegistry={commandRegistry}
                     mode={nextMode}
                     onModeChange={setNextMode}
+                    onLineCountChange={setComposerLineCount}
                 />
             </Box>
             <Box paddingX={1} marginBottom={1}>

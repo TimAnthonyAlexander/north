@@ -127,7 +127,14 @@ The conversation may include extra context (recent files, edits, errors, tool re
 <calling_external_apis>
 1. Never make external API calls unless explicitly requested by the user.
 2. Use shell tools only for commands the user has approved or requested.
-</calling_external_apis>`;
+</calling_external_apis>
+
+<long_running_commands>
+1. NEVER start development servers, watchers, or any long-running processes via shell (npm run dev, yarn start, python manage.py runserver, etc.).
+2. NEVER run commands that require CTRL+C or user interrupt to stop—they will stall the conversation indefinitely.
+3. If the user asks to start a server, explain they should run it manually in a separate terminal.
+4. Acceptable: build commands, test runs (with timeout), install commands, one-shot scripts.
+</long_running_commands>`;
 
 export function createProvider(options?: { model?: string }): Provider {
     const client = new Anthropic({
