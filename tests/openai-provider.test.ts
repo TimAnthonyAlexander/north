@@ -28,8 +28,12 @@ describe("OpenAI Provider", () => {
             expect(result[0].type).toBe("function");
             expect(result[0].name).toBe("read_file");
             expect(result[0].description).toBe("Read a file from the repository");
-            expect(result[0].parameters).toEqual(tools[0].input_schema);
-            expect(result[0].strict).toBe(true);
+            expect(result[0]).not.toHaveProperty("strict");
+
+            const params = result[0].parameters as Record<string, unknown>;
+            expect(params.type).toBe("object");
+            expect(params.required).toEqual(["path"]);
+            expect(params.additionalProperties).toBe(false);
         });
 
         test("name is at top level, not nested under function property", () => {
@@ -88,7 +92,7 @@ describe("OpenAI Provider", () => {
             expect(result.map((t) => t.name)).toEqual(["list_root", "search_text", "shell_run"]);
             result.forEach((tool) => {
                 expect(tool.type).toBe("function");
-                expect(tool.strict).toBe(true);
+                expect(tool).not.toHaveProperty("strict");
                 expect(tool).toHaveProperty("name");
                 expect(tool).toHaveProperty("description");
                 expect(tool).toHaveProperty("parameters");
@@ -98,6 +102,97 @@ describe("OpenAI Provider", () => {
         test("empty tools array returns empty array", () => {
             const result = convertToolsToOpenAI([]);
             expect(result).toEqual([]);
+        });
+
+        test("adds additionalProperties:false for object schemas", () => {
+            const tools: ToolSchema[] = [
+                {
+                    name: "list_root",
+                    description: "List root",
+                    input_schema: { type: "object", properties: {} },
+                },
+            ];
+
+            const [result] = convertToolsToOpenAI(tools);
+            const params = result.parameters as Record<string, unknown>;
+
+            expect(params.additionalProperties).toBe(false);
+            expect(params).not.toHaveProperty("required");
+        });
+
+        test("does not auto-generate required array (allows optional fields)", () => {
+            const tools: ToolSchema[] = [
+                {
+                    name: "read_file",
+                    description: "Read a file",
+                    input_schema: {
+                        type: "object",
+                        properties: {
+                            path: { type: "string", description: "File path" },
+                            range: { type: "object", description: "Line range" },
+                        },
+                    },
+                },
+            ];
+
+            const [result] = convertToolsToOpenAI(tools);
+            const params = result.parameters as Record<string, unknown>;
+
+            expect(params.additionalProperties).toBe(false);
+            expect(params).not.toHaveProperty("required");
+        });
+
+        test("preserves existing required array as authored", () => {
+            const tools: ToolSchema[] = [
+                {
+                    name: "search_text",
+                    description: "Search for text",
+                    input_schema: {
+                        type: "object",
+                        properties: {
+                            query: { type: "string", description: "Search query" },
+                            limit: { type: "number", description: "Max results" },
+                        },
+                        required: ["query"],
+                    },
+                },
+            ];
+
+            const [result] = convertToolsToOpenAI(tools);
+            const params = result.parameters as Record<string, unknown>;
+
+            expect(params.additionalProperties).toBe(false);
+            expect(params.required).toEqual(["query"]);
+        });
+
+        test("normalizes nested object schemas recursively", () => {
+            const tools: ToolSchema[] = [
+                {
+                    name: "edit_file",
+                    description: "Edit a file",
+                    input_schema: {
+                        type: "object",
+                        properties: {
+                            path: { type: "string", description: "File path" },
+                            options: {
+                                type: "object",
+                                properties: {
+                                    overwrite: { type: "boolean", description: "Overwrite" },
+                                },
+                            },
+                        },
+                    },
+                },
+            ];
+
+            const [result] = convertToolsToOpenAI(tools);
+            const params = result.parameters as Record<string, unknown>;
+            const props = params.properties as Record<string, Record<string, unknown>>;
+            const nestedOptions = props.options;
+
+            expect(params.additionalProperties).toBe(false);
+            expect(nestedOptions.additionalProperties).toBe(false);
+            expect(nestedOptions).not.toHaveProperty("required");
         });
 
         test("produces valid OpenAI Responses API tool format", () => {
@@ -117,15 +212,15 @@ describe("OpenAI Provider", () => {
 
             const [result] = convertToolsToOpenAI([tool]);
 
-            const expectedShape: OpenAITool = {
-                type: "function",
-                name: "edit_replace_exact",
-                description: "Replace exact text in a file",
-                parameters: tool.input_schema,
-                strict: true,
-            };
+            expect(result.type).toBe("function");
+            expect(result.name).toBe("edit_replace_exact");
+            expect(result.description).toBe("Replace exact text in a file");
+            expect(result).not.toHaveProperty("strict");
 
-            expect(result).toEqual(expectedShape);
+            const params = result.parameters as Record<string, unknown>;
+            expect(params.type).toBe("object");
+            expect(params.required).toEqual(["path", "old", "new"]);
+            expect(params.additionalProperties).toBe(false);
         });
     });
 

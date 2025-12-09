@@ -30,7 +30,6 @@ export interface OpenAITool {
     name: string;
     description?: string;
     parameters: unknown;
-    strict?: boolean;
 }
 
 interface OpenAIOutputItem {
@@ -126,13 +125,39 @@ The conversation may include extra context (recent files, edits, errors, tool re
 2. Use shell tools only for commands the user has approved or requested.
 </calling_external_apis>`;
 
+function normalizeForOpenAITools(schema: unknown): unknown {
+    if (!schema || typeof schema !== "object") return schema;
+    if (Array.isArray(schema)) return schema.map(normalizeForOpenAITools);
+
+    const s = schema as Record<string, unknown>;
+
+    if (s.type === "object" || "properties" in s) {
+        const props = (s.properties ?? {}) as Record<string, unknown>;
+        const normalizedProps: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(props)) {
+            normalizedProps[k] = normalizeForOpenAITools(v);
+        }
+        return {
+            ...s,
+            type: "object",
+            properties: normalizedProps,
+            additionalProperties: false,
+        };
+    }
+
+    if (s.type === "array" && s.items) {
+        return { ...s, items: normalizeForOpenAITools(s.items) };
+    }
+
+    return s;
+}
+
 export function convertToolsToOpenAI(tools: ToolSchema[]): OpenAITool[] {
     return tools.map((t) => ({
         type: "function" as const,
         name: t.name,
         description: t.description,
-        parameters: t.input_schema,
-        strict: true,
+        parameters: normalizeForOpenAITools(t.input_schema),
     }));
 }
 
