@@ -27,6 +27,10 @@ export function isRetryableError(error: Error): boolean {
         return true;
     }
 
+    if (/incomplete.*tool.*call|possible.*timeout/i.test(message)) {
+        return true;
+    }
+
     return false;
 }
 

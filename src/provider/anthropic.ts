@@ -109,6 +109,11 @@ The conversation may include extra context (recent files, edits, errors, tool re
 4. Plan briefly, then execute one coherent edit per turn. For multiple related changes, use a single atomic batch edit.
 5. Changes must be runnable immediately: ensure imports, wiring, and config updates are included.
 6. Only do the user's requested edits. Do not overcompensate if something goes wrong.
+7. Prefer surgical, targeted edits over large rewrites. Make multiple small edits rather than one massive change.
+8. When creating new files:
+   - For files over 200 lines, create the skeleton/structure first, then add content in subsequent edits
+   - Use edit_apply_batch to group related small edits atomically
+9. Avoid generating more than 300 lines of content in a single tool call. Break larger content into logical chunks.
 </making_code_changes>
 
 <debugging>
@@ -125,7 +130,9 @@ The conversation may include extra context (recent files, edits, errors, tool re
 </calling_external_apis>`;
 
 export function createProvider(options?: { model?: string }): Provider {
-    const client = new Anthropic();
+    const client = new Anthropic({
+        timeout: 10 * 60 * 1000,
+    });
     const defaultModel = options?.model || "claude-sonnet-4-20250514";
 
     return {
@@ -218,6 +225,10 @@ export function createProvider(options?: { model?: string }): Provider {
                             stopReason = event.delta.stop_reason;
                         }
                     }
+                }
+
+                if (currentToolId && currentToolName) {
+                    throw new Error("Stream ended with incomplete tool call - possible timeout");
                 }
 
                 callbacks.onComplete({ text: fullText, toolCalls, stopReason });

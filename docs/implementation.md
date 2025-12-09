@@ -746,6 +746,9 @@ Both providers (`anthropic.ts` and `openai.ts`) use identical system prompts wit
 - Describe actions in natural language ("I'll search the repo") not tool names
 - Plan briefly, then execute one coherent edit per turn
 - Retry once on edit mismatch, then ask for clarification
+- Prefer surgical edits over large rewrites; break large content into chunks
+- For new files >200 lines: create skeleton first, then add content in subsequent edits
+- Avoid generating >300 lines in a single tool call
 
 ### Mode System
 
@@ -825,11 +828,22 @@ The orchestrator automatically retries API requests that fail due to transient e
 - Network errors: ECONNREFUSED, ECONNRESET, ETIMEDOUT, ENETUNREACH, socket hang up, fetch failed
 - Rate limits: HTTP 429, "rate limit", "too many requests"
 - Server errors: HTTP 5xx, "overloaded", "service unavailable", "internal server error"
+- Incomplete streams: "incomplete tool call", "possible timeout" (stream ended mid-tool-generation)
 
 **Non-retryable errors (fail immediately):**
 - Authentication errors (401, 403)
 - Bad request errors (400)
 - Cancellation/abort
+
+**API Request Timeout:**
+- Both providers configured with 10-minute timeout for large responses
+- Anthropic: `timeout` option passed to SDK client constructor
+- OpenAI: `AbortSignal.timeout()` combined with user abort signal via `AbortSignal.any()`
+
+**Incomplete Stream Detection:**
+- Anthropic: If `currentToolId` is set when stream ends, throws error (tool was mid-generation)
+- OpenAI: If `stopReason === null` and `toolCallsInProgress` has entries, throws error
+- These errors are detected by `isRetryableError()` and trigger automatic retry
 
 **Retry behavior:**
 - Maximum 3 retry attempts per conversation turn
