@@ -241,81 +241,242 @@ function App() {
               </Button>
             </Stack>
 
-            {/* Key Stats */}
-            <Grid container spacing={2} justifyContent="center">
-              <Grid item xs={12} sm={4}>
-                <Chip 
-                  label="99.3% Edit Success Rate" 
-                  color="primary" 
-                  sx={{ 
-                    py: 2, 
-                    px: 4, 
-                    fontSize: '0.9rem', 
-                    fontWeight: 600,
-                    width: '100%',
-                    maxWidth: '280px'
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Chip 
-                  label="200K Context Window" 
-                  color="secondary" 
-                  sx={{ 
-                    py: 2, 
-                    px: 4, 
-                    fontSize: '0.9rem', 
-                    fontWeight: 600,
-                    width: '100%',
-                    maxWidth: '280px'
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Chip 
-                  label="Terminal Native" 
-                  sx={{ 
-                    py: 2, 
-                    px: 4, 
-                    fontSize: '0.9rem', 
-                    fontWeight: 600,
-                    bgcolor: '#ff9800',
-                    color: 'white',
-                    width: '100%',
-                    maxWidth: '280px'
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
-        </Container>
+            {/* Hypermodern Stats & Features */}
+            <Box sx={{ 
+              mt: 6, 
+              py: 8, 
+              background: 'linear-gradient(135deg, rgba(30, 136, 229, 0.03) 0%, rgba(0, 230, 118, 0.03) 100%)',
+              borderRadius: 3,
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <Typography 
+                variant="h2" 
+                sx={{ 
+                  textAlign: 'center', 
+                  mb: 2, 
+                  background: 'linear-gradient(135deg, #1e88e5 0%, #00e676 100%)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontSize: { xs: '2rem', md: '3rem' },
+                  fontWeight: 800,
+                  letterSpacing: '-0.02em'
+                }}
+              >
+                Why North?
+              </Typography>
+              
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  textAlign: 'center', 
+                  mb: 8, 
+                  color: 'text.secondary',
+                  maxWidth: '600px',
+                  mx: 'auto',
+                  fontWeight: 300,
+                  fontSize: { xs: '1.1rem', md: '1.3rem' }
+                }}
+              >
+                The first AI coding assistant built for production reality
+              </Typography>
 
-        {/* Features Grid */}
-        <Container maxWidth="lg" sx={{ pb: 8 }}>
-          <Typography variant="h2" sx={{ textAlign: 'center', mb: 6, color: 'primary.main' }}>
-            Why North?
-          </Typography>
-          <Grid container spacing={4}>
-            {features.map((feature, index) => (
-              <Grid item xs={12} md={6} key={index}>
-                <Card sx={{ height: '100%', p: 3 }}>
-                  <CardContent sx={{ p: 0 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <Avatar sx={{ bgcolor: feature.color, mr: 2, width: 48, height: 48 }}>
-                        {feature.icon}
-                      </Avatar>
-                      <Typography variant="h6" component="h3" sx={{ fontWeight: 600 }}>
-                        {feature.title}
+              {/* Feature Highlights */}
+              <Box sx={{ maxWidth: '1000px', mx: 'auto' }}>
+                <Grid container spacing={6}>
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ 
+                      pl: { xs: 0, md: 4 }, 
+                      borderLeft: { xs: 'none', md: '4px solid #1e88e5' },
+                      position: 'relative'
+                    }}>
+                      <Box sx={{ 
+                        position: { xs: 'static', md: 'absolute' },
+                        left: { xs: 0, md: -14 },
+                        top: -2,
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        bgcolor: '#1e88e5',
+                        display: { xs: 'none', md: 'block' }
+                      }} />
+                      <Typography variant="h4" sx={{ 
+                        fontWeight: 700, 
+                        mb: 3,
+                        color: '#1e88e5',
+                        fontSize: '1.5rem'
+                      }}>
+                        One-Shot Production Code
                       </Typography>
+                      <Typography variant="body1" sx={{ 
+                        color: 'text.primary', 
+                        lineHeight: 1.7,
+                        mb: 3,
+                        fontSize: '1.1rem'
+                      }}>
+                        Complex React components, full API endpoints, beautiful landing pages—built in a single pass. 
+                        No scaffolding, no iterations, no "let me fix that."
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        <Chip label="React" size="small" sx={{ bgcolor: 'rgba(30, 136, 229, 0.1)', color: '#1e88e5' }} />
+                        <Chip label="TypeScript" size="small" sx={{ bgcolor: 'rgba(30, 136, 229, 0.1)', color: '#1e88e5' }} />
+                        <Chip label="APIs" size="small" sx={{ bgcolor: 'rgba(30, 136, 229, 0.1)', color: '#1e88e5' }} />
+                      </Box>
                     </Box>
-                    <Typography variant="body1" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
-                      {feature.description}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ 
+                      pl: { xs: 0, md: 4 }, 
+                      borderLeft: { xs: 'none', md: '4px solid #00e676' },
+                      position: 'relative'
+                    }}>
+                      <Box sx={{ 
+                        position: { xs: 'static', md: 'absolute' },
+                        left: { xs: 0, md: -14 },
+                        top: -2,
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        bgcolor: '#00e676',
+                        display: { xs: 'none', md: 'block' }
+                      }} />
+                      <Typography variant="h4" sx={{ 
+                        fontWeight: 700, 
+                        mb: 3,
+                        color: '#00e676',
+                        fontSize: '1.5rem'
+                      }}>
+                        Direct API Access
+                      </Typography>
+                      <Typography variant="body1" sx={{ 
+                        color: 'text.primary', 
+                        lineHeight: 1.7,
+                        mb: 3,
+                        fontSize: '1.1rem'
+                      }}>
+                        Bring your own API key. No middleman pricing, no usage caps, no daily limits. 
+                        You pay Anthropic/OpenAI directly at cost.
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        <Chip label="Claude" size="small" sx={{ bgcolor: 'rgba(0, 230, 118, 0.1)', color: '#00e676' }} />
+                        <Chip label="GPT" size="small" sx={{ bgcolor: 'rgba(0, 230, 118, 0.1)', color: '#00e676' }} />
+                        <Chip label="No Limits" size="small" sx={{ bgcolor: 'rgba(0, 230, 118, 0.1)', color: '#00e676' }} />
+                      </Box>
+                    </Box>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ 
+                      pl: { xs: 0, md: 4 }, 
+                      borderLeft: { xs: 'none', md: '4px solid #9c27b0' },
+                      position: 'relative'
+                    }}>
+                      <Box sx={{ 
+                        position: { xs: 'static', md: 'absolute' },
+                        left: { xs: 0, md: -14 },
+                        top: -2,
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        bgcolor: '#9c27b0',
+                        display: { xs: 'none', md: 'block' }
+                      }} />
+                      <Typography variant="h4" sx={{ 
+                        fontWeight: 700, 
+                        mb: 3,
+                        color: '#9c27b0',
+                        fontSize: '1.5rem'
+                      }}>
+                        Intelligent Context
+                      </Typography>
+                      <Typography variant="body1" sx={{ 
+                        color: 'text.primary', 
+                        lineHeight: 1.7,
+                        mb: 3,
+                        fontSize: '1.1rem'
+                      }}>
+                        Visual context indicators (🟢🟡🔴) with auto-summarization at 92% usage. 
+                        Never lose context, never hit limits unexpectedly.
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        <Chip label="Real-time" size="small" sx={{ bgcolor: 'rgba(156, 39, 176, 0.1)', color: '#9c27b0' }} />
+                        <Chip label="Auto-compress" size="small" sx={{ bgcolor: 'rgba(156, 39, 176, 0.1)', color: '#9c27b0' }} />
+                        <Chip label="Visual" size="small" sx={{ bgcolor: 'rgba(156, 39, 176, 0.1)', color: '#9c27b0' }} />
+                      </Box>
+                    </Box>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ 
+                      pl: { xs: 0, md: 4 }, 
+                      borderLeft: { xs: 'none', md: '4px solid #f44336' },
+                      position: 'relative'
+                    }}>
+                      <Box sx={{ 
+                        position: { xs: 'static', md: 'absolute' },
+                        left: { xs: 0, md: -14 },
+                        top: -2,
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        bgcolor: '#f44336',
+                        display: { xs: 'none', md: 'block' }
+                      }} />
+                      <Typography variant="h4" sx={{ 
+                        fontWeight: 700, 
+                        mb: 3,
+                        color: '#f44336',
+                        fontSize: '1.5rem'
+                      }}>
+                        Model Switching
+                      </Typography>
+                      <Typography variant="body1" sx={{ 
+                        color: 'text.primary', 
+                        lineHeight: 1.7,
+                        mb: 3,
+                        fontSize: '1.1rem'
+                      }}>
+                        Switch between Claude and GPT models on the fly. Session state persists. 
+                        Use the best model for each task without starting over.
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        <Chip label="Sonnet" size="small" sx={{ bgcolor: 'rgba(244, 67, 54, 0.1)', color: '#f44336' }} />
+                        <Chip label="Opus" size="small" sx={{ bgcolor: 'rgba(244, 67, 54, 0.1)', color: '#f44336' }} />
+                        <Chip label="GPT-4" size="small" sx={{ bgcolor: 'rgba(244, 67, 54, 0.1)', color: '#f44336' }} />
+                      </Box>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {/* Decorative Elements */}
+              <Box sx={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: 200,
+                height: 200,
+                background: 'radial-gradient(circle, rgba(30, 136, 229, 0.05) 0%, transparent 70%)',
+                borderRadius: '50%',
+                transform: 'translate(50%, -50%)',
+                zIndex: -1
+              }} />
+              <Box sx={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                width: 150,
+                height: 150,
+                background: 'radial-gradient(circle, rgba(0, 230, 118, 0.05) 0%, transparent 70%)',
+                borderRadius: '50%',
+                transform: 'translate(-50%, 50%)',
+                zIndex: -1
+              }} />
+            </Box>
+          </Box>
         </Container>
 
         {/* Modes Section */}
