@@ -16,7 +16,7 @@ An AI pair programmer that lives in your terminal. Supports Claude (Anthropic) a
 
 **Direct API access.** You bring your own API key (Anthropic or OpenAI). No middleman pricing, no usage caps, no "you've hit your daily limit." Pay only for what you use at provider rates.
 
-**200K context that manages itself.** Auto-summarization kicks in at 92% context usage, compressing conversation history into structured summaries. No manual context pruning, no "start a new chat" interruptions.
+**200K context that manages itself.** Real-time context tracking with visual indicators (🟢 green < 60%, 🟡 yellow 60-85%, 🔴 red > 85%). Auto-summarization kicks in at 92% context usage, compressing conversation history into structured summaries while preserving recent messages. No manual context pruning, no "start a new chat" interruptions.
 
 **Terminal-native speed.** No Electron overhead, no browser tabs, no VS Code plugin lifecycle. North launches instantly and runs lean.
 
@@ -37,6 +37,8 @@ An AI pair programmer that lives in your terminal. Supports Claude (Anthropic) a
 
 - **Ask Mode** (`Tab` to toggle): Read-only exploration. Claude can search, read files, and analyze—but can't modify anything. Perfect for understanding unfamiliar codebases.
 - **Agent Mode**: Full access to edit and shell tools. Claude proposes, you approve.
+
+The status line shows your current mode with a color-coded badge: **[ASK]** in blue, **[AGENT]** in green. Context usage appears on the right with a real-time percentage meter.
 
 ### Intelligent Approvals
 
@@ -79,14 +81,16 @@ Drop your `.cursor/rules/*.mdc` files in and North automatically loads them. Sam
 
 ### Slash Commands
 
-| Command | Description |
-|---------|-------------|
-| `/model [name]` | Switch model (Claude or GPT) |
-| `/mode [ask\|agent]` | Switch conversation mode |
-| `/summarize` | Compress conversation history |
-| `/new` | Start fresh conversation |
-| `/help` | List all commands |
-| `/quit` | Exit North |
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `/model [name]` | `/model opus-4.5` or `/model` | Switch model (shows picker if no argument). Supports all Anthropic and OpenAI models. Selection persists across sessions. |
+| `/mode [ask\|agent]` | `/mode ask` or `/mode` | Switch conversation mode (shows picker if no argument). Also toggleable via `Tab` key. |
+| `/summarize [--keep-last N]` | `/summarize --keep-last 10` | Compress conversation history into structured summary, keeping last N messages verbatim (default: 10). |
+| `/new` | `/new` | Start fresh conversation (clears transcript and summary, preserves shell session). |
+| `/help` | `/help` | List all available commands with descriptions. |
+| `/quit` | `/quit` | Exit North cleanly. |
+
+Commands can be mixed with regular messages: `/model sonnet-4 Can you help me refactor this?`
 
 ## Install
 
@@ -135,50 +139,127 @@ bun run build:binary:mac-x64      # Intel Mac
 bun run build:binary:linux        # Linux x64
 ```
 
-## Input
+## Input & Keyboard Shortcuts
 
-`Enter` sends your message. `Shift+Enter` or `Ctrl+J` adds a newline. `Tab` cycles modes (when not autocompleting).
+### Composer
+
+- `Enter` — Send message
+- `Shift+Enter` or `Ctrl+J` — Add newline
+- `Tab` — Cycle modes (ask → agent) or accept autocomplete suggestion
+- `Up/Down` — Navigate autocomplete suggestions
+- `Esc` — Close autocomplete
+- `Ctrl+C` — Cancel operation (when processing) or exit (when idle)
+
+### Review Prompts
+
+**Diff Review (file edits):**
+- `a` — Accept this edit only
+- `y` — Always (enable auto-accept for all future edits)
+- `r` — Reject this edit
+
+**Shell Review (commands):**
+- `r` — Run this command once
+- `a` — Always (add to allowlist, no future prompts)
+- `d` — Deny this command
+
+**Command Review (e.g., model selection):**
+- `Up/Down` — Navigate options
+- `Enter` — Select
+- `Esc` — Cancel
 
 ## Tools
 
-**Read/search (auto-approved):**
-`list_root`, `find_files`, `search_text`, `read_file`, `read_readme`, `detect_languages`, `hotfiles`
+### Read & Navigation (auto-approved)
 
-**Edit (requires approval):**
-`edit_replace_exact`, `edit_insert_at_line`, `edit_create_file`, `edit_apply_batch`
+| Tool | Purpose |
+|------|---------|
+| `list_root` | List repository root entries |
+| `find_files` | Search files by glob pattern (e.g., `*.tsx`, `**/*.test.ts`) |
+| `search_text` | Text/regex search with ripgrep acceleration. Supports file+lineRange scoping |
+| `read_file` | Read file content with line ranges and smart context modes (imports/full) |
+| `get_line_count` | Quick file size check before reading large files |
+| `get_file_symbols` | Extract symbols (functions, classes, types) without reading full file |
+| `get_file_outline` | Hierarchical structure outline with line ranges |
+| `read_readme` | Auto-detect and read README files |
+| `detect_languages` | Analyze language composition by extension and size |
+| `hotfiles` | Find frequently modified files via git history |
 
-**Shell (requires approval):**
-`shell_run`
+### Large File Navigation Strategy
+
+North includes specialized tools for efficiently navigating large files without reading entire contents:
+
+1. **Check size first** with `get_line_count` to determine if special handling is needed
+2. **Understand structure** using `get_file_symbols` (functions, classes) or `get_file_outline` (hierarchical view)
+3. **Find targets** with `search_text` scoped to specific files and line ranges
+4. **Read strategically** using `read_file` with targeted line ranges and optional context modes
+
+This approach reduces token usage by 60-80% when working with large files.
+
+### Edit Tools (require approval)
+
+| Tool | Purpose |
+|------|---------|
+| `edit_replace_exact` | Replace exact text matches (deterministic, no fuzzy matching) |
+| `edit_insert_at_line` | Insert content at specific line number |
+| `edit_create_file` | Create new files or overwrite existing ones |
+| `edit_apply_batch` | Apply multiple edits atomically (all-or-nothing) |
+
+### Shell Tool (requires approval)
+
+| Tool | Purpose |
+|------|---------|
+| `shell_run` | Execute shell commands with 60s timeout. Build an allowlist to skip approval prompts for trusted commands |
 
 All tools respect `.gitignore`. Output is automatically truncated to prevent context overflow.
 
 ## Storage
 
-Project config lives in `.north/` at your repo root:
-- `allowlist.json` — pre-approved shell commands
-- `autoaccept.json` — auto-accept edit settings
+**Global config** (`~/.config/north/config.json`):
+- `selectedModel` — persisted model selection across sessions
 
-Logs: `~/.local/state/north/north.log` (JSON-lines format)
+**Project config** (`.north/` at your repo root):
+- `allowlist.json` — pre-approved shell commands
+- `autoaccept.json` — auto-accept edit settings (press `y` in any diff review to enable)
+
+**Logs:** `~/.local/state/north/north.log` (JSON-lines format)
 
 ## Troubleshooting
 
-**Search is slow?** Install ripgrep: `brew install ripgrep` or `apt install ripgrep`
+**Search is slow?** Install ripgrep for 10-100x faster searches: `brew install ripgrep` or `apt install ripgrep`. North falls back to pure JS implementation if ripgrep isn't available.
 
-**Edit tool fails?** It requires exact text matches including whitespace. Claude will re-read and retry—usually self-corrects.
+**Edit tool fails?** North's edit tools require exact text matches including whitespace. Claude will re-read the file and retry—usually self-corrects within 1-2 attempts.
 
-**Command hangs?** There's a 60s timeout. The shell session recreates automatically.
+**Shell command times out?** Commands have a 60-second timeout by default. Each command runs in a fresh bash process using Bun's built-in `Bun.spawn()` API.
+
+**Context overflow?** Auto-summarization triggers at 92% context usage. You can also manually run `/summarize` to compress the conversation history at any time.
+
+**Model not available?** Ensure you've set the correct API key:
+- Claude models require `ANTHROPIC_API_KEY`
+- GPT models require `OPENAI_API_KEY`
 
 ## Development
 
 ```bash
-bun run dev                    # run
+bun run dev                    # run North in development
 bun run dev --log-level debug  # verbose logging
-bun run build                  # build JS
-bun run typecheck              # type check
-bun run check                  # all checks (typecheck + lint + format)
+bun run build                  # build JS bundle
+bun run typecheck              # TypeScript type checking
+bun run lint                   # ESLint linting
+bun run lint:fix               # ESLint with auto-fix
+bun run format                 # Format code with Prettier
+bun run format:check           # Check Prettier formatting
+bun run check                  # all checks (typecheck + lint + format:check)
+bun test                       # run test suite
+bun test --watch               # run tests in watch mode
 ```
 
-Architecture: [docs/implementation.md](docs/implementation.md)
+**Code Quality:**
+- ESLint with TypeScript, React, and React Hooks plugins
+- Prettier with 4-space indentation, double quotes, semicolons
+- Pre-commit hooks (type check + lint + format verification)
+- Enable hooks: `bun run prepare` or `git config core.hooksPath .githooks`
+
+**Architecture:** [docs/implementation.md](docs/implementation.md)
 
 ## Privacy
 
