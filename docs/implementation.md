@@ -76,7 +76,7 @@ src/
 │   └── shell_run.ts      # Shell command execution (requires approval)
 ├── ui/
 │   ├── App.tsx            # Root Ink component, SIGINT handling, review wiring
-│   ├── Composer.tsx       # Multiline input with slash command autocomplete
+│   ├── Composer.tsx       # Multiline input with slash command and @ file autocomplete
 │   ├── CommandReview.tsx  # Interactive picker for commands (e.g., model selection)
 │   ├── DiffReview.tsx     # Inline diff viewer with accept/reject
 │   ├── ShellReview.tsx    # Shell command approval with run/always/deny
@@ -89,7 +89,9 @@ src/
     ├── ignore.ts         # Gitignore parsing and file walking
     ├── editing.ts        # Diff computation and atomic file writes
     ├── tokens.ts         # Token estimation for context tracking
-    └── retry.ts          # Transient error retry with exponential backoff
+    ├── retry.ts          # Transient error retry with exponential backoff
+    ├── fileindex.ts      # File index for @ mention autocomplete
+    └── filepreview.ts    # File preview + outline generation for context
 
 tests/
 └── openai-provider.test.ts  # OpenAI provider unit tests
@@ -475,6 +477,14 @@ The provider system prompts now explicitly instruct the LLM to:
 - Model argument autocomplete for `/model` command:
   - Detects when cursor follows `/model `
   - Shows model aliases with display names
+- File mention autocomplete with `@`:
+  - Detects `@` tokens at cursor position
+  - Fuzzy matches against project files (respecting .gitignore)
+  - Shows dropdown with filename + full path hint
+  - Tab/Enter to attach file, Space/Esc to cancel (treat @ as literal)
+  - Attached files tracked in component state
+  - Visual indicator shows count of attached files
+  - On submit, attached files passed to orchestrator for context injection
 - Smart space insertion: only adds space after completion if needed
 - Clamps selection index when suggestions change
 
@@ -550,6 +560,27 @@ Token estimation for context tracking:
 - Applies 10% safety margin to reduce overflow risk
 - Returns structured breakdown: system, messages, overhead
 - Handles both string and structured message content (tool results, etc.)
+
+### utils/fileindex.ts
+
+File index for @ mention autocomplete in Composer:
+- `getFileIndex(repoRoot)`: returns cached list of all non-ignored files
+- Uses `walkDirectory()` from `ignore.ts` with 5000 file cap
+- `fuzzyMatchFiles(query, files, limit)`: fuzzy match files against query
+- Scoring: exact filename > prefix match > contains > subsequence
+- Cache per repoRoot for performance
+- `clearFileIndexCache(repoRoot?)`: clear cache when needed
+
+### utils/filepreview.ts
+
+File preview generation for attached file context:
+- `generateFilePreview(repoRoot, filePath)`: returns preview + outline
+- Preview: first 30 lines or 2KB (whichever is smaller)
+- Outline: extracted symbols (functions, classes, types) with line numbers
+- Supports TypeScript/JavaScript and Python symbol extraction
+- `formatAttachedFilesContext(repoRoot, filePaths)`: formats multiple files for injection
+- Output format: markdown with code blocks and symbol outlines
+- Limited to 15 symbols per file with "more" indicator
 
 ## Data Flow
 
@@ -895,6 +926,58 @@ When Claude requests `shell_run` (approvalPolicy: "shell"):
 14. Claude continues processing
 
 **Approval Priority:** Global auto-approve (step 1) takes precedence over command allowlist (step 3). Once auto-approve is enabled, all commands run automatically without checking the allowlist.
+
+### File Mentions (@ Autocomplete)
+
+North supports `@` file mentions similar to Cursor and Claude Code. Users can attach files to their messages for automatic context injection.
+
+**User Flow:**
+1. User types `@` in the Composer
+2. Autocomplete shows fuzzy-matched project files (respecting .gitignore)
+3. User can:
+   - **Tab/Enter**: Accept suggestion, file becomes attached
+   - **Space/Escape**: Dismiss autocomplete, `@` treated as literal text
+4. Attached files shown as badge in Composer (e.g., "📎 2 files attached")
+5. On message submit, attached files passed to orchestrator
+
+**Context Injection:**
+1. Orchestrator receives `attachedFiles: string[]` in `sendMessage()`
+2. In `buildMessagesForClaude()`, attached files injected as context block
+3. Position: after cursor rules, after project profile, before rolling summary
+4. Format per file:
+   - Markdown header with file path
+   - Code block with first 30 lines (or 2KB)
+   - Symbol outline (functions, classes, types with line numbers)
+
+**Example Injected Context:**
+```
+# Attached Files
+
+## src/ui/Composer.tsx
+
+```typescript
+import React, { useState, useMemo, useEffect } from "react";
+import { Box, Text, useInput } from "ink";
+... [27 more lines]
+```
+
+**Outline (Composer.tsx):**
+- interface Suggestion (line 7)
+- interface ComposerProps (line 14)
+- function Composer (line 197)
+```
+
+**File Index:**
+- Built lazily on first `@` autocomplete
+- Cached per repoRoot for performance
+- Respects .gitignore via `walkDirectory()`
+- Capped at 5000 files
+
+**Fuzzy Matching:**
+- Exact filename matches score highest
+- Prefix matches score next
+- Subsequence matching for partial queries
+- Results sorted by score, limited to 10 suggestions
 
 ### Cursor Rules Loading
 

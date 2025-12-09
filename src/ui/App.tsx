@@ -149,10 +149,10 @@ export function App({
         }
     });
 
-    function handleSubmit(content: string) {
+    function handleSubmit(content: string, attachedFiles: string[]) {
         if (!orchestrator) return;
         onUserPrompt(content.length);
-        void orchestrator.sendMessage(content, nextMode);
+        void orchestrator.sendMessage(content, nextMode, attachedFiles);
     }
 
     function handleAcceptReview(entryId: string) {
@@ -269,6 +269,7 @@ export function App({
                     mode={nextMode}
                     onModeChange={setNextMode}
                     onLineCountChange={setComposerLineCount}
+                    repoRoot={projectPath}
                 />
             </Box>
             <Box paddingX={1} marginBottom={1}>

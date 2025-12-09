@@ -33,6 +33,7 @@ import { getSavedModel } from "../storage/config";
 import { estimatePromptTokens } from "../utils/tokens";
 import { isRetryableError, calculateBackoff, sleep, DEFAULT_RETRY_CONFIG } from "../utils/retry";
 import { runLearningSession } from "../profile/learn";
+import { formatAttachedFilesContext } from "../utils/filepreview";
 import * as path from "node:path";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "auto" | "denied";
@@ -128,7 +129,7 @@ export type WriteDecision = "accept" | "always" | "reject";
 export type LearningDecision = "accept" | "decline";
 
 export interface Orchestrator {
-    sendMessage(content: string, mode: Mode): Promise<void>;
+    sendMessage(content: string, mode: Mode, attachedFiles?: string[]): Promise<void>;
     resolveWriteReview(reviewId: string, decision: WriteDecision): void;
     resolveShellReview(reviewId: string, decision: ShellDecision): void;
     resolveCommandReview(reviewId: string, decision: CommandDecision): void;
@@ -268,6 +269,7 @@ export function createOrchestratorWithTools(
     let currentAbortController: AbortController | null = null;
     let shellAbortController: AbortController | null = null;
     let cancelled = false;
+    let currentAttachedFiles: string[] = [];
 
     function emitState() {
         callbacks.onStateChange({
@@ -350,6 +352,24 @@ export function createOrchestratorWithTools(
                 content:
                     "I understand this project profile and will use it as context for our conversation.",
             });
+        }
+
+        if (currentAttachedFiles.length > 0) {
+            const attachedContext = formatAttachedFilesContext(
+                context.repoRoot,
+                currentAttachedFiles
+            );
+            if (attachedContext) {
+                messages.push({
+                    role: "user",
+                    content: attachedContext,
+                });
+                messages.push({
+                    role: "assistant",
+                    content:
+                        "I see the attached files. I'll reference them as needed in my response.",
+                });
+            }
         }
 
         if (rollingSummary) {
@@ -1333,11 +1353,12 @@ Respond with ONLY the JSON, no other text.`;
     emitState();
 
     return {
-        async sendMessage(content: string, mode: Mode = "agent") {
+        async sendMessage(content: string, mode: Mode = "agent", attachedFiles: string[] = []) {
             if (isProcessing || stopped) return;
 
             isProcessing = true;
             cancelled = false;
+            currentAttachedFiles = attachedFiles;
             emitState();
 
             try {
@@ -1345,12 +1366,14 @@ Respond with ONLY the JSON, no other text.`;
 
                 if (stopped) {
                     isProcessing = false;
+                    currentAttachedFiles = [];
                     emitState();
                     return;
                 }
 
                 if (remainingText.trim().length === 0) {
                     isProcessing = false;
+                    currentAttachedFiles = [];
                     emitState();
                     return;
                 }
@@ -1372,6 +1395,7 @@ Respond with ONLY the JSON, no other text.`;
                 );
             } finally {
                 isProcessing = false;
+                currentAttachedFiles = [];
                 emitState();
             }
         },

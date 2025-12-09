@@ -1,20 +1,24 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Box, Text, useInput } from "ink";
 import { getTokenAtCursor, MODELS, type CommandRegistry, type Mode } from "../commands/index";
+import { getFileIndex, fuzzyMatchFiles } from "../utils/fileindex";
+import { basename } from "path";
 
 interface Suggestion {
     value: string;
     label: string;
     hint?: string;
+    type: "command" | "model" | "file";
 }
 
 interface ComposerProps {
-    onSubmit: (content: string) => void;
+    onSubmit: (content: string, attachedFiles: string[]) => void;
     disabled: boolean;
     commandRegistry?: CommandRegistry;
     mode: Mode;
     onModeChange: (mode: Mode) => void;
     onLineCountChange?: (lineCount: number) => void;
+    repoRoot: string;
 }
 
 function insertNewline(value: string, cursorPos: number): { value: string; cursor: number } {
@@ -43,14 +47,70 @@ function getModelSuggestions(prefix: string): Suggestion[] {
         value: m.alias,
         label: m.display,
         hint: m.alias,
+        type: "model" as const,
     }));
+}
+
+function getFileMentionToken(
+    value: string,
+    cursorPos: number
+): { query: string; tokenStart: number; tokenEnd: number } | null {
+    if (cursorPos === 0) return null;
+
+    let tokenStart = cursorPos;
+    while (tokenStart > 0 && !/\s/.test(value[tokenStart - 1])) {
+        tokenStart--;
+    }
+
+    if (value[tokenStart] !== "@") return null;
+
+    let tokenEnd = cursorPos;
+    while (tokenEnd < value.length && !/\s/.test(value[tokenEnd])) {
+        tokenEnd++;
+    }
+
+    const query = value.slice(tokenStart + 1, cursorPos);
+    return { query, tokenStart, tokenEnd };
+}
+
+function getFileSuggestions(query: string, repoRoot: string): Suggestion[] {
+    const files = getFileIndex(repoRoot);
+    const matches = fuzzyMatchFiles(query, files, 10);
+
+    return matches.map((filePath) => ({
+        value: filePath,
+        label: basename(filePath),
+        hint: filePath,
+        type: "file" as const,
+    }));
+}
+
+interface SuggestionState {
+    suggestions: Suggestion[];
+    tokenStart: number;
+    tokenEnd: number;
+    type: "command" | "model" | "file";
 }
 
 function getSuggestions(
     value: string,
     cursorPos: number,
-    registry: CommandRegistry | undefined
-): { suggestions: Suggestion[]; tokenStart: number; tokenEnd: number } | null {
+    registry: CommandRegistry | undefined,
+    repoRoot: string
+): SuggestionState | null {
+    const fileMention = getFileMentionToken(value, cursorPos);
+    if (fileMention) {
+        const fileSuggestions = getFileSuggestions(fileMention.query, repoRoot);
+        if (fileSuggestions.length > 0) {
+            return {
+                suggestions: fileSuggestions,
+                tokenStart: fileMention.tokenStart,
+                tokenEnd: fileMention.tokenEnd,
+                type: "file",
+            };
+        }
+    }
+
     if (!registry) return null;
 
     const token = getTokenAtCursor(value, cursorPos);
@@ -66,6 +126,7 @@ function getSuggestions(
                 value: `/${cmd.name}`,
                 label: `/${cmd.name}`,
                 hint: cmd.description,
+                type: "command" as const,
             }));
 
         if (filtered.length === 0) return null;
@@ -74,6 +135,7 @@ function getSuggestions(
             suggestions: filtered,
             tokenStart: token.tokenStart,
             tokenEnd: token.tokenEnd,
+            type: "command",
         };
     }
 
@@ -86,6 +148,7 @@ function getSuggestions(
             suggestions: modelSuggestions,
             tokenStart: token.tokenStart,
             tokenEnd: token.tokenEnd,
+            type: "model",
         };
     }
 
@@ -119,6 +182,18 @@ function getModeLabel(mode: Mode): string {
     }
 }
 
+function extractAttachedFiles(value: string): string[] {
+    const regex = /@([^\s@]+)/g;
+    const files: string[] = [];
+    let match;
+    while ((match = regex.exec(value)) !== null) {
+        if (match[1] && match[1].includes("/")) {
+            files.push(match[1]);
+        }
+    }
+    return [...new Set(files)];
+}
+
 export function Composer({
     onSubmit,
     disabled,
@@ -126,11 +201,13 @@ export function Composer({
     mode,
     onModeChange,
     onLineCountChange,
+    repoRoot,
 }: ComposerProps) {
     const [value, setValue] = useState("");
     const [cursorPos, setCursorPos] = useState(0);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [showSuggestions, setShowSuggestions] = useState(true);
+    const [attachedFiles, setAttachedFiles] = useState<string[]>([]);
 
     useEffect(() => {
         const lineCount = value.split("\n").length;
@@ -139,11 +216,12 @@ export function Composer({
 
     const suggestionState = useMemo(() => {
         if (!showSuggestions) return null;
-        return getSuggestions(value, cursorPos, commandRegistry);
-    }, [value, cursorPos, commandRegistry, showSuggestions]);
+        return getSuggestions(value, cursorPos, commandRegistry, repoRoot);
+    }, [value, cursorPos, commandRegistry, showSuggestions, repoRoot]);
 
     const suggestions = suggestionState?.suggestions || [];
     const hasSuggestions = suggestions.length > 0;
+    const isFileSuggestion = suggestionState?.type === "file";
 
     useEffect(() => {
         if (suggestions.length === 0) {
@@ -177,6 +255,15 @@ export function Composer({
                 }
             }
 
+            if (input === " " && isFileSuggestion) {
+                setShowSuggestions(false);
+                const before = value.slice(0, cursorPos);
+                const after = value.slice(cursorPos);
+                setValue(before + " " + after);
+                setCursorPos(cursorPos + 1);
+                return;
+            }
+
             if (key.tab) {
                 if (hasSuggestions) {
                     const suggestion = suggestions[selectedIndex];
@@ -184,11 +271,27 @@ export function Composer({
                         const before = value.slice(0, suggestionState.tokenStart);
                         const after = value.slice(suggestionState.tokenEnd);
 
-                        if (suggestion.value.startsWith("/")) {
+                        if (suggestion.type === "command") {
                             const newValue = (before + suggestion.value + after).trim();
-                            onSubmit(newValue);
+                            const allAttached = [...attachedFiles, ...extractAttachedFiles(newValue)];
+                            onSubmit(newValue, allAttached);
                             setValue("");
                             setCursorPos(0);
+                            setSelectedIndex(0);
+                            setShowSuggestions(true);
+                            setAttachedFiles([]);
+                        } else if (suggestion.type === "file") {
+                            const filePath = suggestion.value;
+                            const newAttached = [...attachedFiles];
+                            if (!newAttached.includes(filePath)) {
+                                newAttached.push(filePath);
+                            }
+                            setAttachedFiles(newAttached);
+
+                            const newValue = before + "@" + filePath + " " + after;
+                            const newCursor = suggestionState.tokenStart + 1 + filePath.length + 1;
+                            setValue(newValue);
+                            setCursorPos(newCursor);
                             setSelectedIndex(0);
                             setShowSuggestions(true);
                         } else {
@@ -230,11 +333,27 @@ export function Composer({
                         const before = value.slice(0, suggestionState.tokenStart);
                         const after = value.slice(suggestionState.tokenEnd);
 
-                        if (suggestion.value.startsWith("/")) {
+                        if (suggestion.type === "command") {
                             const newValue = (before + suggestion.value + after).trim();
-                            onSubmit(newValue);
+                            const allAttached = [...attachedFiles, ...extractAttachedFiles(newValue)];
+                            onSubmit(newValue, allAttached);
                             setValue("");
                             setCursorPos(0);
+                            setSelectedIndex(0);
+                            setShowSuggestions(true);
+                            setAttachedFiles([]);
+                        } else if (suggestion.type === "file") {
+                            const filePath = suggestion.value;
+                            const newAttached = [...attachedFiles];
+                            if (!newAttached.includes(filePath)) {
+                                newAttached.push(filePath);
+                            }
+                            setAttachedFiles(newAttached);
+
+                            const newValue = before + "@" + filePath + " " + after;
+                            const newCursor = suggestionState.tokenStart + 1 + filePath.length + 1;
+                            setValue(newValue);
+                            setCursorPos(newCursor);
                             setSelectedIndex(0);
                             setShowSuggestions(true);
                         } else {
@@ -251,11 +370,13 @@ export function Composer({
                         }
                     }
                 } else if (value.trim().length > 0) {
-                    onSubmit(value);
+                    const allAttached = [...attachedFiles, ...extractAttachedFiles(value)];
+                    onSubmit(value, allAttached);
                     setValue("");
                     setCursorPos(0);
                     setSelectedIndex(0);
                     setShowSuggestions(true);
+                    setAttachedFiles([]);
                 }
                 return;
             }
@@ -349,6 +470,13 @@ export function Composer({
             paddingX={1}
             width="100%"
         >
+            {attachedFiles.length > 0 && (
+                <Box marginBottom={0}>
+                    <Text color="cyan" dimColor>
+                        📎 {attachedFiles.length} file{attachedFiles.length > 1 ? "s" : ""} attached
+                    </Text>
+                </Box>
+            )}
             <Box>
                 <Text color="green" bold>
                     {"› "}
@@ -356,8 +484,7 @@ export function Composer({
                 <Box flexDirection="column" flexGrow={1}>
                     {showPlaceholder ? (
                         <Text color="#999999">
-                            Type a message... (Ctrl+J or Shift+Enter for newline, Tab to switch
-                            mode)
+                            Type a message... (@ to attach files, Tab to switch mode)
                         </Text>
                     ) : (
                         lines.map((line, i) => (
@@ -378,10 +505,17 @@ export function Composer({
                     flexDirection="column"
                     marginTop={1}
                     borderStyle="single"
-                    borderColor="gray"
+                    borderColor={isFileSuggestion ? "cyan" : "gray"}
                     paddingX={1}
                 >
-                    {suggestions.slice(0, 6).map((s, i) => (
+                    {isFileSuggestion && (
+                        <Box marginBottom={0}>
+                            <Text color="cyan" bold>
+                                Files
+                            </Text>
+                        </Box>
+                    )}
+                    {suggestions.slice(0, 8).map((s, i) => (
                         <Box key={s.value}>
                             <Text
                                 color={i === selectedIndex ? "cyan" : "white"}
@@ -390,7 +524,7 @@ export function Composer({
                                 {i === selectedIndex ? "› " : "  "}
                                 {s.label}
                             </Text>
-                            {s.hint && (
+                            {s.hint && s.hint !== s.label && (
                                 <Text color="gray" dimColor>
                                     {" - "}
                                     {s.hint}
@@ -400,7 +534,9 @@ export function Composer({
                     ))}
                     <Box marginTop={0}>
                         <Text color="gray" dimColor>
-                            Tab to select, Esc to close
+                            {isFileSuggestion
+                                ? "Tab/Enter to attach, Space/Esc to cancel"
+                                : "Tab to select, Esc to close"}
                         </Text>
                     </Box>
                 </Box>
