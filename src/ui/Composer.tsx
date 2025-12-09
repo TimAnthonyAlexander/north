@@ -157,8 +157,8 @@ export function Composer({
         (input, key) => {
             if (disabled) return;
 
-            const isPaste =
-                input && (input.length > 1 || input.includes("\n") || input.includes("\r"));
+            const isSingleNewline = input === "\n" || input === "\r" || input === "\r\n";
+            const isPaste = input && input.length > 1 && !isSingleNewline;
             if (isPaste) {
                 const normalized = input.replace(/\r\n?/g, "\n");
                 const before = value.slice(0, cursorPos);
