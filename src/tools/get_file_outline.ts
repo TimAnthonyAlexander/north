@@ -7,7 +7,6 @@ import type {
     GetFileOutlineInput,
     GetFileOutlineOutput,
     OutlineSection,
-    FileSymbol,
 } from "./types";
 
 function resolvePath(repoRoot: string, filePath: string): string | null {
@@ -34,7 +33,9 @@ function resolvePath(repoRoot: string, filePath: string): string | null {
             if (!realParent.startsWith(realRoot)) {
                 return null;
             }
-        } catch {}
+        } catch {
+            return null;
+        }
         return normalized;
     }
 }
@@ -234,7 +235,7 @@ function buildPythonOutline(content: string): OutlineSection[] {
     return sections;
 }
 
-function buildGenericOutline(content: string, language: string | null): OutlineSection[] {
+function buildGenericOutline(content: string, _language: string | null): OutlineSection[] {
     const sections: OutlineSection[] = [];
     const lines = content.split("\n");
 

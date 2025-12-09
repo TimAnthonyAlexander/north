@@ -36,7 +36,9 @@ export function resolveSafePath(repoRoot: string, filePath: string): string | nu
             if (!realParent.startsWith(realRoot)) {
                 return null;
             }
-        } catch {}
+        } catch {
+            return null;
+        }
         return normalized;
     }
 }
