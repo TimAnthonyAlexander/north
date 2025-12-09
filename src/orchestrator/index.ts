@@ -16,7 +16,7 @@ import {
     isShellAutoApproveEnabled,
     enableShellAutoApprove,
 } from "../storage/autoaccept";
-import { markDeclined, saveProfile } from "../storage/profile";
+import { saveProfile } from "../storage/profile";
 import { getShellService } from "../shell/index";
 import {
     createCommandRegistryWithAllCommands,

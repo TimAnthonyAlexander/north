@@ -11,6 +11,9 @@ function getHomeDir(): string {
 }
 
 function getConfigDir(): string {
+    if (process.env.NORTH_CONFIG_DIR) {
+        return process.env.NORTH_CONFIG_DIR;
+    }
     return join(getHomeDir(), ".config", "north");
 }
 

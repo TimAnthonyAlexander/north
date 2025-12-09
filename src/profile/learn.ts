@@ -145,7 +145,6 @@ async function queryTopicWithTools(
             toolCalls: Array<{ id: string; name: string; input: unknown }>;
             stopReason: string | null;
         }>((resolve, reject) => {
-            let text = "";
             const toolCalls: Array<{ id: string; name: string; input: unknown }> = [];
 
             provider
@@ -155,9 +154,7 @@ async function queryTopicWithTools(
                         content: msg.content,
                     })),
                     {
-                        onChunk: (chunk) => {
-                            text += chunk;
-                        },
+                        onChunk: () => {},
                         onToolCall: (toolCall) => {
                             toolCalls.push(toolCall);
                         },

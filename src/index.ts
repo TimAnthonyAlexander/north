@@ -114,7 +114,7 @@ async function main() {
                     timeoutMs: timeoutMs ?? undefined,
                 });
             },
-            onShellReviewDecision(decision: "run" | "always" | "deny", command: string) {
+            onShellReviewDecision(decision: "run" | "always" | "auto" | "deny", command: string) {
                 logger.info("shell_review_decision", { decision, command });
             },
             onShellRunStart(command: string, cwd?: string | null, timeoutMs?: number | null) {

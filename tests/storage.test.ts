@@ -17,7 +17,7 @@ import { tmpdir } from "os";
 
 let tempRepo: TempRepo | null = null;
 let tempConfigDir: string | null = null;
-let originalHome: string | undefined = undefined;
+let originalConfigDir: string | undefined = undefined;
 
 afterEach(() => {
     if (tempRepo) {
@@ -28,9 +28,13 @@ afterEach(() => {
         Bun.spawnSync(["rm", "-rf", tempConfigDir]);
         tempConfigDir = null;
     }
-    if (originalHome !== undefined) {
-        process.env.HOME = originalHome;
-        originalHome = undefined;
+    if (originalConfigDir !== undefined) {
+        if (originalConfigDir) {
+            process.env.NORTH_CONFIG_DIR = originalConfigDir;
+        } else {
+            delete process.env.NORTH_CONFIG_DIR;
+        }
+        originalConfigDir = undefined;
     }
 });
 
@@ -335,11 +339,11 @@ describe("AutoAccept Storage", () => {
 
 describe("Global Config Storage", () => {
     function createTempConfigDir(): string {
-        if (originalHome === undefined) {
-            originalHome = process.env.HOME;
+        if (originalConfigDir === undefined) {
+            originalConfigDir = process.env.NORTH_CONFIG_DIR || "";
         }
         const dir = join(tmpdir(), `north-config-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-        process.env.HOME = dir;
+        process.env.NORTH_CONFIG_DIR = dir;
         return dir;
     }
 
@@ -378,8 +382,8 @@ describe("Global Config Storage", () => {
         test("ignores unknown fields", () => {
             tempConfigDir = createTempConfigDir();
 
-            const configPath = join(tempConfigDir, ".config/north/config.json");
-            Bun.spawnSync(["mkdir", "-p", join(tempConfigDir, ".config/north")]);
+            const configPath = join(tempConfigDir, "config.json");
+            Bun.spawnSync(["mkdir", "-p", tempConfigDir]);
 
             writeFileSync(
                 configPath,
@@ -407,8 +411,8 @@ describe("Global Config Storage", () => {
         test("handles corrupted JSON gracefully", () => {
             tempConfigDir = createTempConfigDir();
 
-            const configPath = join(tempConfigDir, ".config/north/config.json");
-            Bun.spawnSync(["mkdir", "-p", join(tempConfigDir, ".config/north")]);
+            const configPath = join(tempConfigDir, "config.json");
+            Bun.spawnSync(["mkdir", "-p", tempConfigDir]);
             writeFileSync(configPath, "{ invalid json", "utf-8");
 
             const retrieved = getSavedModel();
@@ -421,13 +425,12 @@ describe("Global Config Storage", () => {
         test("creates config directory on first write", () => {
             tempConfigDir = createTempConfigDir();
 
-            const configDir = join(tempConfigDir, ".config/north");
-            expect(existsSync(configDir)).toBe(false);
+            expect(existsSync(tempConfigDir)).toBe(false);
 
             saveSelectedModel("test-model");
 
-            expect(existsSync(configDir)).toBe(true);
-            expect(existsSync(join(configDir, "config.json"))).toBe(true);
+            expect(existsSync(tempConfigDir)).toBe(true);
+            expect(existsSync(join(tempConfigDir, "config.json"))).toBe(true);
         });
     });
 
@@ -437,7 +440,7 @@ describe("Global Config Storage", () => {
 
             saveSelectedModel("test-model");
 
-            const configPath = join(tempConfigDir, ".config/north/config.json");
+            const configPath = join(tempConfigDir, "config.json");
             const content = readFileSync(configPath, "utf-8");
 
             expect(content.endsWith("\n")).toBe(true);

@@ -250,6 +250,7 @@ Span-based tokenizer for reliable command extraction:
 - API: `isCommandAllowed(repoRoot, command)`, `allowCommand(repoRoot, command)`, `getAllowedCommands(repoRoot)`
 - Exact string matching only (no patterns)
 - Creates `.north/` directory on first write
+- **Test isolation**: Respects `NORTH_CONFIG_DIR` environment variable to override config directory for testing (prevents tests from modifying user's actual config)
 
 ### storage/autoaccept.ts
 
@@ -1218,6 +1219,22 @@ bun test tests/openai*.ts   # run specific tests
   - Provider factory and message builders
   - SSE streaming event parsing
   - Error handling
+- `tests/storage.test.ts`: Storage layer tests
+  - Allowlist storage (per-project command allowlist)
+  - AutoAccept storage (per-project auto-accept settings)
+  - Global config storage (user preferences)
+- `tests/tools-read.test.ts`: Read tool tests
+- `tests/tools-edit.test.ts`: Edit tool tests
+- `tests/tools-security.test.ts`: Path traversal and symlink security tests
+- `tests/tools-shell.test.ts`: Shell service tests
+- `tests/rules-cursor.test.ts`: Cursor rules loader tests
+
+**Test Isolation:**
+
+Tests that interact with user storage use environment variable overrides to prevent modifying actual user data:
+- **Config tests**: Set `NORTH_CONFIG_DIR` to temporary directory instead of manipulating `HOME`
+- **Repo-scoped tests**: Use `createTempRepo()` helper to create isolated temporary repositories
+- `afterEach` hooks ensure cleanup of temporary directories and restoration of environment variables
 
 ## Environment
 
