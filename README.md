@@ -30,6 +30,36 @@ An AI pair programmer that lives in your terminal. Supports Claude (Anthropic) a
 | **Control** | Approve every edit/command | Permission rules are configurable and can be remembered | Agent Review exists; can manage multi-file diffs | Git-based workflow and diffs are core | Supports approval modes and review flows | Built-in tools (file ops, shell); user-driven CLI flow | Chat/agent features with plan request allowances; CLI is available | Agentic edits inside VS Code; depends on configuration | IDE agent workflow; plan-based usage |
 | **Transparency** | Full diff review | Permission + settings model; CLI-first visibility | Review UI for diffs | Very transparent via patches/commits | Review + diff-oriented workflows | CLI output + open-source; tool actions visible | Mixed (suggestions, chat, agent features) | Visible edits in-editor; still an IDE extension | IDE-based; visibility depends on workflow |
 
+### Feature Capabilities
+
+**Legend:** ✅ = yes, ❌ = no, ⚠️ = partial / limited / depends on plan or model
+
+| Capability | **North** | **Claude Code** | **Codex CLI** | **Gemini CLI** | **Aider** | **Cline** | **Cursor** | **Windsurf** | **Copilot CLI** |
+|---|---|---|---|---|---|---|---|---|---|
+| **Terminal-native interactive UI** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
+| **BYOK (bring your own API key)** | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ |
+| **Multi-provider switching** | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ⚠️ | ❌ |
+| **Explicit approvals for writes/shell** | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ |
+| **Fine-grained allowlist controls** | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ | ⚠️ | ❌ |
+| **Deterministic edit primitives** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Inline diff review (first-class UX)** | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Cursor rules ingestion** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **No vendor subscription required** | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ❌ |
+| **Open-source core** | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **1M-token context option** | ❌ | ❌ | ❌ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ |
+| **MCP / external tool servers** | ❌ | ❌ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ❌ |
+| **GitHub PR agent workflows** | ❌ | ❌ | ✅ | ⚠️ | ❌ | ⚠️ | ❌ | ❌ | ❌ |
+
+**Where North stands out:**
+
+North is the only tool that combines **terminal-native**, **multi-provider BYOK**, and **deterministic edit primitives** with exact-match verification. The safety model doesn't require trust: every risky operation shows an inline diff with explicit approval. You're not locked to one editor, one vendor, or one AI provider.
+
+**North's roadmap opportunities:**
+
+- **MCP plugin ecosystem** (Codex CLI, Gemini CLI, and Cline have mature plugin support)
+- **PR automation workflows** (Codex CLI leads here with tag bots and automated reviews)
+- **Ultra-large context** (Gemini CLI offers 1M-token context windows with Gemini 2.5 Pro)
+
 ## Features
 
 ### Two Modes, Zero Friction
