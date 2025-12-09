@@ -554,9 +554,6 @@ export function Transcript({
                     animationsEnabled={animationsEnabled}
                 />
             )}
-            {learningInProgress && (
-                <LearningProgress percent={learningPercent} currentTopic={learningTopic} />
-            )}
             <Static items={staticEntries}>
                 {(entry) => (
                     <StaticEntry key={entry.id} entry={entry} assistantName={assistantName} />
