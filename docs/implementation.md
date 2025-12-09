@@ -48,7 +48,9 @@ src/
 ├── shell/
 │   └── index.ts          # Persistent PTY service with sentinel-based output parsing
 ├── storage/
-│   └── allowlist.ts      # Per-project shell command allowlist (.north/allowlist.json)
+│   ├── allowlist.ts      # Per-project shell command allowlist (.north/allowlist.json)
+│   ├── autoaccept.ts     # Per-project edit auto-accept settings
+│   └── config.ts         # Global config (~/.config/north/config.json)
 ├── tools/
 │   ├── index.ts          # Tool exports and registry factory
 │   ├── types.ts          # Tool type definitions (including edit and shell types)
@@ -578,6 +580,12 @@ Model selection via `/model`:
 - Switching between providers (e.g., Claude → GPT) recreates provider
 - `currentModel` stored in orchestrator state
 - Context limit updates automatically on model change
+- **Selection persisted globally** to `~/.config/north/config.json`
+- On startup, loads saved model or defaults to Claude Sonnet 4
+
+**Assistant Name Display:**
+- `getAssistantName(modelId)` returns "Claude" or "GPT" based on provider
+- Transcript displays correct name for current model
 
 **Environment Variables:**
 - `ANTHROPIC_API_KEY`: required for Claude models
