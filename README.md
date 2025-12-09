@@ -32,23 +32,23 @@ An AI pair programmer that lives in your terminal. Supports Claude (Anthropic) a
 
 ### Feature Capabilities
 
-**Legend:** ✅ = yes, ❌ = no, ⚠️ = partial / limited / depends on plan or model
+**Legend:** ✓ = yes, ✗ = no, ~ = partial / limited / depends on plan or model
 
 | Capability | **North** | **Claude Code** | **Codex CLI** | **Gemini CLI** | **Aider** | **Cline** | **Cursor** | **Windsurf** | **Copilot CLI** |
 |---|---|---|---|---|---|---|---|---|---|
-| **Terminal-native interactive UI** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
-| **BYOK (bring your own API key)** | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ |
-| **Multi-provider switching** | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ⚠️ | ❌ |
-| **Explicit approvals for writes/shell** | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ |
-| **Fine-grained allowlist controls** | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ | ⚠️ | ❌ |
-| **Deterministic edit primitives** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Inline diff review (first-class UX)** | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Cursor rules ingestion** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **No vendor subscription required** | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ❌ |
-| **Open-source core** | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **1M-token context option** | ❌ | ❌ | ❌ | ✅ | ⚠️ | ❌ | ❌ | ❌ | ❌ |
-| **MCP / external tool servers** | ❌ | ❌ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ❌ |
-| **GitHub PR agent workflows** | ❌ | ❌ | ✅ | ⚠️ | ❌ | ⚠️ | ❌ | ❌ | ❌ |
+| **Terminal-native interactive UI** | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | ✓ |
+| **BYOK (bring your own API key)** | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | ✗ |
+| **Multi-provider switching** | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ | ✓ | ~ | ✗ |
+| **Explicit approvals for writes/shell** | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ~ |
+| **Fine-grained allowlist controls** | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ~ | ~ | ✗ |
+| **Deterministic edit primitives** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Inline diff review (first-class UX)** | ✓ | ~ | ~ | ~ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| **Cursor rules ingestion** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
+| **No vendor subscription required** | ✓ | ~ | ~ | ✓ | ✓ | ✓ | ~ | ~ | ✗ |
+| **Open-source core** | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ |
+| **1M-token context option** | ✗ | ✗ | ✗ | ✓ | ~ | ✗ | ✗ | ✗ | ✗ |
+| **MCP / external tool servers** | ✗ | ✗ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✗ |
+| **GitHub PR agent workflows** | ✗ | ✗ | ✓ | ~ | ✗ | ~ | ✗ | ✗ | ✗ |
 
 **Where North stands out:**
 
