@@ -134,7 +134,11 @@ async function getProjectFileCount(
     logger: Logger
 ): Promise<number> {
     try {
-        const result = await toolRegistry.execute("find_files", { pattern: "*" }, { repoRoot, logger });
+        const result = await toolRegistry.execute(
+            "find_files",
+            { pattern: "*" },
+            { repoRoot, logger }
+        );
         if (result.ok && Array.isArray(result.data)) {
             return result.data.length;
         }
@@ -162,11 +166,32 @@ export async function runLearningSession(
     logger.info("learning_project_size", { fileCount });
 
     if (fileCount <= SIZE_TINY) {
-        return runCompactSession(repoRoot, toolRegistry, provider, readOnlySchemas, logger, onProgress);
+        return runCompactSession(
+            repoRoot,
+            toolRegistry,
+            provider,
+            readOnlySchemas,
+            logger,
+            onProgress
+        );
     } else if (fileCount <= SIZE_MEDIUM) {
-        return runMediumSession(repoRoot, toolRegistry, provider, readOnlySchemas, logger, onProgress);
+        return runMediumSession(
+            repoRoot,
+            toolRegistry,
+            provider,
+            readOnlySchemas,
+            logger,
+            onProgress
+        );
     } else {
-        return runFullSession(repoRoot, toolRegistry, provider, readOnlySchemas, logger, onProgress);
+        return runFullSession(
+            repoRoot,
+            toolRegistry,
+            provider,
+            readOnlySchemas,
+            logger,
+            onProgress
+        );
     }
 }
 
