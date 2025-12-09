@@ -64,7 +64,8 @@ describe("edit_replace_exact", () => {
 
         test("fails when text not found", async () => {
             tempRepo = createTempRepo();
-            createFile(tempRepo.root, "test.txt", "hello world\n");
+            const originalContent = "hello world\n";
+            createFile(tempRepo.root, "test.txt", originalContent);
 
             const ctx = createContext(tempRepo.root);
             const result = await editReplaceExactTool.execute({
@@ -76,11 +77,16 @@ describe("edit_replace_exact", () => {
             expect(result.ok).toBe(false);
             expect(result.error).toContain("not found");
             expect(result.data).toBeUndefined();
+
+            const finalContent = readFixtureFile(tempRepo.root, "test.txt");
+            expect(finalContent).toBe(originalContent);
+            assertNoTempFiles(tempRepo.root);
         });
 
         test("validates expectedOccurrences", async () => {
             tempRepo = createTempRepo();
-            createFile(tempRepo.root, "test.txt", "foo bar foo baz foo\n");
+            const originalContent = "foo bar foo baz foo\n";
+            createFile(tempRepo.root, "test.txt", originalContent);
 
             const ctx = createContext(tempRepo.root);
             const result = await editReplaceExactTool.execute({
@@ -93,6 +99,10 @@ describe("edit_replace_exact", () => {
             expect(result.ok).toBe(false);
             expect(result.error).toContain("Expected 2");
             expect(result.error).toContain("found 3");
+
+            const finalContent = readFixtureFile(tempRepo.root, "test.txt");
+            expect(finalContent).toBe(originalContent);
+            assertNoTempFiles(tempRepo.root);
         });
 
         test("replaces multiline blocks", async () => {
@@ -238,7 +248,8 @@ describe("edit_insert_at_line", () => {
 
         test("fails on invalid line number (< 1)", async () => {
             tempRepo = createTempRepo();
-            createFile(tempRepo.root, "test.txt", "line 1\n");
+            const originalContent = "line 1\n";
+            createFile(tempRepo.root, "test.txt", originalContent);
 
             const ctx = createContext(tempRepo.root);
             const result = await editInsertAtLineTool.execute({
@@ -249,11 +260,16 @@ describe("edit_insert_at_line", () => {
 
             expect(result.ok).toBe(false);
             expect(result.error).toContain("must be at least 1");
+
+            const finalContent = readFixtureFile(tempRepo.root, "test.txt");
+            expect(finalContent).toBe(originalContent);
+            assertNoTempFiles(tempRepo.root);
         });
 
         test("fails on line number exceeding length + 1", async () => {
             tempRepo = createTempRepo();
-            createFile(tempRepo.root, "test.txt", "line 1\nline 2\n");
+            const originalContent = "line 1\nline 2\n";
+            createFile(tempRepo.root, "test.txt", originalContent);
 
             const ctx = createContext(tempRepo.root);
             const result = await editInsertAtLineTool.execute({
@@ -264,6 +280,10 @@ describe("edit_insert_at_line", () => {
 
             expect(result.ok).toBe(false);
             expect(result.error).toContain("exceeds file length");
+
+            const finalContent = readFixtureFile(tempRepo.root, "test.txt");
+            expect(finalContent).toBe(originalContent);
+            assertNoTempFiles(tempRepo.root);
         });
 
         test("inserts into empty file", async () => {
@@ -395,7 +415,8 @@ describe("edit_create_file", () => {
 
         test("fails when file exists and overwrite=false", async () => {
             tempRepo = createTempRepo();
-            createFile(tempRepo.root, "existing.txt", "content");
+            const originalContent = "content";
+            createFile(tempRepo.root, "existing.txt", originalContent);
 
             const ctx = createContext(tempRepo.root);
             const result = await editCreateFileTool.execute({
@@ -406,6 +427,10 @@ describe("edit_create_file", () => {
             expect(result.ok).toBe(false);
             expect(result.error).toContain("already exists");
             expect(result.data).toBeUndefined();
+
+            const finalContent = readFixtureFile(tempRepo.root, "existing.txt");
+            expect(finalContent).toBe(originalContent);
+            assertNoTempFiles(tempRepo.root);
         });
 
         test("creates parent directories automatically", async () => {
