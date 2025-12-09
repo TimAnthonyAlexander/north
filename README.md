@@ -68,12 +68,19 @@ Switch between models on the fly—even across providers:
 
 Drop your `.cursor/rules/*.mdc` files in and North automatically loads them. Same project context, different interface.
 
+### Project Learning
+
+On first run in a new project, North offers to learn your codebase. It runs 10 discovery passes covering architecture, conventions, domain vocabulary, data flow, dependencies, build workflows, hotspots, common tasks, and safety rails. The resulting profile is stored at `~/.north/projects/<hash>/profile.md` and automatically injected into every conversation.
+
+Use `/learn` anytime to re-learn the project after major changes.
+
 ### Slash Commands
 
 | Command | Usage | Description |
 |---------|-------|-------------|
 | `/model [name]` | `/model opus-4.5` or `/model` | Switch model (shows picker if no argument). Supports all Anthropic and OpenAI models. Selection persists across sessions. |
 | `/mode [ask\|agent]` | `/mode ask` or `/mode` | Switch conversation mode (shows picker if no argument). Also toggleable via `Tab` key. |
+| `/learn` | `/learn` | Learn or relearn the project codebase. Overwrites existing profile. |
 | `/summarize [--keep-last N]` | `/summarize --keep-last 10` | Compress conversation history into structured summary, keeping last N messages verbatim (default: 10). |
 | `/new` | `/new` | Start fresh conversation (clears transcript and summary, preserves shell session). |
 | `/help` | `/help` | List all available commands with descriptions. |
@@ -83,12 +90,19 @@ Commands can be mixed with regular messages: `/model sonnet-4 Can you help me re
 
 ## Install
 
-Requires [Bun](https://bun.sh) and at least one API key (Anthropic or OpenAI).
+### Binary (Recommended)
+
+Download the latest release from [GitHub Releases](https://github.com/timanthonyalexander/north/releases):
+
+| Platform | Binary |
+|----------|--------|
+| macOS (Apple Silicon) | `north-darwin-arm64` |
+| macOS (Intel) | `north-darwin-x64` |
+| Linux (x64) | `north-linux-x64` |
 
 ```bash
-git clone https://github.com/timanthonyalexander/north.git
-cd north
-bun install
+chmod +x north-darwin-arm64
+mv north-darwin-arm64 /usr/local/bin/north
 ```
 
 Set your API key(s):
@@ -101,25 +115,27 @@ export OPENAI_API_KEY="sk-..."         # For GPT models
 Run:
 
 ```bash
-bun run dev
+north
 ```
 
 Point at any repo:
 
 ```bash
-bun run dev --path /path/to/repo
+north --path /path/to/repo
 ```
 
-## Build
+### Manual Build (Optional)
 
-For local linking:
+Requires [Bun](https://bun.sh):
 
 ```bash
-bun run build      # builds to dist/
-bun run link       # makes 'north' command available globally
+git clone https://github.com/timanthonyalexander/north.git
+cd north
+bun install
+bun run dev
 ```
 
-For standalone binaries (zero dependencies, ship anywhere):
+Build standalone binaries:
 
 ```bash
 bun run build:binary              # current platform
@@ -148,13 +164,18 @@ bun run build:binary:linux        # Linux x64
 
 **Shell Review (commands):**
 - `r` — Run this command once
-- `a` — Always (add to allowlist, no future prompts)
+- `a` — Always (add to allowlist, no future prompts for this command)
+- `y` — Auto all (auto-approve all future shell commands in this project)
 - `d` — Deny this command
 
 **Command Review (e.g., model selection):**
 - `Up/Down` — Navigate options
 - `Enter` — Select
 - `Esc` — Cancel
+
+**Learning Prompt (first run):**
+- `y` — Accept (learn project)
+- `n` — Decline (skip learning)
 
 ## Tools
 
@@ -205,6 +226,10 @@ All tools respect `.gitignore`. Output is automatically truncated to prevent con
 
 **Global config** (`~/.config/north/config.json`):
 - `selectedModel` — persisted model selection across sessions
+
+**Project profiles** (`~/.north/projects/<hash>/`):
+- `profile.md` — learned project context (architecture, conventions, workflows)
+- `declined.json` — marker if learning was declined
 
 **Project config** (`.north/` at your repo root):
 - `allowlist.json` — pre-approved shell commands
