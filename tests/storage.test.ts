@@ -333,7 +333,7 @@ describe("AutoAccept Storage", () => {
     });
 });
 
-describe.skip("Global Config Storage", () => {
+describe("Global Config Storage", () => {
     function createTempConfigDir(): string {
         if (originalHome === undefined) {
             originalHome = process.env.HOME;

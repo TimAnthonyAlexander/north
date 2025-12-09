@@ -6,8 +6,12 @@ interface GlobalConfig {
     selectedModel?: string;
 }
 
+function getHomeDir(): string {
+    return process.env.HOME || homedir();
+}
+
 function getConfigDir(): string {
-    return join(homedir(), ".config", "north");
+    return join(getHomeDir(), ".config", "north");
 }
 
 function getConfigPath(): string {
