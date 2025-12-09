@@ -462,6 +462,29 @@ export function Composer({
     const modeColor = getModeColor(mode);
     const modeLabel = getModeLabel(mode);
 
+    function renderLineWithCursor(line: string, lineIndex: number): React.ReactNode {
+        let charsBefore = 0;
+        for (let i = 0; i < lineIndex; i++) {
+            charsBefore += lines[i].length + 1;
+        }
+        const lineStart = charsBefore;
+        const lineEnd = lineStart + line.length;
+
+        if (cursorPos >= lineStart && cursorPos <= lineEnd) {
+            const cursorOffset = cursorPos - lineStart;
+            const before = line.slice(0, cursorOffset);
+            const after = line.slice(cursorOffset);
+            return (
+                <>
+                    <Text>{before}</Text>
+                    <Text color="green" bold>▏</Text>
+                    <Text>{after || " "}</Text>
+                </>
+            );
+        }
+        return <Text>{line || " "}</Text>;
+    }
+
     return (
         <Box
             flexDirection="column"
@@ -483,14 +506,17 @@ export function Composer({
                 </Text>
                 <Box flexDirection="column" flexGrow={1}>
                     {showPlaceholder ? (
-                        <Text color="#999999">
-                            Type a message... (@ to attach files, Tab to switch mode)
-                        </Text>
+                        <Box>
+                            <Text color="green" bold>▏</Text>
+                            <Text color="#999999">
+                                Type a message... (@ to attach files, Tab to switch mode)
+                            </Text>
+                        </Box>
                     ) : (
                         lines.map((line, i) => (
-                            <Text key={i} wrap="wrap">
-                                {line || " "}
-                            </Text>
+                            <Box key={i}>
+                                {renderLineWithCursor(line, i)}
+                            </Box>
                         ))
                     )}
                 </Box>
@@ -503,7 +529,6 @@ export function Composer({
             {hasSuggestions && !disabled && (
                 <Box
                     flexDirection="column"
-                    marginTop={1}
                     borderStyle="single"
                     borderColor={isFileSuggestion ? "cyan" : "gray"}
                     paddingX={1}
