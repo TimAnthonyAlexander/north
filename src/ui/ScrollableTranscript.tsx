@@ -79,15 +79,46 @@ function entryToLines(
     }
 
     if (entry.role === "diff_review") {
-        return { lines: [], isInteractive: true };
+        const status = entry.reviewStatus || "pending";
+        if (status === "pending") {
+            return { lines: [], isInteractive: true };
+        }
+        const statusText =
+            status === "accepted"
+                ? `${ANSI_YELLOW}📝${ANSI_RESET} ${ANSI_GRAY}${entry.toolName || "edit"} — ${entry.filesCount || 0} file(s)${ANSI_RESET} → ${ANSI_BOLD}Applied${ANSI_RESET}`
+                : status === "always"
+                  ? `${ANSI_YELLOW}📝${ANSI_RESET} ${ANSI_GRAY}${entry.toolName || "edit"} — ${entry.filesCount || 0} file(s)${ANSI_RESET} → ${ANSI_CYAN}Auto-applied${ANSI_RESET}`
+                  : `${ANSI_YELLOW}📝${ANSI_RESET} ${ANSI_GRAY}${entry.toolName || "edit"} — ${entry.filesCount || 0} file(s)${ANSI_RESET} → ${ANSI_RED}Rejected${ANSI_RESET}`;
+        return { lines: [`  ${statusText}`, ""], isInteractive: false };
     }
 
     if (entry.role === "shell_review") {
-        return { lines: [], isInteractive: true };
+        const status = entry.reviewStatus || "pending";
+        if (status === "pending") {
+            return { lines: [], isInteractive: true };
+        }
+        const cmd = entry.shellCommand || "command";
+        const truncatedCmd = cmd.length > 50 ? cmd.slice(0, 47) + "..." : cmd;
+        const statusText =
+            status === "ran"
+                ? `${ANSI_YELLOW}🖥️${ANSI_RESET} ${ANSI_GRAY}$ ${truncatedCmd}${ANSI_RESET} → ${ANSI_BOLD}Executed${ANSI_RESET}`
+                : status === "always"
+                  ? `${ANSI_YELLOW}🖥️${ANSI_RESET} ${ANSI_GRAY}$ ${truncatedCmd}${ANSI_RESET} → ${ANSI_BOLD}Executed (allowlisted)${ANSI_RESET}`
+                  : status === "auto"
+                    ? `${ANSI_YELLOW}🖥️${ANSI_RESET} ${ANSI_GRAY}$ ${truncatedCmd}${ANSI_RESET} → ${ANSI_CYAN}Auto-approved${ANSI_RESET}`
+                    : `${ANSI_YELLOW}🖥️${ANSI_RESET} ${ANSI_GRAY}$ ${truncatedCmd}${ANSI_RESET} → ${ANSI_RED}Denied${ANSI_RESET}`;
+        return { lines: [`  ${statusText}`, ""], isInteractive: false };
     }
 
     if (entry.role === "command_review") {
-        return { lines: [], isInteractive: true };
+        const status = entry.reviewStatus || "pending";
+        if (status === "pending") {
+            return { lines: [], isInteractive: true };
+        }
+        const selectedText = entry.commandSelectedId
+            ? `${ANSI_BLUE}⚙${ANSI_RESET} ${ANSI_GRAY}/${entry.commandName || "command"}${ANSI_RESET} → ${ANSI_BOLD}${entry.commandSelectedId}${ANSI_RESET}`
+            : `${ANSI_BLUE}⚙${ANSI_RESET} ${ANSI_GRAY}/${entry.commandName || "command"}${ANSI_RESET} → ${ANSI_RED}Cancelled${ANSI_RESET}`;
+        return { lines: [`  ${selectedText}`, ""], isInteractive: false };
     }
 
     if (entry.role === "learning_prompt") {

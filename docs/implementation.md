@@ -482,7 +482,8 @@ The provider system prompts now explicitly instruct the LLM to:
 - Assistant messages: magenta label  
 - Tool messages: yellow ⚡ icon, gray text
 - Command executed messages: blue ⚙ icon with result
-- Interactive entries (diff_review, shell_review, command_review) rendered separately at bottom
+- Interactive entries (diff_review, shell_review, command_review) rendered at bottom only when pending
+- Resolved interactive entries convert to compact text lines that flow with transcript
 - Keyboard navigation for scrolling (when composer not active):
   - Up/Down: scroll one line
   - PageUp/PageDown: scroll viewport height
