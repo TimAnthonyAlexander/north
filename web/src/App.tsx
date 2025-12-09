@@ -297,9 +297,9 @@ function App() {
           </Typography>
           <Grid container spacing={4}>
             {features.map((feature, index) => (
-              <Grid item xs={12} md={6} lg={4} key={index}>
-                <Card sx={{ height: '100%', p: 2 }}>
-                  <CardContent>
+              <Grid item xs={12} md={6} key={index}>
+                <Card sx={{ height: '100%', p: 3 }}>
+                  <CardContent sx={{ p: 0 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                       <Avatar sx={{ bgcolor: feature.color, mr: 2, width: 48, height: 48 }}>
                         {feature.icon}
@@ -308,7 +308,7 @@ function App() {
                         {feature.title}
                       </Typography>
                     </Box>
-                    <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
+                    <Typography variant="body1" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
                       {feature.description}
                     </Typography>
                   </CardContent>
@@ -385,48 +385,50 @@ function App() {
             Model Support
           </Typography>
           <Grid container spacing={4}>
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12}>
               <Card sx={{ p: 4 }}>
-                <Typography variant="h5" sx={{ mb: 3, color: '#ff6b35' }}>
-                  <AiIcon sx={{ mr: 2, verticalAlign: 'middle' }} />
-                  Anthropic Claude
-                </Typography>
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-                  {models.anthropic.map((model) => (
-                    <Chip 
-                      key={model}
-                      label={model}
-                      variant="outlined"
-                      sx={{ 
-                        borderColor: '#ff6b35',
-                        color: '#ff6b35',
-                        '&:hover': { bgcolor: 'rgba(255, 107, 53, 0.1)' }
-                      }}
-                    />
-                  ))}
-                </Stack>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Card sx={{ p: 4 }}>
-                <Typography variant="h5" sx={{ mb: 3, color: '#00d4aa' }}>
-                  <AiIcon sx={{ mr: 2, verticalAlign: 'middle' }} />
-                  OpenAI GPT
-                </Typography>
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-                  {models.openai.map((model) => (
-                    <Chip 
-                      key={model}
-                      label={model}
-                      variant="outlined"
-                      sx={{ 
-                        borderColor: '#00d4aa',
-                        color: '#00d4aa',
-                        '&:hover': { bgcolor: 'rgba(0, 212, 170, 0.1)' }
-                      }}
-                    />
-                  ))}
-                </Stack>
+                <Grid container spacing={4}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h5" sx={{ mb: 3, color: '#ff6b35' }}>
+                      <AiIcon sx={{ mr: 2, verticalAlign: 'middle' }} />
+                      Anthropic Claude
+                    </Typography>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                      {models.anthropic.map((model) => (
+                        <Chip 
+                          key={model}
+                          label={model}
+                          variant="outlined"
+                          sx={{ 
+                            borderColor: '#ff6b35',
+                            color: '#ff6b35',
+                            '&:hover': { bgcolor: 'rgba(255, 107, 53, 0.1)' }
+                          }}
+                        />
+                      ))}
+                    </Stack>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h5" sx={{ mb: 3, color: '#00d4aa' }}>
+                      <AiIcon sx={{ mr: 2, verticalAlign: 'middle' }} />
+                      OpenAI GPT
+                    </Typography>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                      {models.openai.map((model) => (
+                        <Chip 
+                          key={model}
+                          label={model}
+                          variant="outlined"
+                          sx={{ 
+                            borderColor: '#00d4aa',
+                            color: '#00d4aa',
+                            '&:hover': { bgcolor: 'rgba(0, 212, 170, 0.1)' }
+                          }}
+                        />
+                      ))}
+                    </Stack>
+                  </Grid>
+                </Grid>
               </Card>
             </Grid>
           </Grid>
@@ -471,34 +473,91 @@ function App() {
             Get Started
           </Typography>
           <Grid container spacing={4}>
-            <Grid item xs={12} md={4}>
-              <Card sx={{ p: 3, textAlign: 'center', height: '100%' }}>
-                <DownloadIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-                <Typography variant="h6" sx={{ mb: 2 }}>1. Download</Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Get the binary for your platform from GitHub releases
-                </Typography>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Card sx={{ p: 3, textAlign: 'center', height: '100%' }}>
-                <SecurityIcon sx={{ fontSize: 48, color: 'secondary.main', mb: 2 }} />
-                <Typography variant="h6" sx={{ mb: 2 }}>2. Set API Key</Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Export ANTHROPIC_API_KEY or OPENAI_API_KEY
-                </Typography>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Card sx={{ p: 3, textAlign: 'center', height: '100%' }}>
-                <TerminalIcon sx={{ fontSize: 48, color: '#ff9800', mb: 2 }} />
-                <Typography variant="h6" sx={{ mb: 2 }}>3. Run North</Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Launch from any repo and start coding
-                </Typography>
+            <Grid item xs={12}>
+              <Card sx={{ p: 4 }}>
+                <Grid container spacing={4} alignItems="center">
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: { xs: 3, md: 0 } }}>
+                      <Avatar sx={{ bgcolor: 'primary.main', mr: 3, width: 56, height: 56 }}>
+                        <DownloadIcon sx={{ fontSize: 28 }} />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h6" sx={{ mb: 1, color: 'primary.main' }}>
+                          1. Download Binary
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                          Get the latest release for macOS, Linux, or Windows
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: { xs: 3, md: 0 } }}>
+                      <Avatar sx={{ bgcolor: 'secondary.main', mr: 3, width: 56, height: 56 }}>
+                        <SecurityIcon sx={{ fontSize: 28 }} />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h6" sx={{ mb: 1, color: 'secondary.main' }}>
+                          2. Set API Key
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                          Export ANTHROPIC_API_KEY or OPENAI_API_KEY
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Avatar sx={{ bgcolor: '#ff9800', mr: 3, width: 56, height: 56 }}>
+                        <TerminalIcon sx={{ fontSize: 28 }} />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h6" sx={{ mb: 1, color: '#ff9800' }}>
+                          3. Run North
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                          Launch from any repo: <code>north</code>
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                </Grid>
               </Card>
             </Grid>
           </Grid>
+          
+          {/* Installation Commands */}
+          <Box sx={{ mt: 4 }}>
+            <Paper sx={{ p: 3, bgcolor: '#0d1117', border: '1px solid #30363d' }}>
+              <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
+                Quick Install
+              </Typography>
+              <Box sx={{ fontFamily: 'monospace', bgcolor: '#21262d', p: 2, borderRadius: 1, mb: 2 }}>
+                <Typography variant="body2" sx={{ color: '#8b949e', mb: 1 }}>
+                  # Download for macOS (Apple Silicon)
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#ffffff' }}>
+                  curl -L -o north https://github.com/timanthonyalexander/north/releases/latest/download/north-darwin-arm64
+                </Typography>
+              </Box>
+              <Box sx={{ fontFamily: 'monospace', bgcolor: '#21262d', p: 2, borderRadius: 1, mb: 2 }}>
+                <Typography variant="body2" sx={{ color: '#8b949e', mb: 1 }}>
+                  # Make executable and install
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#ffffff' }}>
+                  chmod +x north && mv north /usr/local/bin/
+                </Typography>
+              </Box>
+              <Box sx={{ fontFamily: 'monospace', bgcolor: '#21262d', p: 2, borderRadius: 1 }}>
+                <Typography variant="body2" sx={{ color: '#8b949e', mb: 1 }}>
+                  # Set API key and run
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#ffffff' }}>
+                  export ANTHROPIC_API_KEY="sk-ant-..." && north
+                </Typography>
+              </Box>
+            </Paper>
+          </Box>
         </Container>
 
         {/* Footer */}
