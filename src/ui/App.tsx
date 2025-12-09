@@ -11,7 +11,7 @@ import {
 } from "../orchestrator/index";
 import type { Logger } from "../logging/index";
 import { disposeAllShellServices } from "../shell/index";
-import type { CommandRegistry, Mode } from "../commands/index";
+import { DEFAULT_MODEL, type CommandRegistry, type Mode } from "../commands/index";
 
 interface AppProps {
     projectPath: string;
@@ -60,7 +60,7 @@ export function App({
     const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [pendingReviewId, setPendingReviewId] = useState<string | null>(null);
-    const [currentModel, setCurrentModel] = useState<string>("claude-sonnet-4-20250514");
+    const [currentModel, setCurrentModel] = useState<string>(DEFAULT_MODEL);
     const [contextUsage, setContextUsage] = useState<number>(0);
     const [orchestrator, setOrchestrator] = useState<Orchestrator | null>(null);
     const [commandRegistry, setCommandRegistry] = useState<CommandRegistry | undefined>(undefined);

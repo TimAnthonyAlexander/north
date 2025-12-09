@@ -1083,6 +1083,8 @@ Respond with ONLY the JSON, no other text.`;
         }
     }
 
+    emitState();
+
     return {
         async sendMessage(content: string, mode: Mode = "agent") {
             if (isProcessing || stopped) return;
