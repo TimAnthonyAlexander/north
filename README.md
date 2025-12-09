@@ -27,6 +27,16 @@ An AI pair programmer that lives in your terminal. Supports Claude (Anthropic) a
 - **Ask Mode** (`Tab` to toggle): Read-only exploration. Claude can search, read files, and analyze—but can't modify anything. Perfect for understanding unfamiliar codebases.
 - **Agent Mode**: Full access to edit and shell tools. Claude proposes, you approve.
 
+### File Mentions
+
+Attach files to your messages with `@` mentions—just like Cursor and Claude Code:
+
+```
+@src/components/Button.tsx Can you add an icon prop?
+```
+
+Start typing `@` and North shows a fuzzy-matched list of project files (respecting `.gitignore`). Use `Tab` or `Enter` to attach, or `Space`/`Esc` to cancel and type a literal `@`. Attached files are automatically injected as context with a preview (first 30 lines) and symbol outline.
+
 The status line shows your current mode with a color-coded badge: **[ASK]** in blue, **[AGENT]** in green. Context usage appears on the right with a real-time percentage meter.
 
 ### Intelligent Approvals
