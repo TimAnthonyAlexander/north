@@ -424,7 +424,8 @@ The provider system prompts now explicitly instruct the LLM to:
 - Root Ink component, wires orchestrator to UI state
 - Uses alternate screen buffer via `useAlternateScreen()` hook (like htop/less)
 - Tracks terminal dimensions via `useTerminalSize()` hook for viewport calculations
-- SIGINT handling: cancel if processing, exit if idle
+- CTRL+C handling via `useInput`: cancel if processing, exit if idle
+- Requires `exitOnCtrlC: false` in render options to prevent Ink's default exit behavior
 - Delegates review decisions to orchestrator methods (write, shell, command, plan)
 - Tracks `isProcessing`, `pendingReviewId`, `nextMode`, and `scrollOffset` for UI state
 - Passes mode to orchestrator on message submission
@@ -998,7 +999,7 @@ North can learn a project on first run and store a persistent profile for contex
 
 ### Cancellation Flow (CTRL+C)
 
-The app handles CTRL+C (SIGINT) contextually:
+The app handles CTRL+C via Ink's `useInput` hook (not process.on SIGINT) contextually:
 
 1. **During processing** (`isProcessing() === true`):
    - Calls `orchestrator.cancel()`

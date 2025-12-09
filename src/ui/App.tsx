@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Box, useApp } from "ink";
+import { Box, useApp, useInput } from "ink";
 import { ScrollableTranscript } from "./ScrollableTranscript";
 import { Composer } from "./Composer";
 import { StatusLine } from "./StatusLine";
@@ -135,8 +135,8 @@ export function App({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    useEffect(() => {
-        const handleSigint = () => {
+    useInput((input, key) => {
+        if (key.ctrl && input === "c") {
             if (orchestrator?.isProcessing()) {
                 orchestrator.cancel();
             } else {
@@ -144,12 +144,8 @@ export function App({
                 disposeAllShellServices();
                 exit();
             }
-        };
-        process.on("SIGINT", handleSigint);
-        return () => {
-            process.off("SIGINT", handleSigint);
-        };
-    }, [exit, orchestrator]);
+        }
+    });
 
     function handleSubmit(content: string) {
         if (!orchestrator) return;

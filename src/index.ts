@@ -139,7 +139,8 @@ async function main() {
                     stderrBytes,
                 });
             },
-        })
+        }),
+        { exitOnCtrlC: false }
     );
 
     waitUntilExit().then(() => {
