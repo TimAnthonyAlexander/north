@@ -34,8 +34,7 @@ function resolvePath(repoRoot: string, filePath: string): string | null {
             if (!realParent.startsWith(realRoot)) {
                 return null;
             }
-        } catch {
-        }
+        } catch {}
         return normalized;
     }
 }
@@ -83,7 +82,9 @@ function buildTypeScriptOutline(content: string): OutlineSection[] {
         }
 
         if (trimmed.match(/^export\s+(interface|type|class|function|const|enum)\s+(\w+)/)) {
-            const match = trimmed.match(/^export\s+(?:interface|type|class|function|const|enum)\s+(\w+)/);
+            const match = trimmed.match(
+                /^export\s+(?:interface|type|class|function|const|enum)\s+(\w+)/
+            );
             if (match) {
                 let endLine = i + 1;
                 if (trimmed.includes("{") && !trimmed.includes("}")) {
@@ -317,4 +318,3 @@ export const getFileOutlineTool: ToolDefinition<GetFileOutlineInput, GetFileOutl
         };
     },
 };
-

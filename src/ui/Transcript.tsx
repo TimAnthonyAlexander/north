@@ -329,7 +329,7 @@ const MessageBlock = memo(function MessageBlock({
 
 function isEntryStatic(entry: TranscriptEntry, pendingReviewId: string | null): boolean {
     if (entry.isStreaming) return false;
-    
+
     if (entry.role === "diff_review") {
         return entry.reviewStatus !== "pending";
     }
@@ -339,7 +339,7 @@ function isEntryStatic(entry: TranscriptEntry, pendingReviewId: string | null): 
     if (entry.role === "command_review") {
         return entry.reviewStatus !== "pending";
     }
-    
+
     if (entry.id === pendingReviewId) return false;
     return true;
 }

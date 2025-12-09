@@ -34,8 +34,7 @@ function resolvePath(repoRoot: string, filePath: string): string | null {
             if (!realParent.startsWith(realRoot)) {
                 return null;
             }
-        } catch {
-        }
+        } catch {}
         return normalized;
     }
 }
@@ -101,4 +100,3 @@ export const getLineCountTool: ToolDefinition<GetLineCountInput, GetLineCountOut
         };
     },
 };
-
