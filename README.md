@@ -313,6 +313,7 @@ bun test --watch               # run tests in watch mode
 | **Deterministic edit primitives** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | **Inline diff review (first-class UX)** | ✓ | ~ | ~ | ~ | ✓ | ✓ | ✓ | ✓ | ✗ |
 | **Cursor rules ingestion** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
+| **@ file mentions** | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ | ~ | ✗ |
 | **No vendor subscription required** | ✓ | ~ | ~ | ✓ | ✓ | ✓ | ~ | ~ | ✗ |
 | **Open-source core** | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ |
 | **1M-token context option** | ✗ | ✗ | ✗ | ✓ | ~ | ✗ | ✗ | ✗ | ✗ |
@@ -321,7 +322,7 @@ bun test --watch               # run tests in watch mode
 
 **Where North stands out:**
 
-North is the only tool that combines **terminal-native**, **multi-provider BYOK**, and **deterministic edit primitives** with exact-match verification. The safety model doesn't require trust: every risky operation shows an inline diff with explicit approval. You're not locked to one editor, one vendor, or one AI provider.
+North is the only tool that combines **terminal-native**, **multi-provider BYOK**, and **deterministic edit primitives** with exact-match verification. The safety model doesn't require trust: every risky operation shows an inline diff with explicit approval. Plus familiar UX features like **@ file mentions** for quick context attachment. You're not locked to one editor, one vendor, or one AI provider.
 
 **North's roadmap opportunities:**
 
