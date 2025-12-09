@@ -12,6 +12,7 @@ import { getAssistantName } from "../commands/models";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const PULSE_COLORS = ["magenta", "#ff6ec7", "#ff8fd5", "#ffa0dc", "#ff8fd5", "#ff6ec7"] as const;
+const THINKING_COLORS = ["#999999", "#aaaaaa", "#bbbbbb", "#cccccc", "#bbbbbb", "#aaaaaa"] as const;
 
 const THINKING_PHRASES = [
     "Thinking",
@@ -115,6 +116,7 @@ const AssistantMessage = memo(function AssistantMessage({
 }) {
     const hasContent = content.length > 0;
     const pulseColor = usePulse(isStreaming && animationsEnabled, PULSE_COLORS, 500);
+    const thinkingColor = usePulse(isStreaming && animationsEnabled, THINKING_COLORS, 400);
     const thinkingPhrase = useMemo(() => getRandomThinkingPhrase(), []);
 
     return (
@@ -130,7 +132,7 @@ const AssistantMessage = memo(function AssistantMessage({
             )}
             {!hasContent && isStreaming && (
                 <Box marginLeft={2}>
-                    <Text color="gray" italic>
+                    <Text color={thinkingColor} italic>
                         {thinkingPhrase}...
                     </Text>
                 </Box>
