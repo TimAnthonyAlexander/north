@@ -402,8 +402,7 @@ async function queryWithTools(
         }
     }
 
-    const needsSummary =
-        !finalText.trim() || (didUseTools && looksLikePlanning(finalText));
+    const needsSummary = !finalText.trim() || (didUseTools && looksLikePlanning(finalText));
 
     if (needsSummary && didUseTools) {
         conversationMessages.push({
