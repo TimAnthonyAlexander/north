@@ -1,4 +1,4 @@
-import type { Provider, ToolSchema } from "../provider/index";
+import type { Provider, ToolSchema, Message } from "../provider/index";
 import type { ToolRegistry } from "../tools/registry";
 import type { Logger } from "../logging/index";
 
@@ -104,13 +104,16 @@ export async function runLearningSession(
 
             if (response && response.trim()) {
                 sections.push(`## ${topic.title}\n\n${response.trim()}`);
+            } else {
+                sections.push(`## ${topic.title}\n\nNo information gathered for this topic.`);
             }
         } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : String(err);
             logger.error("learning_topic_error", err as Error, {
                 topicId: topic.id,
                 topicTitle: topic.title,
             });
-            sections.push(`## ${topic.title}\n\nUnable to gather information for this topic.`);
+            sections.push(`## ${topic.title}\n\nLearning error: ${errorMsg.slice(0, 200)}`);
         }
     }
 
@@ -126,8 +129,7 @@ async function queryTopicWithTools(
     repoRoot: string,
     logger: Logger
 ): Promise<string> {
-    let accumulatedText = "";
-    const conversationMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
+    const conversationMessages: Message[] = [];
 
     conversationMessages.push({
         role: "user",
@@ -136,6 +138,7 @@ async function queryTopicWithTools(
 
     const maxIterations = 5;
     let iteration = 0;
+    let lastAssistantText = "";
 
     while (iteration < maxIterations) {
         iteration++;
@@ -145,16 +148,16 @@ async function queryTopicWithTools(
             toolCalls: Array<{ id: string; name: string; input: unknown }>;
             stopReason: string | null;
         }>((resolve, reject) => {
+            let text = "";
             const toolCalls: Array<{ id: string; name: string; input: unknown }> = [];
 
             provider
                 .stream(
-                    conversationMessages.map((msg) => ({
-                        role: msg.role,
-                        content: msg.content,
-                    })),
+                    conversationMessages,
                     {
-                        onChunk: () => {},
+                        onChunk: (chunk) => {
+                            text += chunk;
+                        },
                         onToolCall: (toolCall) => {
                             toolCalls.push(toolCall);
                         },
@@ -172,19 +175,18 @@ async function queryTopicWithTools(
                     {
                         tools: toolSchemas,
                         systemOverride:
-                            "You are helping North learn about a codebase. Use the available tools to explore and answer the question concisely. Focus on concrete, actionable insights.",
+                            "You are helping North learn about a codebase. Use tools to explore the code. Do not narrate your exploration steps. After using tools, provide only the final concise answer as a summary with bullet points. Be direct and factual.",
                     }
                 )
                 .catch(reject);
         });
 
-        accumulatedText += streamResult.text;
+        lastAssistantText = streamResult.text;
 
         if (streamResult.stopReason === "tool_use" && streamResult.toolCalls.length > 0) {
-            conversationMessages.push({
-                role: "assistant",
-                content: streamResult.text,
-            });
+            conversationMessages.push(
+                provider.buildAssistantMessage(streamResult.text, streamResult.toolCalls)
+            );
 
             const toolResults: Array<{ toolCallId: string; result: string; isError?: boolean }> =
                 [];
@@ -195,22 +197,29 @@ async function queryTopicWithTools(
                     logger,
                 });
 
+                let resultContent: string;
+                if (result.ok && result.data) {
+                    if (typeof result.data === "string") {
+                        resultContent = result.data.slice(0, 5000);
+                    } else {
+                        resultContent = JSON.stringify(result.data).slice(0, 5000);
+                    }
+                } else {
+                    resultContent = `ERROR: ${result.error || "Unknown error"}`;
+                }
+
                 toolResults.push({
                     toolCallId: toolCall.id,
-                    result: JSON.stringify(result),
+                    result: resultContent,
                     isError: !result.ok,
                 });
             }
 
-            const toolResultMessage = provider.buildToolResultMessage(toolResults);
-            conversationMessages.push({
-                role: "user",
-                content: JSON.stringify(toolResultMessage.content),
-            });
+            conversationMessages.push(provider.buildToolResultMessage(toolResults));
         } else {
             break;
         }
     }
 
-    return accumulatedText.trim();
+    return lastAssistantText.trim();
 }

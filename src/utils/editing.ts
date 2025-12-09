@@ -31,7 +31,7 @@ export function resolveSafePath(repoRoot: string, filePath: string): string | nu
     } catch {
         let currentPath = normalized;
         let parentDir = dirname(currentPath);
-        
+
         while (parentDir !== currentPath && parentDir.startsWith(normalizedRoot)) {
             try {
                 const realParent = realpathSync(parentDir);
@@ -45,7 +45,7 @@ export function resolveSafePath(repoRoot: string, filePath: string): string | nu
                 parentDir = dirname(currentPath);
             }
         }
-        
+
         return null;
     }
 }
