@@ -45,9 +45,7 @@ function entryToLines(
 
     if (entry.role === "user") {
         const header = `${ANSI_CYAN}${ANSI_BOLD}You${ANSI_RESET}`;
-        const contentLines = wrapText(entry.content, contentWidth).map(
-            (line) => `  ${line}`
-        );
+        const contentLines = wrapText(entry.content, contentWidth).map((line) => `  ${line}`);
         return { lines: [header, ...contentLines, ""], isInteractive: false };
     }
 
@@ -62,9 +60,7 @@ function entryToLines(
             };
         }
 
-        const contentLines = wrapText(entry.content, contentWidth).map(
-            (line) => `  ${line}`
-        );
+        const contentLines = wrapText(entry.content, contentWidth).map((line) => `  ${line}`);
         return { lines: [header, ...contentLines, ""], isInteractive: false };
     }
 
@@ -303,7 +299,9 @@ export function ScrollableTranscript({
                             options={entry.commandOptions}
                             status={commandStatus}
                             selectedId={entry.commandSelectedId}
-                            onSelect={isActive ? (id) => onCommandSelect?.(entry.id, id) : undefined}
+                            onSelect={
+                                isActive ? (id) => onCommandSelect?.(entry.id, id) : undefined
+                            }
                             onCancel={isActive ? () => onCommandCancel?.(entry.id) : undefined}
                             isActive={isActive}
                         />
@@ -325,4 +323,3 @@ export function ScrollableTranscript({
         </Box>
     );
 }
-

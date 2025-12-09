@@ -220,7 +220,10 @@ export function App({
     const composerHeight = 5;
     const statusHeight = 1;
     const paddingHeight = 2;
-    const viewportHeight = Math.max(terminalSize.rows - composerHeight - statusHeight - paddingHeight, 10);
+    const viewportHeight = Math.max(
+        terminalSize.rows - composerHeight - statusHeight - paddingHeight,
+        10
+    );
     const viewportWidth = Math.max(terminalSize.columns - 4, 40);
 
     useEffect(() => {

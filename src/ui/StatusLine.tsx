@@ -35,7 +35,13 @@ function getModeLabel(mode: Mode): string {
     }
 }
 
-export function StatusLine({ model, projectPath, contextUsage, mode, isScrolled }: StatusLineProps) {
+export function StatusLine({
+    model,
+    projectPath,
+    contextUsage,
+    mode,
+    isScrolled,
+}: StatusLineProps) {
     const projectName = basename(projectPath);
     const usagePercent = Math.round(contextUsage * 100);
     const contextColor = getContextColor(contextUsage);
