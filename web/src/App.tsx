@@ -51,12 +51,12 @@ const theme = createTheme({
       light: '#42a5f5'
     },
     background: {
-      default: '#0a0a0a',
-      paper: '#1a1a1a',
+      default: '#0d1117',
+      paper: '#161b22',
     },
     text: {
       primary: '#ffffff',
-      secondary: '#b0b0b0'
+      secondary: '#8b949e'
     }
   },
   typography: {
@@ -93,8 +93,8 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 12,
-          border: '1px solid #333',
-          background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)'
+          border: '1px solid #30363d',
+          background: 'linear-gradient(135deg, #161b22 0%, #21262d 100%)'
         }
       }
     }
@@ -159,7 +159,7 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Box sx={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)' }}>
+      <Box sx={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0d1117 0%, #161b22 100%)' }}>
         {/* Hero Section */}
         <Container maxWidth="lg">
           <Box sx={{ pt: 8, pb: 6, textAlign: 'center' }}>
@@ -242,29 +242,51 @@ function App() {
             </Stack>
 
             {/* Key Stats */}
-            <Stack direction={isMobile ? 'column' : 'row'} spacing={4} justifyContent="center">
-              <Chip 
-                label="99.3% Edit Success Rate" 
-                color="primary" 
-                sx={{ py: 2, px: 1, fontSize: '0.9rem', fontWeight: 600 }}
-              />
-              <Chip 
-                label="200K Context Window" 
-                color="secondary" 
-                sx={{ py: 2, px: 1, fontSize: '0.9rem', fontWeight: 600 }}
-              />
-              <Chip 
-                label="Terminal Native" 
-                sx={{ 
-                  py: 2, 
-                  px: 1, 
-                  fontSize: '0.9rem', 
-                  fontWeight: 600,
-                  bgcolor: '#ff9800',
-                  color: 'white'
-                }}
-              />
-            </Stack>
+            <Grid container spacing={2} justifyContent="center">
+              <Grid item xs={12} sm={4}>
+                <Chip 
+                  label="99.3% Edit Success Rate" 
+                  color="primary" 
+                  sx={{ 
+                    py: 2, 
+                    px: 4, 
+                    fontSize: '0.9rem', 
+                    fontWeight: 600,
+                    width: '100%',
+                    maxWidth: '280px'
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Chip 
+                  label="200K Context Window" 
+                  color="secondary" 
+                  sx={{ 
+                    py: 2, 
+                    px: 4, 
+                    fontSize: '0.9rem', 
+                    fontWeight: 600,
+                    width: '100%',
+                    maxWidth: '280px'
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Chip 
+                  label="Terminal Native" 
+                  sx={{ 
+                    py: 2, 
+                    px: 4, 
+                    fontSize: '0.9rem', 
+                    fontWeight: 600,
+                    bgcolor: '#ff9800',
+                    color: 'white',
+                    width: '100%',
+                    maxWidth: '280px'
+                  }}
+                />
+              </Grid>
+            </Grid>
           </Box>
         </Container>
 
@@ -480,7 +502,7 @@ function App() {
         </Container>
 
         {/* Footer */}
-        <Box sx={{ bgcolor: '#0a0a0a', py: 4, mt: 8 }}>
+        <Box sx={{ bgcolor: '#0d1117', py: 4, mt: 8 }}>
           <Container maxWidth="lg">
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
