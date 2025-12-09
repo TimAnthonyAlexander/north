@@ -528,10 +528,6 @@ export function createOrchestratorWithTools(
             return { needsReview, entry, reviewType: "shell" };
         }
 
-        if (policy === "write") {
-            writeToolCallIds.add(toolCall.id);
-        }
-
         const result = await toolRegistry.execute(toolName, args, {
             repoRoot: context.repoRoot,
             logger: context.logger,
@@ -541,6 +537,7 @@ export function createOrchestratorWithTools(
         callbacks.onToolCallComplete?.(toolName, durationMs, result.ok);
 
         if (policy === "write" && result.ok && result.data) {
+            writeToolCallIds.add(toolCall.id);
             const prepareResult = result.data as EditPrepareResult;
             const reviewId = generateId();
 
@@ -932,6 +929,8 @@ Respond with ONLY the JSON, no other text.`;
     }
 
     async function runConversationLoop(_mode: Mode): Promise<void> {
+        let toolResultRecoveryAttempted = false;
+
         while (!stopped && !cancelled) {
             const requestId = generateId();
             const requestStart = Date.now();
@@ -1027,6 +1026,21 @@ Respond with ONLY the JSON, no other text.`;
                     emitState();
                     break;
                 }
+
+                const orphanMatch = err.message.match(
+                    /tool_use.*ids.*without.*tool_result.*: (toolu_\w+)/
+                );
+                if (orphanMatch && !toolResultRecoveryAttempted) {
+                    const orphanedId = orphanMatch[1];
+                    writeToolCallIds.delete(orphanedId);
+                    shellToolCallIds.delete(orphanedId);
+                    context.logger.info("tool_result_recovery", { orphanedId });
+                    toolResultRecoveryAttempted = true;
+                    transcript.pop();
+                    toolCallsMap.delete(assistantId);
+                    continue;
+                }
+
                 callbacks.onRequestComplete?.(requestId, requestDuration, err);
                 updateEntry(assistantId, {
                     isStreaming: false,

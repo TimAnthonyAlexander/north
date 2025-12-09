@@ -667,6 +667,19 @@ When Claude requests tools:
 3. Results are JSON-stringified and sent back as `tool_result` blocks
 4. Claude processes results and may request more tools or respond
 
+### Tool Result Consistency
+
+The API requires every `tool_use` block to have a corresponding `tool_result`. To ensure this:
+
+1. **Write tool ID tracking**: Tool IDs are only added to `writeToolCallIds` after the tool succeeds and a `diff_review` entry is created. Failed write tools have their results sent via the normal `tool` entry path.
+
+2. **Recovery mechanism**: If the API returns an "orphaned tool_use" error (tool_use without tool_result), the orchestrator:
+   - Extracts the orphaned tool ID from the error message
+   - Removes it from `writeToolCallIds` and `shellToolCallIds` sets
+   - Removes the incomplete assistant entry from transcript
+   - Retries the request once
+   - Logs the recovery event for debugging
+
 ### Write Approval Flow
 
 When Claude requests an edit tool (approvalPolicy: "write"):
