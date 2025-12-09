@@ -873,6 +873,8 @@ To prevent flickering in large conversations, North implements several Ink-speci
    - Completed transcript entries (not streaming, not pending review) are rendered inside `<Static>`
    - Only dynamic entries (streaming messages, pending reviews) re-render on state changes
    - This transforms "redraw 2000-line screen 12x/sec" into "redraw small dynamic section"
+   - **Entry uniqueness**: Deduplication check prevents same entry ID from appearing in both sections
+   - **Review status priority**: For review entries, `reviewStatus` determines static vs dynamic, preventing race conditions during state transitions
 
 2. **Conditional Animation Timers**:
    - All animation hooks (`useSpinner`, `usePulse`, `useBorderPulse`) accept an `active` parameter

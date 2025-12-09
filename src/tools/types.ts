@@ -55,6 +55,8 @@ export interface FindFilesOutput {
 export interface SearchTextInput {
     query: string;
     path?: string;
+    file?: string;
+    lineRange?: { start: number; end: number };
     regex?: boolean;
     limit?: number;
 }
@@ -74,6 +76,7 @@ export interface SearchTextOutput {
 export interface ReadFileInput {
     path: string;
     range?: { start: number; end: number };
+    includeContext?: "imports" | "full";
 }
 
 export interface ReadFileOutput {
@@ -177,4 +180,51 @@ export interface ShellRunOutput {
     exitCode: number;
     durationMs: number;
     denied?: boolean;
+}
+
+export interface GetLineCountInput {
+    path: string;
+}
+
+export interface GetLineCountOutput {
+    path: string;
+    lineCount: number;
+    sizeBytes: number;
+    willTruncate: boolean;
+}
+
+export interface FileSymbol {
+    name: string;
+    type: "function" | "class" | "interface" | "type" | "const" | "enum" | "method";
+    line: number;
+    signature: string;
+    parentSymbol?: string;
+}
+
+export interface GetFileSymbolsInput {
+    path: string;
+}
+
+export interface GetFileSymbolsOutput {
+    path: string;
+    language: string | null;
+    symbols: FileSymbol[];
+}
+
+export interface OutlineSection {
+    type: "imports" | "exports" | "symbol" | "other";
+    name: string;
+    startLine: number;
+    endLine: number;
+    children?: OutlineSection[];
+}
+
+export interface GetFileOutlineInput {
+    path: string;
+}
+
+export interface GetFileOutlineOutput {
+    path: string;
+    language: string | null;
+    sections: OutlineSection[];
 }
