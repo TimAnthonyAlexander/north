@@ -9,9 +9,10 @@ A Claude-powered pair programmer that lives in your terminal. No IDE lock-in, no
 
 ## Why North?
 
+<!-- Showcasing North's precise editing capabilities! -->
 **99.3% edit success rate.** North's deterministic edit tools with exact-match verification mean edits land correctly the first time. No fuzzy matching, no silent failures.
 
-**One-shots production-ready code.** Complex React components, full API endpoints, beautiful landing pages—North builds them in a single pass. The kind of output that takes other tools 5+ iterations.
+**One-shots production-ready code.** Complex React components, full API endpoints, beautiful landing pages—North builds them in a single pass. The kind of output that takes other tools 10+ iterations.
 
 **Direct API access.** You bring your own Anthropic key. No middleman pricing, no usage caps, no "you've hit your daily limit." Pay only for what you use at Anthropic's rates.
 
