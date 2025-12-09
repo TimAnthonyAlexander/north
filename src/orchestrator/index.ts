@@ -25,6 +25,7 @@ import {
 import { DEFAULT_MODEL, getModelContextLimit } from "../commands/models";
 import { getSavedModel } from "../storage/config";
 import { estimatePromptTokens } from "../utils/tokens";
+import { isRetryableError, calculateBackoff, sleep, DEFAULT_RETRY_CONFIG } from "../utils/retry";
 import * as path from "node:path";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "denied";
@@ -347,9 +348,10 @@ export function createOrchestratorWithTools(
             } else if (entry.role === "diff_review" && entry.reviewStatus !== "pending") {
                 const toolCallId = entry.toolCallId;
                 if (toolCallId) {
-                    const applied = entry.reviewStatus === "accepted";
+                    const applied =
+                        entry.reviewStatus === "accepted" || entry.reviewStatus === "always";
                     const resultData: Record<string, unknown> = { ok: true, applied };
-                    if (entry.reviewStatus === "accepted" && entry.filesCount) {
+                    if (applied && entry.filesCount) {
                         resultData.stats = { filesChanged: entry.filesCount };
                     }
                     if (entry.reviewStatus === "rejected") {
@@ -930,6 +932,7 @@ Respond with ONLY the JSON, no other text.`;
 
     async function runConversationLoop(_mode: Mode): Promise<void> {
         let toolResultRecoveryAttempted = false;
+        let transientRetryCount = 0;
 
         while (!stopped && !cancelled) {
             const requestId = generateId();
@@ -1041,6 +1044,24 @@ Respond with ONLY the JSON, no other text.`;
                     continue;
                 }
 
+                if (
+                    isRetryableError(err) &&
+                    transientRetryCount < DEFAULT_RETRY_CONFIG.maxRetries
+                ) {
+                    transientRetryCount++;
+                    const delayMs = calculateBackoff(transientRetryCount - 1);
+                    context.logger.info("api_retry_attempt", {
+                        attempt: transientRetryCount,
+                        maxRetries: DEFAULT_RETRY_CONFIG.maxRetries,
+                        delayMs: Math.round(delayMs),
+                        errorMessage: err.message,
+                    });
+                    transcript.pop();
+                    toolCallsMap.delete(assistantId);
+                    await sleep(delayMs);
+                    continue;
+                }
+
                 callbacks.onRequestComplete?.(requestId, requestDuration, err);
                 updateEntry(assistantId, {
                     isStreaming: false,
@@ -1062,6 +1083,7 @@ Respond with ONLY the JSON, no other text.`;
             }
 
             callbacks.onRequestComplete?.(requestId, requestDuration);
+            transientRetryCount = 0;
 
             updateEntry(assistantId, {
                 isStreaming: false,

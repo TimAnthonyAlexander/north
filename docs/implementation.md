@@ -79,7 +79,8 @@ src/
     ├── repo.ts           # Repo root detection
     ├── ignore.ts         # Gitignore parsing and file walking
     ├── editing.ts        # Diff computation and atomic file writes
-    └── tokens.ts         # Token estimation for context tracking
+    ├── tokens.ts         # Token estimation for context tracking
+    └── retry.ts          # Transient error retry with exponential backoff
 
 tests/
 └── openai-provider.test.ts  # OpenAI provider unit tests
@@ -679,6 +680,27 @@ The API requires every `tool_use` block to have a corresponding `tool_result`. T
    - Removes the incomplete assistant entry from transcript
    - Retries the request once
    - Logs the recovery event for debugging
+
+### Transient Error Retry
+
+The orchestrator automatically retries API requests that fail due to transient errors:
+
+**Retryable errors:**
+- Network errors: ECONNREFUSED, ECONNRESET, ETIMEDOUT, ENETUNREACH, socket hang up, fetch failed
+- Rate limits: HTTP 429, "rate limit", "too many requests"
+- Server errors: HTTP 5xx, "overloaded", "service unavailable", "internal server error"
+
+**Non-retryable errors (fail immediately):**
+- Authentication errors (401, 403)
+- Bad request errors (400)
+- Cancellation/abort
+
+**Retry behavior:**
+- Maximum 3 retry attempts per conversation turn
+- Exponential backoff with jitter: ~1s, ~2s, ~4s (capped at 30s)
+- Counter resets after successful request
+- Silent retry (no UI change, request resumes after delay)
+- Logs `api_retry_attempt` event with attempt count, delay, and error message
 
 ### Write Approval Flow
 
