@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Box, useApp } from "ink";
-import { Transcript } from "./Transcript";
+import { ScrollableTranscript } from "./ScrollableTranscript";
 import { Composer } from "./Composer";
 import { StatusLine } from "./StatusLine";
+import { useAlternateScreen } from "./useAlternateScreen";
+import { useTerminalSize } from "./useTerminalSize";
 import {
     createOrchestratorWithTools,
     type Orchestrator,
@@ -62,6 +64,9 @@ export function App({
     onShellRunComplete,
 }: AppProps) {
     const { exit } = useApp();
+    useAlternateScreen();
+    const terminalSize = useTerminalSize();
+
     const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [pendingReviewId, setPendingReviewId] = useState<string | null>(null);
@@ -74,6 +79,7 @@ export function App({
     const [learningInProgress, setLearningInProgress] = useState(false);
     const [learningPercent, setLearningPercent] = useState(0);
     const [learningTopic, setLearningTopic] = useState("");
+    const [scrollOffset, setScrollOffset] = useState(0);
 
     useEffect(() => {
         const orch = createOrchestratorWithTools(
@@ -209,11 +215,24 @@ export function App({
     }
 
     const composerDisabled = isProcessing || pendingReviewId !== null || learningPromptId !== null;
+    const inputActive = !composerDisabled;
+
+    const composerHeight = 5;
+    const statusHeight = 1;
+    const paddingHeight = 2;
+    const viewportHeight = Math.max(terminalSize.rows - composerHeight - statusHeight - paddingHeight, 10);
+    const viewportWidth = Math.max(terminalSize.columns - 4, 40);
+
+    useEffect(() => {
+        setScrollOffset(0);
+    }, [transcript.length]);
+
+    const isScrolled = scrollOffset > 0;
 
     return (
-        <Box flexDirection="column" height="100%">
+        <Box flexDirection="column" height={terminalSize.rows}>
             <Box flexDirection="column" flexGrow={1} paddingX={1} marginTop={1}>
-                <Transcript
+                <ScrollableTranscript
                     entries={transcript}
                     pendingReviewId={pendingReviewId}
                     currentModel={currentModel}
@@ -221,6 +240,10 @@ export function App({
                     learningInProgress={learningInProgress}
                     learningPercent={learningPercent}
                     learningTopic={learningTopic}
+                    viewportHeight={viewportHeight}
+                    viewportWidth={viewportWidth}
+                    scrollOffset={scrollOffset}
+                    onScrollChange={setScrollOffset}
                     onAcceptReview={handleAcceptReview}
                     onAlwaysAcceptReview={handleAlwaysAcceptReview}
                     onRejectReview={handleRejectReview}
@@ -232,6 +255,7 @@ export function App({
                     onCommandCancel={handleCommandCancel}
                     onLearningAccept={handleLearningAccept}
                     onLearningDecline={handleLearningDecline}
+                    inputActive={inputActive}
                 />
             </Box>
             <Box paddingX={1}>
@@ -249,6 +273,7 @@ export function App({
                     projectPath={projectPath}
                     contextUsage={contextUsage}
                     mode={nextMode}
+                    isScrolled={isScrolled}
                 />
             </Box>
         </Box>

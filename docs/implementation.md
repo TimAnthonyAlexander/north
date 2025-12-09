@@ -420,17 +420,36 @@ The provider system prompts now explicitly instruct the LLM to:
 ### ui/App.tsx
 
 - Root Ink component, wires orchestrator to UI state
+- Uses alternate screen buffer via `useAlternateScreen()` hook (like htop/less)
+- Tracks terminal dimensions via `useTerminalSize()` hook for viewport calculations
 - SIGINT handling: cancel if processing, exit if idle
 - Delegates review decisions to orchestrator methods (write, shell, command, plan)
-- Tracks `isProcessing`, `pendingReviewId`, and `nextMode` for UI state
+- Tracks `isProcessing`, `pendingReviewId`, `nextMode`, and `scrollOffset` for UI state
 - Passes mode to orchestrator on message submission
-- Layout: Transcript (scrollable top), StatusLine (sticky bottom), Composer (sticky bottom)
+- Auto-resets scroll to bottom when transcript changes
+- Layout: ScrollableTranscript (viewport-height top), Composer (fixed bottom), StatusLine (fixed bottom)
+
+### ui/useAlternateScreen.ts
+
+- Custom hook that switches terminal to alternate screen buffer on mount
+- Uses ANSI escape codes: `\x1b[?1049h` (enter) and `\x1b[?1049l` (exit)
+- Hides cursor during render, shows on exit
+- Alternate screen means transcript is not in terminal scrollback after exit
+- Similar behavior to `less`, `htop`, `vim`
+
+### ui/useTerminalSize.ts
+
+- Custom hook that tracks terminal dimensions (rows and columns)
+- Listens to stdout "resize" events for dynamic updates
+- Returns `{ rows, columns }` object
+- Used by App to calculate viewport height for ScrollableTranscript
 
 ### ui/StatusLine.tsx
 
 - Full-width status bar using `width="100%"` and `justifyContent="space-between"`
 - Left side: project name with truncation for long names (`wrap="truncate"`)
-- Right side: mode indicator, current model name, and context usage meter
+- Right side: scroll indicator, mode indicator, current model name, and context usage meter
+- Scroll indicator: yellow [SCROLL] badge when scrollOffset > 0 (not at bottom)
 - Mode indicator: color-coded badge ([ASK] blue, [AGENT] green)
 - Context meter: color-coded circle (green < 60%, yellow 60-85%, red > 85%) + percentage
 - Updates in real-time as context fills
@@ -454,26 +473,27 @@ The provider system prompts now explicitly instruct the LLM to:
 - Smart space insertion: only adds space after completion if needed
 - Clamps selection index when suggestions change
 
-### ui/Transcript.tsx
+### ui/ScrollableTranscript.tsx
 
-- Renders conversation history with performance optimizations for large transcripts
-- Uses Ink's `<Static>` component for completed entries (render once, never re-render)
-- Dynamic section only for actively streaming or pending review entries
+- Renders conversation history with in-app scrolling (no terminal scrollback dependency)
+- Pre-computes wrapped lines with ANSI color codes using `wrap-ansi`
+- Renders only visible lines based on viewport height and scroll offset
 - User messages: cyan label
-- Assistant messages: magenta label
-- Tool messages: yellow ⚡ icon, gray text, human-readable formatting
+- Assistant messages: magenta label  
+- Tool messages: yellow ⚡ icon, gray text
 - Command executed messages: blue ⚙ icon with result
-- Diff review entries: bordered box with diff content
-- Shell review entries: command approval prompt
-- Command review entries: interactive picker
-- Error tool results: red text
-- Streaming indicator (●) with magenta pulse animation
-- Tool execution spinner animation (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏)
-- Animation hooks (all conditional on `active` parameter):
-  - `useSpinner(active, interval)`: animated spinner frames for tool execution
-  - `usePulse(active, colors, interval)`: color cycling for streaming indicators
-- Auto-disables animations when transcript exceeds 100 entries
-- All message components memoized with `React.memo`
+- Interactive entries (diff_review, shell_review, command_review) rendered separately at bottom
+- Keyboard navigation for scrolling (when composer not active):
+  - Up/Down: scroll one line
+  - PageUp/PageDown: scroll viewport height
+  - G: jump to bottom (follow mode)
+- Auto-scrolls to bottom when new content arrives
+- Animation hooks disabled when transcript exceeds 100 entries
+
+### ui/Transcript.tsx (legacy)
+
+- Legacy transcript renderer using Ink's `<Static>` component pattern
+- Kept for reference but replaced by ScrollableTranscript
 
 ### ui/CommandReview.tsx
 
@@ -1028,6 +1048,47 @@ North uses subtle, frame-based animations to enhance feedback without overwhelmi
 - **Conditional timers**: Animation hooks accept an `active` boolean parameter; timers only run when active
 - **Auto-disable threshold**: Animations auto-disable when transcript exceeds 100 entries
 
+### Alternate Screen Buffer & In-App Scrolling
+
+North uses an alternate screen buffer (like `htop`, `less`, `vim`) instead of terminal scrollback:
+
+**Why alternate screen?**
+- Ink's differential rendering (cursor moves + line clears) conflicts with terminal scrollback
+- When Ink redraws while user scrolls, scrollback can become corrupted
+- Different terminals (iTerm2, Terminal.app) handle this inconsistently
+- Alternate screen provides a stable, controlled viewport
+
+**Architecture:**
+```
+Terminal (alternate screen)
+┌────────────────────────────────────┐
+│ ScrollableTranscript               │ ← viewport-height, renders line slice
+│   - Pre-wrapped lines with ANSI    │
+│   - Only visible lines rendered    │
+│   - Scroll offset from bottom      │
+├────────────────────────────────────┤
+│ Interactive entries (reviews)      │ ← Always visible at bottom
+├────────────────────────────────────┤
+│ Composer                           │ ← Fixed height
+├────────────────────────────────────┤
+│ StatusLine                         │ ← Fixed height, shows [SCROLL]
+└────────────────────────────────────┘
+```
+
+**State:**
+- `scrollOffset`: lines from bottom (0 = follow mode)
+- `viewportHeight`: terminal rows - composer - status - padding
+- `viewportWidth`: terminal columns - padding
+
+**Keyboard:**
+- Up/Down: scroll ±1 line (when composer disabled)
+- PageUp/PageDown: scroll ±viewportHeight
+- G: jump to bottom
+
+**Tradeoff:**
+- Transcript is not in terminal scrollback after exit
+- Future: add `/export` command to save transcript to file
+
 ### Transcript Performance Optimizations
 
 To prevent flickering in large conversations, North implements several Ink-specific optimizations:
@@ -1116,6 +1177,8 @@ Truncation is always explicit with `truncated: true` in results.
 | `@anthropic-ai/sdk` | ^0.39.0 | Claude API client |
 | `ink` | ^5.1.0 | Terminal UI framework |
 | `react` | ^18.3.1 | UI component model |
+| `wrap-ansi` | ^9.0.2 | ANSI-aware text wrapping for scroll viewport |
+| `string-width` | ^8.1.0 | Unicode-aware string width calculation |
 
 ### Dev Dependencies
 

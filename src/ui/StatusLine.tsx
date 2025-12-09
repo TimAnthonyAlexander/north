@@ -8,6 +8,7 @@ interface StatusLineProps {
     projectPath: string;
     contextUsage: number;
     mode: Mode;
+    isScrolled?: boolean;
 }
 
 function getContextColor(usage: number): string {
@@ -34,7 +35,7 @@ function getModeLabel(mode: Mode): string {
     }
 }
 
-export function StatusLine({ model, projectPath, contextUsage, mode }: StatusLineProps) {
+export function StatusLine({ model, projectPath, contextUsage, mode, isScrolled }: StatusLineProps) {
     const projectName = basename(projectPath);
     const usagePercent = Math.round(contextUsage * 100);
     const contextColor = getContextColor(contextUsage);
@@ -53,6 +54,14 @@ export function StatusLine({ model, projectPath, contextUsage, mode }: StatusLin
                 </Text>
             </Box>
             <Box flexDirection="row" gap={1}>
+                {isScrolled && (
+                    <>
+                        <Text color="yellow" bold>
+                            [SCROLL]
+                        </Text>
+                        <Text color="#999999">•</Text>
+                    </>
+                )}
                 <Text color={modeColor} bold>
                     [{modeLabel}]
                 </Text>
