@@ -57,8 +57,11 @@ src/
 │   ├── registry.ts       # Tool registry implementation with approval policy
 │   ├── list_root.ts      # List repo root entries
 │   ├── find_files.ts     # Glob pattern file search
-│   ├── search_text.ts    # Text/regex search (ripgrep or fallback)
-│   ├── read_file.ts      # File content reader with ranges
+│   ├── search_text.ts    # Text/regex search (ripgrep or fallback, supports file+range)
+│   ├── read_file.ts      # File content reader with ranges and smart context
+│   ├── get_line_count.ts # Quick file size checker
+│   ├── get_file_symbols.ts # Symbol extraction (functions, classes, types)
+│   ├── get_file_outline.ts # Hierarchical file structure outline
 │   ├── read_readme.ts    # README finder and reader
 │   ├── detect_languages.ts # Language composition detector
 │   ├── hotfiles.ts       # Frequently modified files (git or fallback)
@@ -312,8 +315,11 @@ All tools follow the pattern:
 |------|---------|--------------|
 | `list_root` | List repo root entries | Respects .gitignore |
 | `find_files` | Glob pattern search | Case-insensitive, limit |
-| `search_text` | Text/regex search | Uses ripgrep if available |
-| `read_file` | Read file content | Line ranges, truncation |
+| `search_text` | Text/regex search | Uses ripgrep if available, supports file+line range scope |
+| `read_file` | Read file content | Line ranges, truncation, smart context (imports/full) |
+| `get_line_count` | Check file size | Quick stats before reading large files |
+| `get_file_symbols` | Extract symbols | Functions, classes, types, interfaces (TS/JS/Py/Rust/Go/Java) |
+| `get_file_outline` | File structure outline | Hierarchical view with line numbers |
 | `read_readme` | Read README | Auto-detect README.* |
 | `detect_languages` | Language composition | By extension and size |
 | `hotfiles` | Important files | Git history or fallback |
@@ -322,6 +328,54 @@ All tools follow the pattern:
 | `edit_create_file` | Create/overwrite file | Requires approval |
 | `edit_apply_batch` | Atomic batch edits | All-or-nothing, requires approval |
 | `shell_run` | Execute shell command | Persistent PTY, requires approval or allowlist, stderr merged into stdout |
+
+#### Large File Navigation Strategy
+
+The tool system includes specialized tools to efficiently navigate and understand large files without reading entire contents:
+
+**Tool Chain for Large Files:**
+1. **Check size first**: Use `get_line_count` to determine file size before reading
+2. **Understand structure**: Use `get_file_symbols` or `get_file_outline` to see what's in the file
+3. **Find targets**: Use `search_text` with file+lineRange to locate specific content
+4. **Read strategically**: Use `read_file` with specific line ranges and optional context
+
+**Symbol Extraction (`get_file_symbols`):**
+- Regex-based parsing (fast, no dependencies)
+- Supported languages: TypeScript, JavaScript, Python, Rust, Go, Java
+- Extracts: functions, classes, interfaces, types, enums, methods
+- Returns: symbol name, type, line number, signature preview
+- Use case: "Where is function X defined?" or "What classes are in this file?"
+
+**File Outline (`get_file_outline`):**
+- Hierarchical structure with line ranges
+- TypeScript/JavaScript: imports, symbols, exports
+- Python: imports, classes (with methods), functions
+- Generic fallback: 50-line chunks
+- Use case: "Show me the overall structure of this 1000-line file"
+
+**Enhanced Search (`search_text`):**
+- New `file` parameter: search within a specific file only
+- New `lineRange` parameter: search within specific line range
+- Language hints in description: "For TypeScript: search for 'export function'"
+- Use case: "Find all uses of X within lines 100-200 of file.ts"
+
+**Smart Context (`read_file`):**
+- `includeContext: "imports"`: automatically includes file imports when reading a range
+- `includeContext: "full"`: expands to include full surrounding function/class
+- Use case: "Read lines 150-160 but also show me the imports"
+
+**System Prompt Guidance:**
+The provider system prompts now explicitly instruct the LLM to:
+- Check file size before reading files >200 lines
+- Use symbols/outline tools to understand structure first
+- Never read entire files when only one section is needed
+- Chain tools strategically: outline → search → targeted read
+
+**Expected Impact:**
+- 60-80% token reduction when working with large files
+- Faster symbol lookups without full reads
+- Better targeting: LLM reads only what's needed
+- Clearer guidance through concrete strategies
 
 ### utils/ignore.ts
 
@@ -642,7 +696,7 @@ Both providers (`anthropic.ts` and `openai.ts`) use identical system prompts wit
 North supports two conversation modes that control tool availability:
 
 **Mode Types:**
-- **Ask Mode**: Read-only - only read tools available (read_file, search_text, find_files, list_root, read_readme, detect_languages, hotfiles)
+- **Ask Mode**: Read-only - only read tools available (read_file, search_text, find_files, list_root, read_readme, detect_languages, hotfiles, get_line_count, get_file_symbols, get_file_outline)
 - **Agent Mode**: Full access - all tools available including write and shell tools
 
 **Mode Selection:**
@@ -824,6 +878,9 @@ The orchestrator formats tool names for better readability in the TUI:
 - `list_root` → "Listing project files - N entries"
 - `find_files` → "Finding pattern - N files" (with + suffix if truncated)
 - `read_file` → "Reading filename.ext"
+- `get_line_count` → "Checking size of filename.ext"
+- `get_file_symbols` → "Extracting symbols from filename.ext"
+- `get_file_outline` → "Outlining filename.ext"
 - `edit_replace_exact` → "Editing filename.ext"
 - `edit_insert_at_line` → "Editing filename.ext"
 - `edit_create_file` → "Creating filename.ext"
@@ -934,9 +991,12 @@ The ignore checker:
 ### Output Truncation
 
 All tools enforce limits to prevent context overflow:
-- `read_file`: 500 lines or 100KB max
-- `search_text`: 50 matches default, 200 max
+- `read_file`: 500 lines or 100KB max, optional context modes (imports/full)
+- `search_text`: 50 matches default, 200 max, supports file-specific and line range searches
 - `find_files`: 50 files default, 500 max
+- `get_line_count`: No limits, quick stat check
+- `get_file_symbols`: Returns all detected symbols (functions, classes, types, etc.)
+- `get_file_outline`: Returns hierarchical structure with line ranges
 - `read_readme`: 8KB max
 - `hotfiles`: 10 files default, 50 max
 
