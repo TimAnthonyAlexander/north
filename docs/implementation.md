@@ -451,10 +451,10 @@ The provider system prompts now explicitly instruct the LLM to:
 
 - Full-width status bar using `width="100%"` and `justifyContent="space-between"`
 - Left side: project name with truncation for long names (`wrap="truncate"`)
-- Right side: scroll indicator, mode indicator, current model name, and context usage meter
+- Right side: scroll indicator, current model name, and context usage display
 - Scroll indicator: yellow [SCROLL] badge when scrollOffset > 0 (not at bottom)
-- Mode indicator: color-coded badge ([ASK] blue, [AGENT] green)
-- Context meter: color-coded circle (green < 60%, yellow 60-85%, red > 85%) + percentage
+- Context display: color-coded circle (green < 60%, yellow 60-85%, red > 85%) + token count + percentage
+- Token count formatted as K/M for readability (e.g., "42.5K (21%)")
 - Updates in real-time as context fills
 
 ### ui/Composer.tsx
@@ -1032,14 +1032,20 @@ The orchestrator formats tool names for better readability in the TUI:
 - `get_line_count` → "Checking size of filename.ext"
 - `get_file_symbols` → "Extracting symbols from filename.ext"
 - `get_file_outline` → "Outlining filename.ext"
-- `edit_replace_exact` → "Editing filename.ext"
-- `edit_insert_at_line` → "Editing filename.ext"
-- `edit_create_file` → "Creating filename.ext"
-- `edit_apply_batch` → "Editing N files" (or single file name if batch contains only one edit)
+- `edit_replace_exact` → "Editing filename.ext (+X/-Y)" after approval
+- `edit_insert_at_line` → "Editing filename.ext (+X/-Y)" after approval
+- `edit_create_file` → "Creating filename.ext (+X/-Y)" after approval
+- `edit_apply_batch` → "Editing N files (+X/-Y)" after approval
 - Other tools: shown as-is
+
+**Edit Stats Display:**
+- After an edit is approved (accept/always) or auto-applied, the tool entry is updated to show line statistics
+- Format: `+X/-Y` where X is lines added and Y is lines removed
+- Stats computed from the diff content using `linesAdded` and `linesRemoved` from FileDiff
 
 Implementation split between:
 - `formatToolNameForDisplay()` in orchestrator: extracts display name from tool arguments
+- `computeDiffStats()` in orchestrator: calculates total added/removed lines from diffs
 - `getToolResultSuffix()` in Transcript.tsx: appends result counts for file listing tools
 
 ### UI Animations

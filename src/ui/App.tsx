@@ -72,6 +72,7 @@ export function App({
     const [pendingReviewId, setPendingReviewId] = useState<string | null>(null);
     const [currentModel, setCurrentModel] = useState<string>(DEFAULT_MODEL);
     const [contextUsage, setContextUsage] = useState<number>(0);
+    const [contextUsedTokens, setContextUsedTokens] = useState<number>(0);
     const [orchestrator, setOrchestrator] = useState<Orchestrator | null>(null);
     const [commandRegistry, setCommandRegistry] = useState<CommandRegistry | undefined>(undefined);
     const [nextMode, setNextMode] = useState<Mode>("agent");
@@ -91,6 +92,7 @@ export function App({
                     setPendingReviewId(state.pendingReviewId);
                     setCurrentModel(state.currentModel);
                     setContextUsage(state.contextUsage);
+                    setContextUsedTokens(state.contextUsedTokens);
                     setLearningPromptId(state.learningPromptId);
                     setLearningInProgress(state.learningInProgress);
                     setLearningPercent(state.learningPercent);
@@ -274,7 +276,7 @@ export function App({
                     model={currentModel}
                     projectPath={projectPath}
                     contextUsage={contextUsage}
-                    mode={nextMode}
+                    contextUsedTokens={contextUsedTokens}
                     isScrolled={isScrolled}
                 />
             </Box>

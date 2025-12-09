@@ -661,8 +661,9 @@ export function createOrchestratorWithTools(
                 };
                 transcript.push(reviewEntry);
 
+                const stats = computeDiffStats(prepareResult.diffsByFile);
                 updateEntry(toolEntryId, {
-                    content: `${toolName} (auto-applied)`,
+                    content: `${formatToolNameForDisplay(toolName, args)} (+${stats.added}/-${stats.removed})`,
                     toolResult: { ok: true, data: { autoApplied: true } },
                 });
                 emitState();
@@ -746,6 +747,28 @@ export function createOrchestratorWithTools(
         });
     }
 
+    function computeDiffStats(diffs: FileDiff[]): { added: number; removed: number } {
+        let added = 0;
+        let removed = 0;
+        for (const d of diffs) {
+            added += d.linesAdded;
+            removed += d.linesRemoved;
+        }
+        return { added, removed };
+    }
+
+    function findToolEntryForReview(reviewEntry: TranscriptEntry): TranscriptEntry | undefined {
+        const reviewIndex = transcript.findIndex((e) => e.id === reviewEntry.id);
+        if (reviewIndex <= 0) return undefined;
+        for (let i = reviewIndex - 1; i >= 0; i--) {
+            const entry = transcript[i];
+            if (entry.role === "tool" && entry.toolCallId === reviewEntry.toolCallId) {
+                return entry;
+            }
+        }
+        return undefined;
+    }
+
     async function applyWriteDecision(
         reviewEntry: TranscriptEntry,
         decision: WriteDecision
@@ -770,6 +793,15 @@ export function createOrchestratorWithTools(
             updateEntry(reviewEntry.id, {
                 reviewStatus: decision === "always" ? "always" : "accepted",
             });
+
+            const toolEntry = findToolEntryForReview(reviewEntry);
+            if (toolEntry && reviewEntry.diffContent) {
+                const stats = computeDiffStats(reviewEntry.diffContent);
+                const currentContent = toolEntry.content.replace(/ \(prepared\)$/, "");
+                updateEntry(toolEntry.id, {
+                    content: `${currentContent} (+${stats.added}/-${stats.removed})`,
+                });
+            }
         } else {
             updateEntry(reviewEntry.id, { reviewStatus: "rejected" });
         }

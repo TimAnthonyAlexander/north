@@ -1,13 +1,12 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { basename } from "path";
-import type { Mode } from "../commands/index";
 
 interface StatusLineProps {
     model: string;
     projectPath: string;
     contextUsage: number;
-    mode: Mode;
+    contextUsedTokens: number;
     isScrolled?: boolean;
 }
 
@@ -17,36 +16,27 @@ function getContextColor(usage: number): string {
     return "red";
 }
 
-function getModeColor(mode: Mode): string {
-    switch (mode) {
-        case "ask":
-            return "blue";
-        case "agent":
-            return "green";
+function formatTokenCount(tokens: number): string {
+    if (tokens >= 1000000) {
+        return `${(tokens / 1000000).toFixed(1)}M`;
     }
-}
-
-function getModeLabel(mode: Mode): string {
-    switch (mode) {
-        case "ask":
-            return "ASK";
-        case "agent":
-            return "AGENT";
+    if (tokens >= 1000) {
+        return `${(tokens / 1000).toFixed(1)}K`;
     }
+    return String(tokens);
 }
 
 export function StatusLine({
     model,
     projectPath,
     contextUsage,
-    mode,
+    contextUsedTokens,
     isScrolled,
 }: StatusLineProps) {
     const projectName = basename(projectPath);
     const usagePercent = Math.round(contextUsage * 100);
     const contextColor = getContextColor(contextUsage);
-    const modeColor = getModeColor(mode);
-    const modeLabel = getModeLabel(mode);
+    const tokenDisplay = formatTokenCount(contextUsedTokens);
 
     return (
         <Box width="100%" paddingX={1} justifyContent="space-between">
@@ -68,13 +58,11 @@ export function StatusLine({
                         <Text color="#999999">•</Text>
                     </>
                 )}
-                <Text color={modeColor} bold>
-                    [{modeLabel}]
-                </Text>
-                <Text color="#999999">•</Text>
                 <Text color="magenta">{model}</Text>
                 <Text color="#999999">•</Text>
-                <Text color={contextColor}>● {usagePercent}%</Text>
+                <Text color={contextColor}>
+                    ● {tokenDisplay} ({usagePercent}%)
+                </Text>
             </Box>
         </Box>
     );
