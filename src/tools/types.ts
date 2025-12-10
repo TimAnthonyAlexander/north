@@ -296,3 +296,50 @@ export interface AnchorCandidate {
     line: number;
     preview: string;
 }
+
+export interface ReadAroundInput {
+    path: string;
+    anchor: string;
+    before?: number;
+    after?: number;
+    occurrence?: number;
+}
+
+export interface ReadAroundOutput {
+    path: string;
+    totalLines: number;
+    matchCount: number;
+    occurrenceUsed: number;
+    matchLine: number;
+    startLine: number;
+    endLine: number;
+    content: string;
+}
+
+export interface FindBlocksInput {
+    path: string;
+    kind?: "html_section" | "css_rule" | "js_ts_symbol" | "all";
+}
+
+export interface BlockEntry {
+    id: string;
+    label: string;
+    startLine: number;
+    endLine: number;
+}
+
+export interface FindBlocksOutput {
+    path: string;
+    totalLines: number;
+    blocks: BlockEntry[];
+}
+
+export interface EditByAnchorInput {
+    path: string;
+    mode: "insert_before" | "insert_after" | "replace_line" | "replace_between";
+    anchor: string;
+    anchorEnd?: string;
+    content: string;
+    occurrence?: number;
+    inclusive?: boolean;
+}

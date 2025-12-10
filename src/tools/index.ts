@@ -19,6 +19,9 @@ export { findCodeBlockTool } from "./find_code_block";
 export { editAfterAnchorTool } from "./edit_after_anchor";
 export { editBeforeAnchorTool } from "./edit_before_anchor";
 export { editReplaceBlockTool } from "./edit_replace_block";
+export { readAroundTool } from "./read_around";
+export { findBlocksTool } from "./find_blocks";
+export { editByAnchorTool } from "./edit_by_anchor";
 
 import type { Mode } from "../commands/types";
 import { createToolRegistry, type ToolRegistry } from "./registry";
@@ -41,6 +44,9 @@ import { findCodeBlockTool } from "./find_code_block";
 import { editAfterAnchorTool } from "./edit_after_anchor";
 import { editBeforeAnchorTool } from "./edit_before_anchor";
 import { editReplaceBlockTool } from "./edit_replace_block";
+import { readAroundTool } from "./read_around";
+import { findBlocksTool } from "./find_blocks";
+import { editByAnchorTool } from "./edit_by_anchor";
 
 const READ_ONLY_TOOLS = [
     "list_root",
@@ -55,6 +61,8 @@ const READ_ONLY_TOOLS = [
     "get_file_outline",
     "expand_output",
     "find_code_block",
+    "read_around",
+    "find_blocks",
 ];
 
 export function createToolRegistryWithAllTools(): ToolRegistry {
@@ -79,6 +87,9 @@ export function createToolRegistryWithAllTools(): ToolRegistry {
     registry.register(editAfterAnchorTool);
     registry.register(editBeforeAnchorTool);
     registry.register(editReplaceBlockTool);
+    registry.register(readAroundTool);
+    registry.register(findBlocksTool);
+    registry.register(editByAnchorTool);
 
     return registry;
 }

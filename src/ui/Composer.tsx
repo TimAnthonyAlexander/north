@@ -336,7 +336,11 @@ export function Composer({
                     setValue(result.value);
                     setCursorPos(result.cursor);
                     setShowSuggestions(true);
-                } else if (hasSuggestions) {
+                    setSelectedIndex(0);
+                    return;
+                }
+
+                if (hasSuggestions) {
                     const suggestion = suggestions[selectedIndex];
                     if (suggestion && suggestionState) {
                         const before = value.slice(0, suggestionState.tokenStart);

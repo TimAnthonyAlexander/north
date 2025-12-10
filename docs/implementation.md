@@ -82,6 +82,9 @@ src/
 │   ├── edit_apply_batch.ts    # Atomic batch edits
 │   ├── expand_output.ts       # Retrieve cached digested outputs
 │   ├── find_code_block.ts     # Find code blocks containing text
+│   ├── read_around.ts         # Context window around anchor
+│   ├── find_blocks.ts         # Structural map without content
+│   ├── edit_by_anchor.ts      # Unified anchor-based editing
 │   └── shell_run.ts      # Shell command execution (requires approval)
 ├── ui/
 │   ├── App.tsx            # Root Ink component, SIGINT handling, review wiring
@@ -420,6 +423,9 @@ All tools follow the pattern:
 | `edit_create_file` | Create/overwrite file | Requires approval |
 | `edit_apply_batch` | Atomic batch edits | All-or-nothing, requires approval |
 | `shell_run` | Execute shell command | Persistent PTY, requires approval or allowlist, stderr merged into stdout |
+| `read_around` | Context window | Asymmetric before/after lines around anchor, occurrence handling |
+| `find_blocks` | Structural map | Block coordinates without content (html_section, css_rule, js_ts_symbol) |
+| `edit_by_anchor` | Unified anchor edit | Four modes: insert_before, insert_after, replace_line, replace_between |
 
 #### Tool Output Digesting
 
@@ -536,6 +542,74 @@ The provider system prompts now explicitly instruct the LLM to:
 - Faster symbol lookups without full reads
 - Better targeting: LLM reads only what's needed
 - Clearer guidance through concrete strategies
+
+#### read_around Tool
+
+`read_around` provides a focused context window around an anchor string:
+
+**Input:**
+- `path`: File to read
+- `anchor`: Text to find
+- `before`: Lines before match (default: 12)
+- `after`: Lines after match (default: 20)
+- `occurrence`: Which occurrence (1-based, required if multiple matches)
+
+**Output:**
+- `totalLines`: File length
+- `matchCount`: How many times anchor appears
+- `occurrenceUsed`: Which occurrence was returned
+- `matchLine`: Line number of the match
+- `content`: Lines with line numbers, match line marked with `>`
+
+**Behavior:**
+- 0 matches: error suggesting `search_text`
+- Multiple matches without occurrence: error listing candidates with previews
+- Single call replaces "search → read range" pattern
+
+#### find_blocks Tool
+
+`find_blocks` returns a structural map with coordinates but no content:
+
+**Input:**
+- `path`: File to map
+- `kind`: Filter - `html_section`, `css_rule`, `js_ts_symbol`, or `all` (default: auto-detect)
+
+**Output:**
+- `totalLines`: File length
+- `blocks`: Array of `{ id, label, startLine, endLine }`
+
+**Supported Kinds:**
+- `html_section`: `<section>`, `<article>`, `<nav>`, elements with IDs
+- `css_rule`: selectors, `@media`, `@keyframes`
+- `js_ts_symbol`: functions, classes, interfaces, types, React components
+
+**Use case:** Get coordinates in one call, then use `read_around` for targeted reading.
+
+#### edit_by_anchor Tool
+
+`edit_by_anchor` provides unified anchor-based editing with four modes:
+
+**Input:**
+- `path`: File to edit
+- `mode`: `insert_before`, `insert_after`, `replace_line`, or `replace_between`
+- `anchor`: Primary anchor text
+- `anchorEnd`: End anchor (required for `replace_between`)
+- `content`: Content to insert/replace
+- `occurrence`: Which occurrence (1-based, required if multiple matches)
+- `inclusive`: For `replace_between` - replace anchor lines too (default: false)
+
+**Mode Behaviors:**
+| Mode | Effect |
+|------|--------|
+| `insert_before` | Insert content before anchor line |
+| `insert_after` | Insert content after anchor line |
+| `replace_line` | Replace the anchor line with content |
+| `replace_between` | Replace content between two anchors |
+
+**Safety:**
+- 0 matches: error
+- Multiple matches without occurrence: error listing candidates
+- `replace_line` mode is new capability (replaces the anchor line itself)
 
 ### utils/ignore.ts
 
@@ -916,7 +990,7 @@ Both providers (`anthropic.ts` and `openai.ts`) use identical system prompts wit
 North supports two conversation modes that control tool availability:
 
 **Mode Types:**
-- **Ask Mode**: Read-only - only read tools available (read_file, search_text, find_files, list_root, read_readme, detect_languages, hotfiles, get_line_count, get_file_symbols, get_file_outline)
+- **Ask Mode**: Read-only - only read tools available (read_file, search_text, find_files, list_root, read_readme, detect_languages, hotfiles, get_line_count, get_file_symbols, get_file_outline, expand_output, find_code_block, read_around, find_blocks)
 - **Agent Mode**: Full access - all tools available including write and shell tools
 
 **Mode Selection:**

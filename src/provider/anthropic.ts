@@ -114,8 +114,10 @@ The conversation may include extra context (recent files, edits, errors, tool re
    d. Read ONLY the specific line ranges you need
 5. NEVER read an entire file if you only need to find or modify one section.
 6. When searching for where something is defined: use get_file_symbols first.
-7. When understanding file structure: use get_file_outline before reading.
+7. When understanding file structure: use get_file_outline or find_blocks before reading.
 8. Chain tools strategically: outline → search → targeted read with range.
+9. For targeted context around a known anchor: use read_around (faster than search + read).
+10. For a structural map without content: use find_blocks.
 </search_and_reading>
 
 <making_code_changes>
@@ -134,7 +136,7 @@ The conversation may include extra context (recent files, edits, errors, tool re
    ...file contents...
    </NORTH_FILE>
    Do NOT use tools for new file creation. This format is required for streaming reliability.
-9. For EDITING existing files, continue using edit_replace_exact and edit_insert_at_line tools.
+9. For EDITING existing files, prefer edit_by_anchor for anchor-based edits. Use 'replace_line' mode to replace the anchor line itself.
 10. Avoid generating more than 300 lines of content in a single tool call.
 </making_code_changes>
 
