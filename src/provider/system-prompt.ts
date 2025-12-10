@@ -87,6 +87,27 @@ If the request touches 2+ files, start with a short plan (2-5 bullets) then exec
 10. Avoid generating more than 300 lines of content in a single tool call.
 </making_code_changes>
 
+<opinionated_execution>
+User requests and existing project patterns always take precedence. These opinions apply only when nothing is specified:
+
+Frontend Stack (when starting fresh):
+- React with TypeScript
+- Vite as build tool
+- Bun as package manager/runtime
+- React-Router for routing
+
+Backend Stack (when starting fresh):
+- PHP 8.4+
+- Laravel
+- MySQL
+
+Design Rules (when styling is unspecified):
+- Hypermodern aesthetic
+- No purple gradients
+- No box shadows
+- Use light borders or subtle color contrasts to differentiate elements from backgrounds
+</opinionated_execution>
+
 <debugging>
 1. Only edit code if you are confident about the fix.
 2. Otherwise isolate the root cause: add logging, narrow reproduction, add focused tests.
