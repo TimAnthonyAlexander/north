@@ -20,15 +20,24 @@ export interface ToolCall {
     input: unknown;
 }
 
+export interface ThinkingBlock {
+    type: "thinking" | "redacted_thinking";
+    thinking?: string;
+    signature: string;
+    data?: string;
+}
+
 export interface StreamResult {
     text: string;
     toolCalls: ToolCall[];
+    thinkingBlocks: ThinkingBlock[];
     stopReason: string | null;
 }
 
 export interface StreamCallbacks {
     onChunk: (chunk: string) => void;
     onToolCall?: (toolCall: ToolCall) => void;
+    onThinking?: (chunk: string) => void;
     onComplete: (result: StreamResult) => void;
     onError: (error: Error) => void;
 }
@@ -44,11 +53,17 @@ export interface ToolResultInput {
     isError?: boolean;
 }
 
+export interface ThinkingConfig {
+    type: "enabled";
+    budget_tokens: number;
+}
+
 export interface StreamOptions {
     tools?: ToolSchema[];
     model?: string;
     systemOverride?: string;
     signal?: AbortSignal;
+    thinking?: ThinkingConfig;
 }
 
 export interface Provider {
@@ -56,7 +71,7 @@ export interface Provider {
     systemPrompt: string;
     stream(messages: Message[], callbacks: StreamCallbacks, options?: StreamOptions): Promise<void>;
     buildToolResultMessage(results: ToolResultInput[]): Message;
-    buildAssistantMessage(text: string, toolCalls: ToolCall[]): Message;
+    buildAssistantMessage(text: string, toolCalls: ToolCall[], thinkingBlocks?: ThinkingBlock[]): Message;
 }
 
 const SYSTEM_PROMPT = `You are North, a terminal assistant for codebases developed by Tim Anthony Alexander.
@@ -156,9 +171,15 @@ export function createProvider(options?: { model?: string }): Provider {
         ): Promise<void> {
             let fullText = "";
             const toolCalls: ToolCall[] = [];
+            const thinkingBlocks: ThinkingBlock[] = [];
             let currentToolId = "";
             let currentToolName = "";
             let currentToolInput = "";
+            let currentBlockType: "text" | "tool_use" | "thinking" | "redacted_thinking" | null =
+                null;
+            let currentThinkingText = "";
+            let currentThinkingSignature = "";
+            let currentRedactedData = "";
             let stopReason: string | null = null;
 
             const modelToUse = options?.model || defaultModel;
@@ -172,20 +193,25 @@ export function createProvider(options?: { model?: string }): Provider {
                     return { role: m.role, content: m.content as MessageParam["content"] };
                 });
 
-                const stream = await client.messages.stream(
-                    {
-                        model: modelToUse,
-                        max_tokens: 8192,
-                        system: systemPrompt,
-                        messages: apiMessages,
-                        tools: options?.tools?.map((t) => ({
-                            name: t.name,
-                            description: t.description,
-                            input_schema: t.input_schema as Anthropic.Tool["input_schema"],
-                        })),
-                    },
-                    { signal: options?.signal }
-                );
+                const requestParams: Anthropic.MessageStreamParams = {
+                    model: modelToUse,
+                    max_tokens: 8192,
+                    system: systemPrompt,
+                    messages: apiMessages,
+                    tools: options?.tools?.map((t) => ({
+                        name: t.name,
+                        description: t.description,
+                        input_schema: t.input_schema as Anthropic.Tool["input_schema"],
+                    })),
+                };
+
+                if (options?.thinking) {
+                    (requestParams as unknown as Record<string, unknown>).thinking = options.thinking;
+                }
+
+                const stream = await client.messages.stream(requestParams, {
+                    signal: options?.signal,
+                });
 
                 for await (const event of stream) {
                     if (options?.signal?.aborted) {
@@ -193,31 +219,53 @@ export function createProvider(options?: { model?: string }): Provider {
                         callbacks.onComplete({
                             text: fullText,
                             toolCalls,
+                            thinkingBlocks,
                             stopReason: "cancelled",
                         });
                         return;
                     }
                     if (event.type === "content_block_start") {
-                        if (event.content_block.type === "tool_use") {
+                        const blockType = event.content_block.type;
+                        if (blockType === "tool_use") {
+                            currentBlockType = "tool_use";
                             currentToolId = event.content_block.id;
                             currentToolName = event.content_block.name;
                             currentToolInput = "";
+                        } else if (blockType === "thinking") {
+                            currentBlockType = "thinking";
+                            currentThinkingText = "";
+                            currentThinkingSignature = "";
+                        } else if (blockType === "redacted_thinking") {
+                            currentBlockType = "redacted_thinking";
+                            currentRedactedData = (event.content_block as { data?: string }).data || "";
+                        } else if (blockType === "text") {
+                            currentBlockType = "text";
                         }
                     } else if (event.type === "content_block_delta") {
-                        if (event.delta.type === "text_delta") {
-                            const text = event.delta.text;
-                            fullText += text;
-                            callbacks.onChunk(text);
-                        } else if (event.delta.type === "input_json_delta") {
-                            currentToolInput += event.delta.partial_json;
+                        const delta = event.delta as {
+                            type: string;
+                            text?: string;
+                            partial_json?: string;
+                            thinking?: string;
+                            signature?: string;
+                        };
+                        if (delta.type === "text_delta" && delta.text) {
+                            fullText += delta.text;
+                            callbacks.onChunk(delta.text);
+                        } else if (delta.type === "input_json_delta" && delta.partial_json) {
+                            currentToolInput += delta.partial_json;
+                        } else if (delta.type === "thinking_delta" && delta.thinking) {
+                            currentThinkingText += delta.thinking;
+                            callbacks.onThinking?.(delta.thinking);
+                        } else if (delta.type === "signature_delta" && delta.signature) {
+                            currentThinkingSignature += delta.signature;
                         }
                     } else if (event.type === "content_block_stop") {
-                        if (currentToolId && currentToolName) {
+                        if (currentBlockType === "tool_use" && currentToolId && currentToolName) {
                             let parsedInput: unknown = {};
                             try {
                                 parsedInput = JSON.parse(currentToolInput || "{}");
                             } catch {
-                                // JSON parsing failed, use empty object
                             }
                             const toolCall: ToolCall = {
                                 id: currentToolId,
@@ -229,7 +277,23 @@ export function createProvider(options?: { model?: string }): Provider {
                             currentToolId = "";
                             currentToolName = "";
                             currentToolInput = "";
+                        } else if (currentBlockType === "thinking") {
+                            thinkingBlocks.push({
+                                type: "thinking",
+                                thinking: currentThinkingText,
+                                signature: currentThinkingSignature,
+                            });
+                            currentThinkingText = "";
+                            currentThinkingSignature = "";
+                        } else if (currentBlockType === "redacted_thinking") {
+                            thinkingBlocks.push({
+                                type: "redacted_thinking",
+                                signature: "",
+                                data: currentRedactedData,
+                            });
+                            currentRedactedData = "";
                         }
+                        currentBlockType = null;
                     } else if (event.type === "message_delta") {
                         if (event.delta.stop_reason) {
                             stopReason = event.delta.stop_reason;
@@ -241,7 +305,7 @@ export function createProvider(options?: { model?: string }): Provider {
                     throw new Error("Stream ended with incomplete tool call - possible timeout");
                 }
 
-                callbacks.onComplete({ text: fullText, toolCalls, stopReason });
+                callbacks.onComplete({ text: fullText, toolCalls, thinkingBlocks, stopReason });
             } catch (err) {
                 callbacks.onError(err instanceof Error ? err : new Error(String(err)));
             }
@@ -257,8 +321,28 @@ export function createProvider(options?: { model?: string }): Provider {
             return { role: "user", content };
         },
 
-        buildAssistantMessage(text: string, toolCalls: ToolCall[]): Message {
+        buildAssistantMessage(
+            text: string,
+            toolCalls: ToolCall[],
+            thinkingBlocks?: ThinkingBlock[]
+        ): Message {
             const content: ContentBlock[] = [];
+            if (thinkingBlocks) {
+                for (const tb of thinkingBlocks) {
+                    if (tb.type === "thinking") {
+                        content.push({
+                            type: "thinking",
+                            thinking: tb.thinking || "",
+                            signature: tb.signature,
+                        } as unknown as ContentBlock);
+                    } else if (tb.type === "redacted_thinking") {
+                        content.push({
+                            type: "redacted_thinking",
+                            data: tb.data || "",
+                        } as unknown as ContentBlock);
+                    }
+                }
+            }
             if (text) {
                 content.push({ type: "text", text } as TextBlock);
             }

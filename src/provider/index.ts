@@ -11,6 +11,9 @@ export type {
     ToolCall,
     ToolResultInput,
     ToolSchema,
+    ThinkingBlock,
+    ThinkingConfig,
+    StreamResult,
 } from "./anthropic";
 export { getModelProvider, type ProviderType };
 

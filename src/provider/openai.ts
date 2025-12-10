@@ -6,6 +6,7 @@ import type {
     ToolCall,
     ToolResultInput,
     ToolSchema,
+    ThinkingBlock,
 } from "./anthropic";
 
 const OPENAI_API_URL = "https://api.openai.com/v1/responses";
@@ -243,9 +244,10 @@ async function parseSSEStream(
     response: Response,
     callbacks: StreamCallbacks,
     signal?: AbortSignal
-): Promise<{ text: string; toolCalls: ToolCall[]; stopReason: string | null }> {
+): Promise<{ text: string; toolCalls: ToolCall[]; thinkingBlocks: ThinkingBlock[]; stopReason: string | null }> {
     let fullText = "";
     const toolCalls: ToolCall[] = [];
+    const thinkingBlocks: ThinkingBlock[] = [];
     let stopReason: string | null = null;
 
     const toolCallsInProgress = new Map<string, ToolCallInProgress>();
@@ -262,7 +264,7 @@ async function parseSSEStream(
         while (true) {
             if (signal?.aborted) {
                 reader.cancel();
-                return { text: fullText, toolCalls, stopReason: "cancelled" };
+                return { text: fullText, toolCalls, thinkingBlocks, stopReason: "cancelled" };
             }
 
             const { done, value } = await reader.read();
@@ -435,7 +437,7 @@ async function parseSSEStream(
         stopReason = toolCalls.length > 0 ? "tool_use" : "end_turn";
     }
 
-    return { text: fullText, toolCalls, stopReason };
+    return { text: fullText, toolCalls, thinkingBlocks, stopReason };
 }
 
 export function createOpenAIProvider(options?: { model?: string }): Provider {
@@ -510,6 +512,7 @@ export function createOpenAIProvider(options?: { model?: string }): Provider {
                     callbacks.onComplete({
                         text: "",
                         toolCalls: [],
+                        thinkingBlocks: [],
                         stopReason: "cancelled",
                     });
                     return;
@@ -528,7 +531,11 @@ export function createOpenAIProvider(options?: { model?: string }): Provider {
             return { role: "user", content };
         },
 
-        buildAssistantMessage(text: string, toolCalls: ToolCall[]): Message {
+        buildAssistantMessage(
+            text: string,
+            toolCalls: ToolCall[],
+            _thinkingBlocks?: ThinkingBlock[]
+        ): Message {
             const content: Array<{
                 type: string;
                 text?: string;

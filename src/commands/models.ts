@@ -6,6 +6,8 @@ export interface ModelInfo {
     display: string;
     contextLimitTokens: number;
     provider: ProviderType;
+    supportsThinking?: boolean;
+    thinkingBudget?: number;
 }
 
 export const MODELS: readonly ModelInfo[] = [
@@ -15,6 +17,8 @@ export const MODELS: readonly ModelInfo[] = [
         display: "Claude Sonnet 4",
         contextLimitTokens: 200_000,
         provider: "anthropic",
+        supportsThinking: true,
+        thinkingBudget: 8_000,
     },
     {
         alias: "opus-4",
@@ -22,6 +26,8 @@ export const MODELS: readonly ModelInfo[] = [
         display: "Claude Opus 4",
         contextLimitTokens: 200_000,
         provider: "anthropic",
+        supportsThinking: true,
+        thinkingBudget: 16_000,
     },
     {
         alias: "opus-4-1",
@@ -29,6 +35,8 @@ export const MODELS: readonly ModelInfo[] = [
         display: "Claude Opus 4.1",
         contextLimitTokens: 200_000,
         provider: "anthropic",
+        supportsThinking: true,
+        thinkingBudget: 16_000,
     },
     {
         alias: "sonnet-4-5",
@@ -36,6 +44,8 @@ export const MODELS: readonly ModelInfo[] = [
         display: "Claude Sonnet 4.5",
         contextLimitTokens: 200_000,
         provider: "anthropic",
+        supportsThinking: true,
+        thinkingBudget: 10_000,
     },
     {
         alias: "haiku-4-5",
@@ -43,6 +53,8 @@ export const MODELS: readonly ModelInfo[] = [
         display: "Claude Haiku 4.5",
         contextLimitTokens: 200_000,
         provider: "anthropic",
+        supportsThinking: true,
+        thinkingBudget: 5_000,
     },
     {
         alias: "opus-4-5",
@@ -50,6 +62,8 @@ export const MODELS: readonly ModelInfo[] = [
         display: "Claude Opus 4.5",
         contextLimitTokens: 200_000,
         provider: "anthropic",
+        supportsThinking: true,
+        thinkingBudget: 16_000,
     },
     {
         alias: "gpt-5.1",
@@ -168,4 +182,24 @@ export function getModelContextLimit(modelId: string): number {
 export function getAssistantName(modelId: string): string {
     const provider = getModelProvider(modelId);
     return provider === "openai" ? "GPT" : "Claude";
+}
+
+export function getModelThinkingConfig(
+    modelId: string
+): { type: "enabled"; budget_tokens: number } | undefined {
+    for (const model of MODELS) {
+        if (model.pinned === modelId && model.supportsThinking && model.thinkingBudget) {
+            return {
+                type: "enabled",
+                budget_tokens: model.thinkingBudget,
+            };
+        }
+    }
+    if (modelId.startsWith("claude-") && modelId.includes("-4")) {
+        return {
+            type: "enabled",
+            budget_tokens: 8_000,
+        };
+    }
+    return undefined;
 }

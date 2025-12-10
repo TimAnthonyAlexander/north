@@ -143,12 +143,19 @@ Defines core types:
 
 Centralized model list shared by `/model` command and Composer autocomplete:
 - `ProviderType`: "anthropic" | "openai"
-- `MODELS`: array of `{ alias, pinned, display, contextLimitTokens, provider }`
+- `MODELS`: array of `{ alias, pinned, display, contextLimitTokens, provider, supportsThinking?, thinkingBudget? }`
 - `resolveModelId(input)`: maps alias or pinned ID to pinned ID (supports both Claude and GPT prefixes)
 - `getModelDisplay(modelId)`: returns human-readable name
 - `getModelContextLimit(modelId)`: returns context limit in tokens
 - `getModelProvider(modelId)`: returns provider type for model
+- `getModelThinkingConfig(modelId)`: returns thinking config if model supports extended thinking
 - `DEFAULT_MODEL`: default pinned model ID (Claude Sonnet 4)
+
+**Extended Thinking Budgets:**
+- All Claude 4+ models support extended thinking
+- Opus models: 16K token budget
+- Sonnet models: 8-10K token budget
+- Haiku models: 5K token budget
 
 **Supported Models:**
 - Anthropic: sonnet-4, opus-4, opus-4-1, sonnet-4-5, haiku-4-5, opus-4-5
@@ -331,11 +338,19 @@ Span-based tokenizer for reliable command extraction:
 - Default model: `claude-sonnet-4-20250514`
 - Streaming via `client.messages.stream()` (Messages API)
 - Supports tool definitions and tool_use blocks
-- Per-request options: `model`, `tools`, `systemOverride`, `signal` (AbortSignal)
+- Per-request options: `model`, `tools`, `systemOverride`, `signal` (AbortSignal), `thinking` (ThinkingConfig)
 - `systemOverride` replaces default system prompt (used for summarization)
-- Callbacks: `onChunk`, `onToolCall`, `onComplete`, `onError`
+- Callbacks: `onChunk`, `onToolCall`, `onThinking`, `onComplete`, `onError`
 - Abort support: checks signal during stream loop, returns `stopReason: "cancelled"`
 - Helpers for building tool result and assistant messages
+
+**Extended Thinking Support:**
+- `ThinkingConfig`: `{ type: "enabled", budget_tokens: number }` enables Claude's thinking mode
+- Handles `thinking_delta` and `signature_delta` events during streaming
+- `ThinkingBlock`: contains summarized thinking text and signature (for API continuity)
+- Thinking blocks must be preserved and passed back unmodified during tool loops
+- `buildAssistantMessage()` includes thinking blocks when provided
+- `StreamResult` includes `thinkingBlocks` array
 
 ### provider/openai.ts (OpenAI Provider)
 

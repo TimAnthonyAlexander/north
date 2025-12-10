@@ -118,16 +118,24 @@ const AssistantMessage = memo(function AssistantMessage({
     isStreaming,
     animationsEnabled,
     assistantName,
+    thinkingContent,
+    thinkingVisible,
 }: {
     content: string;
     isStreaming: boolean;
     animationsEnabled: boolean;
     assistantName: string;
+    thinkingContent?: string;
+    thinkingVisible?: boolean;
 }) {
     const hasContent = content.length > 0;
+    const hasThinking = thinkingContent && thinkingContent.length > 0;
     const pulseColor = usePulse(isStreaming && animationsEnabled, PULSE_COLORS, 500);
     const thinkingColor = usePulse(isStreaming && animationsEnabled, THINKING_COLORS, 400);
     const thinkingPhrase = useMemo(() => getRandomThinkingPhrase(), []);
+
+    const showThinkingFallback = !hasContent && !hasThinking && isStreaming;
+    const showThinkingContent = hasThinking && thinkingVisible;
 
     return (
         <Box flexDirection="column" marginBottom={1}>
@@ -135,12 +143,26 @@ const AssistantMessage = memo(function AssistantMessage({
                 {assistantName}
                 {isStreaming && <Text color={pulseColor}> ●</Text>}
             </Text>
+            {showThinkingContent && (
+                <Box marginLeft={2} flexDirection="column">
+                    <Text color="#888888" dimColor italic>
+                        💭 {thinkingContent}
+                    </Text>
+                </Box>
+            )}
+            {hasThinking && !thinkingVisible && !isStreaming && (
+                <Box marginLeft={2}>
+                    <Text color="#666666" dimColor>
+                        💭 [thinking collapsed]
+                    </Text>
+                </Box>
+            )}
             {hasContent && (
                 <Box marginLeft={2}>
                     <Text wrap="wrap">{content}</Text>
                 </Box>
             )}
-            {!hasContent && isStreaming && (
+            {showThinkingFallback && (
                 <Box marginLeft={2}>
                     <Text color={thinkingColor} italic>
                         {thinkingPhrase}...
@@ -362,6 +384,8 @@ const MessageBlock = memo(function MessageBlock({
             isStreaming={entry.isStreaming ?? false}
             animationsEnabled={animationsEnabled}
             assistantName={assistantName}
+            thinkingContent={entry.thinkingContent}
+            thinkingVisible={entry.thinkingVisible}
         />
     );
 });
@@ -487,6 +511,8 @@ const StaticEntry = memo(function StaticEntry({
             isStreaming={false}
             animationsEnabled={false}
             assistantName={assistantName}
+            thinkingContent={entry.thinkingContent}
+            thinkingVisible={entry.thinkingVisible}
         />
     );
 });

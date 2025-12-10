@@ -4,6 +4,7 @@ import {
     type Message,
     type ToolCall,
     type ToolSchema,
+    type ThinkingBlock,
 } from "../provider/index";
 import { createToolRegistryWithAllTools, filterToolsForMode } from "../tools/index";
 import type { Logger } from "../logging/index";
@@ -45,7 +46,7 @@ import {
     type CommandReviewStatus,
     type Mode,
 } from "../commands/index";
-import { DEFAULT_MODEL, getModelContextLimit } from "../commands/models";
+import { DEFAULT_MODEL, getModelContextLimit, getModelThinkingConfig } from "../commands/models";
 import { getSavedModel } from "../storage/config";
 import { estimatePromptTokens } from "../utils/tokens";
 import { isRetryableError, calculateBackoff, sleep, DEFAULT_RETRY_CONFIG } from "../utils/retry";
@@ -94,6 +95,9 @@ export interface TranscriptEntry {
     learningPercent?: number;
     learningTopic?: string;
     fileSessionPath?: string;
+    thinkingContent?: string;
+    thinkingBlocks?: ThinkingBlock[];
+    thinkingVisible?: boolean;
 }
 
 export interface OrchestratorState {
@@ -459,8 +463,14 @@ export function createOrchestratorWithTools(
                     pendingToolResults = [];
                 }
                 const toolCalls = extractToolCallsForEntry(entry.id);
-                if (entry.content || toolCalls.length > 0) {
-                    messages.push(provider.buildAssistantMessage(entry.content, toolCalls));
+                if (entry.content || toolCalls.length > 0 || entry.thinkingBlocks?.length) {
+                    messages.push(
+                        provider.buildAssistantMessage(
+                            entry.content,
+                            toolCalls,
+                            entry.thinkingBlocks
+                        )
+                    );
                 }
             } else if (entry.role === "tool" && entry.toolResult) {
                 const toolCallId = entry.toolCallId;
@@ -1533,18 +1543,43 @@ Respond with ONLY the JSON, no other text.`;
                 }
             }
 
-            type StreamResult = { text: string; toolCalls: ToolCall[]; stopReason: string | null };
+            type StreamResult = {
+                text: string;
+                toolCalls: ToolCall[];
+                thinkingBlocks: ThinkingBlock[];
+                stopReason: string | null;
+            };
             const streamingParser = new StreamingFileBlockParser();
             const completedFileSessions: string[] = [];
             currentFileSession = null;
             let displayText = "";
+            let thinkingBuffer = "";
+            let thinkingVisible = true;
+            let firstTextReceived = false;
 
             const streamOutcome = await new Promise<{ result: StreamResult } | { error: Error }>(
                 (resolve) => {
                     provider.stream(
                         messages,
                         {
+                            onThinking(chunk: string) {
+                                thinkingBuffer += chunk;
+                                updateEntry(
+                                    assistantId,
+                                    {
+                                        thinkingContent: thinkingBuffer,
+                                        thinkingVisible,
+                                    },
+                                    false
+                                );
+                                emitState();
+                            },
                             onChunk(chunk: string) {
+                                if (!firstTextReceived && chunk.length > 0) {
+                                    firstTextReceived = true;
+                                    thinkingVisible = false;
+                                    updateEntry(assistantId, { thinkingVisible: false }, false);
+                                }
                                 const events = streamingParser.append(chunk);
 
                                 for (const event of events) {
@@ -1619,6 +1654,7 @@ Respond with ONLY the JSON, no other text.`;
                             tools: toolSchemas as ToolSchema[],
                             model: currentModel,
                             signal,
+                            thinking: getModelThinkingConfig(currentModel),
                         }
                     );
                 }
@@ -1718,6 +1754,8 @@ Respond with ONLY the JSON, no other text.`;
             updateEntry(assistantId, {
                 isStreaming: false,
                 content: result.text,
+                thinkingBlocks: result.thinkingBlocks.length > 0 ? result.thinkingBlocks : undefined,
+                thinkingVisible: false,
             });
             emitState();
 
