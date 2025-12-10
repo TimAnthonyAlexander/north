@@ -6,7 +6,11 @@ export const quitCommand: CommandDefinition = {
     usage: "/quit",
 
     async execute(ctx: CommandContext, _args: ParsedArgs): Promise<CommandResult> {
+        const conversationId = ctx.getConversationId();
         ctx.requestExit();
-        return { ok: true, message: "Exiting..." };
+        return {
+            ok: true,
+            message: `Exiting...\nTo resume this conversation: north resume ${conversationId}`,
+        };
     },
 };

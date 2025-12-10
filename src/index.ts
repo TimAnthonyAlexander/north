@@ -2,17 +2,54 @@
 import React from "react";
 import { render } from "ink";
 import { App } from "./ui/App";
+import { ConversationList } from "./ui/ConversationList";
+import { ConversationPicker } from "./ui/ConversationPicker";
 import { initLogger, type LogLevel } from "./logging/index";
 import { detectRepoRoot } from "./utils/repo";
 import { loadCursorRules } from "./rules/index";
 import { hasProfile, loadProfile, hasDeclined } from "./storage/profile";
+import {
+    generateConversationId,
+    loadConversation,
+    listConversations,
+    conversationExists,
+    type ConversationState,
+} from "./storage/conversations";
+import { existsSync } from "fs";
 
-function parseArgs(): { path?: string; logLevel: LogLevel } {
+type Command = "run" | "resume" | "list";
+
+interface ParsedCLI {
+    command: Command;
+    resumeId?: string;
+    path?: string;
+    logLevel: LogLevel;
+}
+
+function parseArgs(): ParsedCLI {
     const args = process.argv.slice(2);
+    let command: Command = "run";
+    let resumeId: string | undefined;
     let path: string | undefined;
     let logLevel: LogLevel = "info";
 
-    for (let i = 0; i < args.length; i++) {
+    let i = 0;
+    if (args[0] && !args[0].startsWith("-")) {
+        const subcommand = args[0];
+        if (subcommand === "resume") {
+            command = "resume";
+            i = 1;
+            if (args[1] && !args[1].startsWith("-")) {
+                resumeId = args[1];
+                i = 2;
+            }
+        } else if (subcommand === "conversations" || subcommand === "list") {
+            command = "list";
+            i = 1;
+        }
+    }
+
+    for (; i < args.length; i++) {
         const arg = args[i];
         if (arg === "--path" && args[i + 1]) {
             path = args[++i];
@@ -24,7 +61,7 @@ function parseArgs(): { path?: string; logLevel: LogLevel } {
         }
     }
 
-    return { path, logLevel };
+    return { command, resumeId, path, logLevel };
 }
 
 function summarizeToolArgs(args: unknown): Record<string, unknown> {
@@ -44,10 +81,74 @@ function summarizeToolArgs(args: unknown): Record<string, unknown> {
     return summary;
 }
 
-async function main() {
-    const { path, logLevel } = parseArgs();
-    const startDir = path || process.cwd();
-    const projectPath = detectRepoRoot(startDir);
+async function runListCommand(): Promise<void> {
+    const conversations = listConversations();
+    const { waitUntilExit } = render(
+        React.createElement(ConversationList, { conversations })
+    );
+    await waitUntilExit();
+    process.exit(0);
+}
+
+async function runResumePickerCommand(
+    path: string | undefined,
+    logLevel: LogLevel
+): Promise<void> {
+    const conversations = listConversations().slice(0, 20);
+    if (conversations.length === 0) {
+        console.log("No conversations to resume.");
+        process.exit(0);
+    }
+
+    const { waitUntilExit } = render(
+        React.createElement(ConversationPicker, {
+            conversations,
+            onSelect(id: string) {
+                runMainWithConversation(id, path, logLevel);
+            },
+            onCancel() {
+                process.exit(0);
+            },
+        })
+    );
+    await waitUntilExit();
+}
+
+function runMainWithConversation(
+    conversationId: string,
+    pathOverride: string | undefined,
+    logLevel: LogLevel
+): void {
+    const state = loadConversation(conversationId);
+    if (!state) {
+        console.error(`Conversation ${conversationId} not found or corrupted.`);
+        process.exit(1);
+    }
+
+    let projectPath = state.repoRoot;
+    let repoMissing = false;
+
+    if (pathOverride) {
+        projectPath = detectRepoRoot(pathOverride);
+    } else if (!existsSync(projectPath)) {
+        console.warn(
+            `Warning: Original project path no longer exists: ${projectPath}`
+        );
+        console.warn("Some tools may be unavailable. Use --path to specify a new location.");
+        repoMissing = true;
+        projectPath = process.cwd();
+    }
+
+    runMain(conversationId, state, projectPath, logLevel, repoMissing);
+}
+
+async function runMain(
+    conversationId: string,
+    initialState: ConversationState | null,
+    projectPath: string,
+    logLevel: LogLevel,
+    _repoMissing = false
+): Promise<void> {
     const logger = initLogger({ projectPath, logLevel });
 
     const cursorRulesResult = await loadCursorRules(projectPath);
@@ -58,7 +159,7 @@ async function main() {
 
     if (hasProfile(projectPath)) {
         projectProfileText = loadProfile(projectPath);
-    } else if (!hasDeclined(projectPath)) {
+    } else if (!hasDeclined(projectPath) && !initialState) {
         needsLearningPrompt = true;
     }
 
@@ -69,6 +170,8 @@ async function main() {
             cursorRulesText,
             projectProfileText,
             needsLearningPrompt,
+            conversationId,
+            initialState,
             onRequestStart(requestId: string, model: string) {
                 logger.info("model_request_start", { requestId, model });
             },
@@ -147,6 +250,34 @@ async function main() {
         logger.info("app_exit", {});
         process.exit(0);
     });
+}
+
+async function main() {
+    const { command, resumeId, path, logLevel } = parseArgs();
+
+    if (command === "list") {
+        await runListCommand();
+        return;
+    }
+
+    if (command === "resume") {
+        if (resumeId) {
+            if (!conversationExists(resumeId)) {
+                console.error(`Conversation ${resumeId} not found.`);
+                process.exit(1);
+            }
+            runMainWithConversation(resumeId, path, logLevel);
+        } else {
+            await runResumePickerCommand(path, logLevel);
+        }
+        return;
+    }
+
+    const startDir = path || process.cwd();
+    const projectPath = detectRepoRoot(startDir);
+    const conversationId = generateConversationId();
+
+    await runMain(conversationId, null, projectPath, logLevel);
 }
 
 main();

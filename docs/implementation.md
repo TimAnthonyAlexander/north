@@ -11,10 +11,11 @@ This document describes the current implementation state and module architecture
 | 3: Deterministic edits + diff review | ✅ Complete |
 | 4: Persistent PTY shell + approvals | ✅ Complete |
 | 4.5: Slash commands + model switching | ✅ Complete |
+| 4.6: Conversation save + resume | ✅ Complete |
 | 5: Memory + project card cache | Not started |
 | 6: UX polish | Not started |
 
-*Last verified: 2025-12-08*
+*Last verified: 2025-12-10*
 
 ## Project Structure
 
@@ -52,6 +53,7 @@ src/
 │   ├── allowlist.ts      # Per-project shell command allowlist (.north/allowlist.json)
 │   ├── autoaccept.ts     # Per-project edit auto-accept settings
 │   ├── config.ts         # Global config (~/.config/north/config.json)
+│   ├── conversations.ts  # Conversation persistence (event log + index)
 │   └── profile.ts        # Per-project learning profile storage
 ├── profile/
 │   └── learn.ts          # Project learning orchestration and discovery topics
@@ -83,7 +85,9 @@ src/
 │   ├── LearningPrompt.tsx # Project learning Y/N prompt
 │   ├── LearningProgress.tsx # Learning progress indicator
 │   ├── StatusLine.tsx     # Model name, mode indicator, project path display
-│   └── Transcript.tsx     # User/assistant/tool/review/command entry rendering
+│   ├── Transcript.tsx     # User/assistant/tool/review/command entry rendering
+│   ├── ConversationList.tsx # Conversation list for north conversations
+│   └── ConversationPicker.tsx # Conversation picker for north resume
 └── utils/
     ├── repo.ts           # Repo root detection
     ├── ignore.ts         # Gitignore parsing and file walking
@@ -101,12 +105,20 @@ tests/
 
 ### index.ts (Entry Point)
 
-- Parses CLI args (`--path`, `--log-level`)
+- Parses CLI args and subcommands
+- Supported subcommands:
+  - `north` - start new conversation
+  - `north resume <id>` - resume conversation by ID
+  - `north resume` - open conversation picker
+  - `north conversations` or `north list` - list recent conversations
+- Flags: `--path`, `--log-level`
 - Detects repo root from start directory
 - Initializes logger
-- Renders Ink app
+- Renders Ink app (or list/picker components for subcommands)
 - Handles clean exit via `waitUntilExit()`
 - Wires tool logging callbacks
+- Generates conversation ID on new conversations
+- Loads conversation state on resume
 
 ### commands/ (Slash Command System)
 
@@ -276,6 +288,19 @@ Span-based tokenizer for reliable command extraction:
 - API: `hasDeclined(repoRoot)`, `markDeclined(repoRoot)`, `clearDeclined(repoRoot)`
 - `getProjectHash(repoRoot)` generates stable hash for directory identification
 - Storage location keeps repos clean (no commits of generated content)
+
+### storage/conversations.ts
+
+- Conversation persistence at `~/.north/conversations/`
+- Each conversation identified by 6-char hex ID (e.g., `abc123`)
+- Event log format: `<id>.jsonl` (append-only JSONL for crash safety)
+- Optional snapshot: `<id>.snapshot.json` (full state for fast resume)
+- Index file: `index.json` (conversation metadata for listing)
+- Event types: `conversation_started`, `entry_added`, `entry_updated`, `model_changed`, `rolling_summary_set`, `conversation_ended`
+- API: `generateConversationId()`, `startConversation()`, `loadConversation()`, `listConversations()`
+- API: `logEntryAdded()`, `logEntryUpdated()`, `logModelChanged()`, `logRollingSummarySet()`, `logConversationEnded()`
+- Stores both `repoRoot` (path) and `repoHash` (stable ID) for portability
+- Resume validates repoRoot exists, warns if missing
 
 ### profile/learn.ts
 
@@ -1079,6 +1104,52 @@ North can learn a project on first run and store a persistent profile for contex
 - Orchestrator tracks: `learningPromptId`, `learningInProgress`, `learningPercent`, `learningTopic`
 - Transcript entries: `learning_prompt` (with status), `learning_progress` (with percent/topic)
 - Learning entries excluded from `buildMessagesForClaude()` (UI-only)
+
+### Conversation Persistence
+
+North persists conversations for later resumption using an append-only event log.
+
+**Storage Location:**
+- `~/.north/conversations/<id>.jsonl` - append-only event log
+- `~/.north/conversations/<id>.snapshot.json` - optional full snapshot
+- `~/.north/conversations/index.json` - conversation metadata index
+
+**Event Types:**
+- `conversation_started`: ID, repoRoot, repoHash, model, timestamp
+- `entry_added`: full TranscriptEntry payload
+- `entry_updated`: entry ID + partial updates (streaming completion, review decisions)
+- `model_changed`: new model ID
+- `rolling_summary_set`: StructuredSummary or null
+- `conversation_ended`: clean exit marker
+
+**Resume Flow:**
+1. `north resume <id>` loads conversation from event log
+2. Validates repoRoot exists (warns if missing)
+3. Orchestrator initialized with `initialState` (transcript, rollingSummary, model)
+4. Conversation continues normally with logging enabled
+
+**Persistence Triggers:**
+- `addEntry()` → `logEntryAdded()`
+- `updateEntry()` → `logEntryUpdated()`
+- `setModel()` → `logModelChanged()`
+- `setRollingSummary()` → `logRollingSummarySet()`
+- `stop()` → `logConversationEnded()` + resolve pending reviews
+
+**Pending Review Handling:**
+- On exit, pending reviews are resolved as cancelled/rejected/denied
+- Review status updates are persisted before exit
+- Resume never has pending interactive states (deterministic)
+
+**CLI Commands:**
+- `north` - new conversation (generates 6-char hex ID)
+- `north resume <id>` - resume by ID
+- `north resume` - interactive picker of recent conversations
+- `north conversations` or `north list` - list conversations with metadata
+
+**Portability:**
+- Both `repoRoot` (path) and `repoHash` (SHA-256 prefix) stored
+- If repoRoot missing on resume, warns user and continues
+- User can provide `--path` to specify new location
 
 ### Cancellation Flow (CTRL+C)
 

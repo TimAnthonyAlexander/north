@@ -15,6 +15,7 @@ import type { Logger } from "../logging/index";
 import { disposeAllShellServices } from "../shell/index";
 import { DEFAULT_MODEL, type CommandRegistry, type Mode } from "../commands/index";
 import { markDeclined } from "../storage/profile";
+import type { ConversationState } from "../storage/conversations";
 
 interface AppProps {
     projectPath: string;
@@ -22,6 +23,8 @@ interface AppProps {
     cursorRulesText: string | null;
     projectProfileText: string | null;
     needsLearningPrompt: boolean;
+    conversationId: string;
+    initialState: ConversationState | null;
     onRequestStart: (requestId: string, model: string) => void;
     onRequestComplete: (requestId: string, durationMs: number, error?: Error) => void;
     onUserPrompt: (length: number) => void;
@@ -49,6 +52,8 @@ export function App({
     cursorRulesText,
     projectProfileText,
     needsLearningPrompt,
+    conversationId,
+    initialState,
     onRequestStart,
     onRequestComplete,
     onUserPrompt,
@@ -121,6 +126,8 @@ export function App({
                 logger,
                 cursorRulesText,
                 projectProfileText,
+                conversationId,
+                initialState,
             }
         );
         setOrchestrator(orch);

@@ -17,6 +17,14 @@ import {
     enableShellAutoApprove,
 } from "../storage/autoaccept";
 import { saveProfile } from "../storage/profile";
+import {
+    startConversation,
+    logEntryAdded,
+    logEntryUpdated,
+    logModelChanged,
+    logRollingSummarySet,
+    logConversationEnded,
+} from "../storage/conversations";
 import { getShellService } from "../shell/index";
 import {
     createCommandRegistryWithAllCommands,
@@ -120,6 +128,19 @@ export interface OrchestratorContext {
     logger: Logger;
     cursorRulesText: string | null;
     projectProfileText: string | null;
+    conversationId: string;
+    initialState: ConversationState | null;
+}
+
+export interface ConversationState {
+    id: string;
+    repoRoot: string;
+    repoHash: string;
+    model: string;
+    transcript: TranscriptEntry[];
+    rollingSummary: StructuredSummary | null;
+    startedAt: number;
+    lastActiveAt: number;
 }
 
 export type ShellDecision = "run" | "always" | "auto" | "deny";
@@ -137,6 +158,7 @@ export interface Orchestrator {
     startLearningSession(): Promise<void>;
     getModel(): string;
     getCommandRegistry(): CommandRegistry;
+    getConversationId(): string;
     cancel(): void;
     stop(): void;
     isProcessing(): boolean;
@@ -238,12 +260,19 @@ export function createOrchestratorWithTools(
     callbacks: OrchestratorCallbacks,
     context: OrchestratorContext
 ): Orchestrator {
-    const initialModel = getSavedModel() || DEFAULT_MODEL;
+    const conversationId = context.conversationId;
+    const hasInitialState = context.initialState !== null;
+
+    const initialModel = hasInitialState
+        ? context.initialState!.model
+        : getSavedModel() || DEFAULT_MODEL;
     let provider: Provider = createProviderForModel(initialModel);
     const toolRegistry = createToolRegistryWithAllTools();
     const commandRegistry = createCommandRegistryWithAllCommands();
 
-    let transcript: TranscriptEntry[] = [];
+    let transcript: TranscriptEntry[] = hasInitialState
+        ? [...context.initialState!.transcript]
+        : [];
     let isProcessing = false;
     let pendingReviewId: string | null = null;
     let pendingWriteReview: PendingWriteReview | null = null;
@@ -252,7 +281,9 @@ export function createOrchestratorWithTools(
     let pendingLearningPrompt: PendingLearningPrompt | null = null;
     let stopped = false;
     let currentModel: string = initialModel;
-    let rollingSummary: StructuredSummary | null = null;
+    let rollingSummary: StructuredSummary | null = hasInitialState
+        ? context.initialState!.rollingSummary
+        : null;
 
     let learningPromptId: string | null = null;
     let learningInProgress = false;
@@ -270,6 +301,10 @@ export function createOrchestratorWithTools(
     let shellAbortController: AbortController | null = null;
     let cancelled = false;
     let currentAttachedFiles: string[] = [];
+
+    if (!hasInitialState) {
+        startConversation(conversationId, context.repoRoot, currentModel);
+    }
 
     function emitState() {
         callbacks.onStateChange({
@@ -291,10 +326,18 @@ export function createOrchestratorWithTools(
         return transcript.find((e) => e.id === id);
     }
 
-    function updateEntry(id: string, updates: Partial<TranscriptEntry>) {
+    function addEntry(entry: TranscriptEntry) {
+        transcript.push(entry);
+        logEntryAdded(conversationId, entry);
+    }
+
+    function updateEntry(id: string, updates: Partial<TranscriptEntry>, persist = true) {
         const idx = transcript.findIndex((e) => e.id === id);
         if (idx !== -1) {
             transcript[idx] = { ...transcript[idx], ...updates };
+            if (persist) {
+                logEntryUpdated(conversationId, id, updates);
+            }
         }
     }
 
@@ -546,7 +589,7 @@ export function createOrchestratorWithTools(
                 toolCallId: toolCall.id,
                 shellResult: result,
             };
-            transcript.push(reviewEntry);
+            addEntry(reviewEntry);
 
             updateEntry(toolEntryId, { toolResult: { ok: true, data: { autoApproved: true } } });
             emitState();
@@ -575,7 +618,7 @@ export function createOrchestratorWithTools(
                 toolCallId: toolCall.id,
                 shellResult: result,
             };
-            transcript.push(reviewEntry);
+            addEntry(reviewEntry);
 
             updateEntry(toolEntryId, { toolResult: { ok: true, data: { autoApproved: true } } });
             emitState();
@@ -598,7 +641,7 @@ export function createOrchestratorWithTools(
             reviewStatus: "pending",
             toolCallId: toolCall.id,
         };
-        transcript.push(reviewEntry);
+        addEntry(reviewEntry);
 
         updateEntry(toolEntryId, {
             content: `shell_run (awaiting approval)`,
@@ -634,7 +677,7 @@ export function createOrchestratorWithTools(
             toolResult: undefined,
             toolCallId: toolCall.id,
         };
-        transcript.push(toolEntry);
+        addEntry(toolEntry);
         emitState();
 
         if (policy === "shell") {
@@ -679,7 +722,7 @@ export function createOrchestratorWithTools(
                     applyPayload: prepareResult.applyPayload,
                     toolCallId: toolCall.id,
                 };
-                transcript.push(reviewEntry);
+                addEntry(reviewEntry);
 
                 const stats = computeDiffStats(prepareResult.diffsByFile);
                 updateEntry(toolEntryId, {
@@ -703,7 +746,7 @@ export function createOrchestratorWithTools(
                 applyPayload: prepareResult.applyPayload,
                 toolCallId: toolCall.id,
             };
-            transcript.push(reviewEntry);
+            addEntry(reviewEntry);
 
             updateEntry(toolEntryId, {
                 content: `${toolName} (prepared)`,
@@ -885,6 +928,7 @@ export function createOrchestratorWithTools(
                 if (contextUsedTokens > 0) {
                     contextUsage = contextUsedTokens / contextLimitTokens;
                 }
+                logModelChanged(conversationId, modelId);
                 emitState();
             },
             getModel() {
@@ -904,6 +948,7 @@ export function createOrchestratorWithTools(
             },
             setRollingSummary(summary: StructuredSummary | null) {
                 rollingSummary = summary;
+                logRollingSummarySet(conversationId, summary);
             },
             getRollingSummary() {
                 return rollingSummary;
@@ -1024,7 +1069,7 @@ Respond with ONLY the JSON, no other text.`;
                     commandOptions: options,
                     reviewStatus: "pending",
                 };
-                transcript.push(reviewEntry);
+                addEntry(reviewEntry);
                 emitState();
 
                 const decision = await waitForCommandReviewDecision(reviewEntry);
@@ -1048,6 +1093,9 @@ Respond with ONLY the JSON, no other text.`;
             },
             triggerLearning() {
                 void startLearningSessionInternal();
+            },
+            getConversationId() {
+                return conversationId;
             },
         };
     }
@@ -1100,7 +1148,7 @@ Respond with ONLY the JSON, no other text.`;
                 content: "I've finished learning the project. Let me know how I can help!",
                 ts: Date.now(),
             };
-            transcript.push(completionEntry);
+            addEntry(completionEntry);
 
             context.logger.info("learning_complete", {});
         } catch (err) {
@@ -1121,7 +1169,7 @@ Respond with ONLY the JSON, no other text.`;
                     "I encountered an error while learning the project. You can try again with the /learn command.",
                 ts: Date.now(),
             };
-            transcript.push(errorEntry);
+            addEntry(errorEntry);
         } finally {
             learningInProgress = false;
             learningPercent = 0;
@@ -1152,7 +1200,7 @@ Respond with ONLY the JSON, no other text.`;
                 ts: Date.now(),
                 commandName: invocation.name,
             };
-            transcript.push(executedEntry);
+            addEntry(executedEntry);
             emitState();
 
             if (stopped) break;
@@ -1182,7 +1230,7 @@ Respond with ONLY the JSON, no other text.`;
                 ts: Date.now(),
                 isStreaming: true,
             };
-            transcript.push(assistantEntry);
+            addEntry(assistantEntry);
             toolCallsMap.set(assistantId, []);
             emitState();
 
@@ -1384,7 +1432,7 @@ Respond with ONLY the JSON, no other text.`;
                     content: remainingText.trim(),
                     ts: Date.now(),
                 };
-                transcript.push(userEntry);
+                addEntry(userEntry);
                 emitState();
 
                 await runConversationLoop(mode);
@@ -1483,14 +1531,32 @@ Respond with ONLY the JSON, no other text.`;
             }
 
             if (pendingWriteReview) {
+                const entry = findEntry(pendingWriteReview.id);
+                if (entry && entry.reviewStatus === "pending") {
+                    updateEntry(pendingWriteReview.id, { reviewStatus: "rejected" });
+                }
                 pendingWriteReview.resolve("reject");
             }
             if (pendingShellReview) {
+                const entry = findEntry(pendingShellReview.id);
+                if (entry && entry.reviewStatus === "pending") {
+                    updateEntry(pendingShellReview.id, { reviewStatus: "denied" });
+                }
                 pendingShellReview.resolve("deny");
             }
             if (pendingCommandReview) {
+                const entry = findEntry(pendingCommandReview.id);
+                if (entry && entry.reviewStatus === "pending") {
+                    updateEntry(pendingCommandReview.id, { reviewStatus: "cancelled" });
+                }
                 pendingCommandReview.resolve(null);
             }
+
+            logConversationEnded(conversationId);
+        },
+
+        getConversationId() {
+            return conversationId;
         },
 
         isProcessing() {

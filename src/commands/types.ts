@@ -55,6 +55,7 @@ export interface CommandContext {
     getTranscript: () => unknown[];
     listCommands: () => CommandDefinition[];
     triggerLearning: () => void;
+    getConversationId: () => string;
 }
 
 export interface CommandResult {
