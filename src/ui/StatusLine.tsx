@@ -8,6 +8,7 @@ interface StatusLineProps {
     contextUsage: number;
     contextUsedTokens: number;
     isScrolled?: boolean;
+    thinkingEnabled?: boolean;
 }
 
 function getContextColor(usage: number): string {
@@ -32,6 +33,7 @@ export function StatusLine({
     contextUsage,
     contextUsedTokens,
     isScrolled,
+    thinkingEnabled,
 }: StatusLineProps) {
     const projectName = basename(projectPath);
     const usagePercent = Math.round(contextUsage * 100);
@@ -55,6 +57,12 @@ export function StatusLine({
                         <Text color="yellow" bold>
                             [SCROLL]
                         </Text>
+                        <Text color="#999999">•</Text>
+                    </>
+                )}
+                {thinkingEnabled && (
+                    <>
+                        <Text color="cyan">💭</Text>
                         <Text color="#999999">•</Text>
                     </>
                 )}

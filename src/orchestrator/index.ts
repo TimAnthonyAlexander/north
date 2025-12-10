@@ -112,6 +112,7 @@ export interface OrchestratorState {
     learningInProgress: boolean;
     learningPercent: number;
     learningTopic: string;
+    thinkingEnabled: boolean;
 }
 
 export interface OrchestratorCallbacks {
@@ -307,6 +308,7 @@ export function createOrchestratorWithTools(
     let contextUsedTokens = 0;
     let contextLimitTokens = getModelContextLimit(currentModel);
     let contextUsage = 0;
+    let thinkingEnabled = true;
 
     let streamBuffer = "";
     let streamTimer: ReturnType<typeof setTimeout> | null = null;
@@ -334,6 +336,7 @@ export function createOrchestratorWithTools(
             learningInProgress,
             learningPercent,
             learningTopic,
+            thinkingEnabled,
         });
     }
 
@@ -1379,6 +1382,13 @@ Respond with ONLY the JSON, no other text.`;
                 emitState();
                 return { ok: true };
             },
+            setThinking(enabled: boolean) {
+                thinkingEnabled = enabled;
+                emitState();
+            },
+            isThinkingEnabled() {
+                return thinkingEnabled;
+            },
         };
     }
 
@@ -1511,6 +1521,7 @@ Respond with ONLY the JSON, no other text.`;
                 content: "",
                 ts: Date.now(),
                 isStreaming: true,
+                thinkingVisible: true,
             };
             addEntry(assistantEntry);
             toolCallsMap.set(assistantId, []);
@@ -1564,6 +1575,10 @@ Respond with ONLY the JSON, no other text.`;
                         {
                             onThinking(chunk: string) {
                                 thinkingBuffer += chunk;
+                                context.logger.info("thinking_chunk_received", {
+                                    chunkLength: chunk.length,
+                                    totalLength: thinkingBuffer.length,
+                                });
                                 updateEntry(
                                     assistantId,
                                     {
@@ -1654,7 +1669,18 @@ Respond with ONLY the JSON, no other text.`;
                             tools: toolSchemas as ToolSchema[],
                             model: currentModel,
                             signal,
-                            thinking: getModelThinkingConfig(currentModel),
+                            thinking: (() => {
+                                const config = thinkingEnabled
+                                    ? getModelThinkingConfig(currentModel)
+                                    : undefined;
+                                context.logger.info("thinking_config", {
+                                    thinkingEnabled,
+                                    currentModel,
+                                    configSet: config !== undefined,
+                                    budgetTokens: config?.budget_tokens,
+                                });
+                                return config;
+                            })(),
                         }
                     );
                 }

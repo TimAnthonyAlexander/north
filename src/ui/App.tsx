@@ -88,6 +88,7 @@ export function App({
     const [scrollOffset, setScrollOffset] = useState(0);
     const [composerLineCount, setComposerLineCount] = useState(1);
     const [composerIsEmpty, setComposerIsEmpty] = useState(true);
+    const [thinkingEnabled, setThinkingEnabled] = useState(true);
 
     useEffect(() => {
         const orch = createOrchestratorWithTools(
@@ -103,6 +104,7 @@ export function App({
                     setLearningInProgress(state.learningInProgress);
                     setLearningPercent(state.learningPercent);
                     setLearningTopic(state.learningTopic);
+                    setThinkingEnabled(state.thinkingEnabled);
                 },
                 onRequestStart,
                 onRequestComplete,
@@ -288,6 +290,7 @@ export function App({
                     contextUsage={contextUsage}
                     contextUsedTokens={contextUsedTokens}
                     isScrolled={isScrolled}
+                    thinkingEnabled={thinkingEnabled}
                 />
             </Box>
         </Box>

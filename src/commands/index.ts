@@ -36,6 +36,7 @@ import { modeCommand } from "./commands/mode";
 import { learnCommand } from "./commands/learn";
 import { conversationsCommand } from "./commands/conversations";
 import { resumeCommand } from "./commands/resume";
+import { thinkingCommand } from "./commands/thinking";
 
 export function createCommandRegistryWithAllCommands(): CommandRegistry {
     const registry = createCommandRegistry();
@@ -48,5 +49,6 @@ export function createCommandRegistryWithAllCommands(): CommandRegistry {
     registry.register(learnCommand);
     registry.register(conversationsCommand);
     registry.register(resumeCommand);
+    registry.register(thinkingCommand);
     return registry;
 }

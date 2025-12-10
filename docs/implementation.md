@@ -191,6 +191,7 @@ Span-based tokenizer for reliable command extraction:
 | `/help` | `/help` | List available commands |
 | `/model` | `/model [alias]` | Switch model (with picker if no arg) |
 | `/summarize` | `/summarize [--keep-last N]` | Summarize conversation, trim transcript |
+| `/thinking` | `/thinking [on\|off]` | Toggle extended thinking on/off |
 
 ### logging/index.ts
 

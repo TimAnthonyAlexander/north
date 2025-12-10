@@ -135,7 +135,7 @@ const AssistantMessage = memo(function AssistantMessage({
     const thinkingPhrase = useMemo(() => getRandomThinkingPhrase(), []);
 
     const showThinkingFallback = !hasContent && !hasThinking && isStreaming;
-    const showThinkingContent = hasThinking && thinkingVisible;
+    const showThinkingContent = hasThinking && (thinkingVisible === true || (isStreaming && thinkingVisible !== false));
 
     return (
         <Box flexDirection="column" marginBottom={1}>
