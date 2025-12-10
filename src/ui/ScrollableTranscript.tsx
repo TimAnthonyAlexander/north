@@ -52,16 +52,29 @@ function entryToLines(
     if (entry.role === "assistant") {
         const streamingDot = entry.isStreaming ? ` ${ANSI_MAGENTA}●${ANSI_RESET}` : "";
         const header = `${ANSI_MAGENTA}${ANSI_BOLD}${assistantName}${ANSI_RESET}${streamingDot}`;
+        const allLines: string[] = [header];
 
-        if (!entry.content && entry.isStreaming) {
-            return {
-                lines: [header, `  ${ANSI_GRAY}Thinking...${ANSI_RESET}`, ""],
-                isInteractive: false,
-            };
+        const hasThinking = entry.thinkingContent && entry.thinkingContent.length > 0;
+        const showThinkingContent = hasThinking && (entry.thinkingVisible === true || (entry.isStreaming && entry.thinkingVisible !== false));
+
+        if (showThinkingContent && entry.thinkingContent) {
+            const thinkingLines = wrapText(entry.thinkingContent, contentWidth).map(
+                (line) => `  ${ANSI_GRAY}💭 ${line}${ANSI_RESET}`
+            );
+            allLines.push(...thinkingLines);
+        } else if (hasThinking && !entry.thinkingVisible && !entry.isStreaming) {
+            allLines.push(`  ${ANSI_GRAY}💭 [thinking collapsed]${ANSI_RESET}`);
         }
 
-        const contentLines = wrapText(entry.content, contentWidth).map((line) => `  ${line}`);
-        return { lines: [header, ...contentLines, ""], isInteractive: false };
+        if (entry.content) {
+            const contentLines = wrapText(entry.content, contentWidth).map((line) => `  ${line}`);
+            allLines.push(...contentLines);
+        } else if (!hasThinking && entry.isStreaming) {
+            allLines.push(`  ${ANSI_GRAY}Thinking...${ANSI_RESET}`);
+        }
+
+        allLines.push("");
+        return { lines: allLines, isInteractive: false };
     }
 
     if (entry.role === "tool") {
