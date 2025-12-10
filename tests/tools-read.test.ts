@@ -728,6 +728,194 @@ describe("get_file_outline", () => {
             expect(result.data.sections.length).toBeGreaterThan(1);
         }
     });
+
+    test("shows CSS rules inside embedded style blocks in HTML", async () => {
+        tempRepo = createTempRepo();
+        createFile(
+            tempRepo.root,
+            "page.html",
+            `<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .header {
+            background: blue;
+        }
+        .card {
+            padding: 20px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">Title</header>
+</body>
+</html>`
+        );
+
+        const ctx = createContext(tempRepo.root);
+        const result = await getFileOutlineTool.execute({ path: "page.html" }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            expect(result.data.language).toBe("html");
+
+            const styleSection = result.data.sections.find((s) => s.name === "<style>");
+            expect(styleSection).toBeDefined();
+
+            const cssRules = result.data.sections.filter((s) => s.name.includes("└─"));
+            expect(cssRules.length).toBeGreaterThanOrEqual(2);
+
+            const headerRule = cssRules.find((s) => s.name.includes(".header"));
+            expect(headerRule).toBeDefined();
+
+            const cardRule = cssRules.find((s) => s.name.includes(".card"));
+            expect(cardRule).toBeDefined();
+        }
+    });
+
+    test("shows JS symbols inside embedded script blocks in HTML", async () => {
+        tempRepo = createTempRepo();
+        createFile(
+            tempRepo.root,
+            "interactive.html",
+            `<!DOCTYPE html>
+<html>
+<head>
+    <script>
+        function handleClick() {
+            console.log('clicked');
+        }
+        
+        const submitForm = () => {
+            console.log('submitted');
+        };
+        
+        class FormValidator {
+            validate() {
+                return true;
+            }
+        }
+    </script>
+</head>
+<body>
+    <button onclick="handleClick()">Click</button>
+</body>
+</html>`
+        );
+
+        const ctx = createContext(tempRepo.root);
+        const result = await getFileOutlineTool.execute({ path: "interactive.html" }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            const scriptSection = result.data.sections.find((s) => s.name === "<script>");
+            expect(scriptSection).toBeDefined();
+
+            const jsSymbols = result.data.sections.filter((s) => s.name.includes("└─"));
+            expect(jsSymbols.length).toBeGreaterThanOrEqual(1);
+
+            const handleClickSymbol = jsSymbols.find((s) => s.name.includes("handleClick"));
+            expect(handleClickSymbol).toBeDefined();
+        }
+    });
+
+    test("shows both embedded style and script blocks together", async () => {
+        tempRepo = createTempRepo();
+        createFile(
+            tempRepo.root,
+            "mixed.html",
+            `<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .btn { padding: 10px; }
+    </style>
+    <script>
+        function init() { console.log('ready'); }
+    </script>
+</head>
+<body>
+    <main>
+        <button class="btn" onclick="init()">Go</button>
+    </main>
+</body>
+</html>`
+        );
+
+        const ctx = createContext(tempRepo.root);
+        const result = await getFileOutlineTool.execute({ path: "mixed.html" }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            const styleSection = result.data.sections.find((s) => s.name === "<style>");
+            const scriptSection = result.data.sections.find((s) => s.name === "<script>");
+            const mainSection = result.data.sections.find((s) => s.name === "<main>");
+
+            expect(styleSection).toBeDefined();
+            expect(scriptSection).toBeDefined();
+            expect(mainSection).toBeDefined();
+
+            const cssRules = result.data.sections.filter(
+                (s) => s.name.includes("└─") && s.name.includes(".btn")
+            );
+            expect(cssRules.length).toBeGreaterThanOrEqual(1);
+
+            const jsSymbols = result.data.sections.filter(
+                (s) => s.name.includes("└─") && s.name.includes("init")
+            );
+            expect(jsSymbols.length).toBeGreaterThanOrEqual(1);
+        }
+    });
+
+    test("handles HTML without embedded blocks", async () => {
+        tempRepo = createTempRepo();
+        createFile(
+            tempRepo.root,
+            "simple.html",
+            `<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Page</title>
+</head>
+<body>
+    <header id="main-header">
+        <h1>Title</h1>
+    </header>
+    <main>
+        <p>Content</p>
+    </main>
+    <footer>
+        <p>Footer</p>
+    </footer>
+</body>
+</html>`
+        );
+
+        const ctx = createContext(tempRepo.root);
+        const result = await getFileOutlineTool.execute({ path: "simple.html" }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            const headerSection = result.data.sections.find((s) =>
+                s.name.includes("header") && s.name.includes("main-header")
+            );
+            expect(headerSection).toBeDefined();
+
+            const mainSection = result.data.sections.find((s) => s.name === "<main>");
+            expect(mainSection).toBeDefined();
+
+            const footerSection = result.data.sections.find((s) => s.name === "<footer>");
+            expect(footerSection).toBeDefined();
+        }
+    });
 });
 
 describe("read_readme", () => {

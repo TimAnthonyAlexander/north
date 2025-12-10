@@ -21,6 +21,7 @@ export interface FindCodeBlockOutput {
     found: boolean;
     matches: CodeBlockMatch[];
     totalMatches: number;
+    hint?: string;
 }
 
 function resolvePath(repoRoot: string, filePath: string): string | null {
@@ -84,6 +85,10 @@ function findBlockBoundaries(lines: string[], language: string | null): BlockBou
         return findJsTsBlocks(lines);
     } else if (language === "python") {
         return findPythonBlocks(lines);
+    } else if (language === "css" || language === "scss") {
+        return findCssBlocks(lines);
+    } else if (language === "html") {
+        return findHtmlBlocks(lines);
     } else {
         return findGenericBlocks(lines);
     }
@@ -199,6 +204,165 @@ function findGenericBlocks(lines: string[]): BlockBoundary[] {
     }
 
     return blocks;
+}
+
+function findCssBlocks(lines: string[]): BlockBoundary[] {
+    const blocks: BlockBoundary[] = [];
+    let currentSelector: { name: string; startLine: number; kind: string } | null = null;
+    let braceDepth = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        const atRuleMatch = line.match(/^\s*(@media|@keyframes|@supports|@font-face)\s*/);
+        if (atRuleMatch && braceDepth === 0) {
+            const atRule = atRuleMatch[1];
+            const restOfLine = line.slice(line.indexOf(atRule) + atRule.length).trim();
+            let name = atRule;
+            let kind = "block";
+
+            if (atRule === "@media") {
+                const mediaQuery = restOfLine.replace(/\s*\{.*$/, "").trim();
+                name = `@media ${mediaQuery.slice(0, 40)}${mediaQuery.length > 40 ? "..." : ""}`;
+                kind = "block";
+            } else if (atRule === "@keyframes") {
+                const animName = restOfLine.match(/^([\w-]+)/)?.[1] || "unknown";
+                name = `@keyframes ${animName}`;
+                kind = "function";
+            }
+
+            currentSelector = { name, startLine: i + 1, kind };
+        }
+
+        if (!atRuleMatch && braceDepth === 0 && line.includes("{")) {
+            const selector = line.replace(/\s*\{.*$/, "").trim();
+            if (selector && !selector.startsWith("//") && !selector.startsWith("/*")) {
+                currentSelector = { name: selector, startLine: i + 1, kind: "block" };
+            }
+        }
+
+        braceDepth += (line.match(/{/g) || []).length;
+        braceDepth -= (line.match(/}/g) || []).length;
+
+        if (braceDepth === 0 && currentSelector) {
+            blocks.push({
+                startLine: currentSelector.startLine,
+                endLine: i + 1,
+                kind: currentSelector.kind,
+                name: currentSelector.name,
+            });
+            currentSelector = null;
+        }
+    }
+
+    return blocks;
+}
+
+function findHtmlBlocks(lines: string[]): BlockBoundary[] {
+    const blocks: BlockBoundary[] = [];
+    const sectionTags = ["section", "article", "nav", "header", "footer", "main", "aside", "div"];
+    const tagStack: Array<{ tag: string; id?: string; className?: string; startLine: number }> = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        const styleOpenMatch = line.match(/<style([^>]*)>/i);
+        if (styleOpenMatch) {
+            const styleStartLine = i + 1;
+            for (let j = i + 1; j < lines.length; j++) {
+                if (lines[j].match(/<\/style>/i)) {
+                    const styleContent = lines.slice(i + 1, j);
+                    const cssBlocks = findCssBlocks(styleContent);
+                    blocks.push({
+                        startLine: styleStartLine,
+                        endLine: j + 1,
+                        kind: "block",
+                        name: "<style>",
+                    });
+                    for (const cssBlock of cssBlocks) {
+                        blocks.push({
+                            startLine: styleStartLine + cssBlock.startLine,
+                            endLine: styleStartLine + cssBlock.endLine - 1,
+                            kind: cssBlock.kind,
+                            name: cssBlock.name,
+                        });
+                    }
+                    i = j;
+                    break;
+                }
+            }
+        }
+
+        const scriptOpenMatch = line.match(/<script([^>]*)>/i);
+        if (scriptOpenMatch) {
+            const scriptStartLine = i + 1;
+            for (let j = i + 1; j < lines.length; j++) {
+                if (lines[j].match(/<\/script>/i)) {
+                    const scriptContent = lines.slice(i + 1, j);
+                    const jsBlocks = findJsTsBlocks(scriptContent);
+                    blocks.push({
+                        startLine: scriptStartLine,
+                        endLine: j + 1,
+                        kind: "block",
+                        name: "<script>",
+                    });
+                    for (const jsBlock of jsBlocks) {
+                        blocks.push({
+                            startLine: scriptStartLine + jsBlock.startLine,
+                            endLine: scriptStartLine + jsBlock.endLine - 1,
+                            kind: jsBlock.kind,
+                            name: jsBlock.name,
+                        });
+                    }
+                    i = j;
+                    break;
+                }
+            }
+        }
+
+        for (const tag of sectionTags) {
+            const openPattern = new RegExp(`<${tag}([^>]*)>`, "gi");
+            let match;
+            while ((match = openPattern.exec(line)) !== null) {
+                const attrs = match[1];
+                const idMatch = attrs.match(/id=["']([^"']+)["']/i);
+                const classMatch = attrs.match(/class=["']([^"']+)["']/i);
+
+                if (tag === "div" && !idMatch && !classMatch) continue;
+
+                tagStack.push({
+                    tag,
+                    id: idMatch?.[1],
+                    className: classMatch?.[1]?.split(/\s+/)[0],
+                    startLine: i + 1,
+                });
+            }
+
+            const closePattern = new RegExp(`</${tag}>`, "gi");
+            while (closePattern.exec(line) !== null) {
+                const lastOpenIndex = tagStack.findLastIndex((t) => t.tag === tag);
+                if (lastOpenIndex >= 0) {
+                    const openTag = tagStack[lastOpenIndex];
+                    let name = `<${tag}>`;
+                    if (openTag.id) {
+                        name = `<${tag}#${openTag.id}>`;
+                    } else if (openTag.className) {
+                        name = `<${tag}.${openTag.className}>`;
+                    }
+
+                    blocks.push({
+                        startLine: openTag.startLine,
+                        endLine: i + 1,
+                        kind: "block",
+                        name,
+                    });
+                    tagStack.splice(lastOpenIndex, 1);
+                }
+            }
+        }
+    }
+
+    return blocks.sort((a, b) => a.startLine - b.startLine);
 }
 
 function findBlockEnd(lines: string[], startIndex: number): number {
@@ -350,6 +514,12 @@ export const findCodeBlockTool: ToolDefinition<FindCodeBlockInput, FindCodeBlock
             }
 
             if (lineMatches.length > 0) {
+                let hint = "";
+                if (language === "html" || language === "css" || language === "scss") {
+                    hint =
+                        ` TIP: For HTML/CSS files, consider using find_blocks instead—it provides ` +
+                        `a structural map with CSS selectors, @media queries, and embedded blocks.`;
+                }
                 return {
                     ok: true,
                     data: {
@@ -357,13 +527,21 @@ export const findCodeBlockTool: ToolDefinition<FindCodeBlockInput, FindCodeBlock
                         found: false,
                         matches: [],
                         totalMatches: 0,
-                    },
+                        hint,
+                    } as FindCodeBlockOutput,
                 };
+            }
+
+            let errorMsg = `No matches found for "${args.query}" in ${args.path}. The text may not exist in this file.`;
+            if (language === "html" || language === "css" || language === "scss") {
+                errorMsg +=
+                    ` TIP: For HTML/CSS files, consider using find_blocks instead—it provides ` +
+                    `a structural map with CSS selectors, @media queries, and embedded blocks.`;
             }
 
             return {
                 ok: false,
-                error: `No matches found for "${args.query}" in ${args.path}. The text may not exist in this file.`,
+                error: errorMsg,
             };
         }
 

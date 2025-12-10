@@ -241,6 +241,121 @@ function buildPythonOutline(content: string): OutlineSection[] {
     return sections;
 }
 
+function parseCssRulesForOutline(cssContent: string, baseLineOffset: number): OutlineSection[] {
+    const sections: OutlineSection[] = [];
+    const lines = cssContent.split("\n");
+
+    let currentSelector: { name: string; startLine: number } | null = null;
+    let braceDepth = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        const atRuleMatch = line.match(/^\s*(@media|@keyframes|@supports|@font-face)\s*/);
+        if (atRuleMatch && braceDepth === 0) {
+            const atRule = atRuleMatch[1];
+            const restOfLine = line.slice(line.indexOf(atRule) + atRule.length).trim();
+            let name = atRule;
+
+            if (atRule === "@media") {
+                const mediaQuery = restOfLine.replace(/\s*\{.*$/, "").trim();
+                name = `@media ${mediaQuery.slice(0, 30)}${mediaQuery.length > 30 ? "..." : ""}`;
+            } else if (atRule === "@keyframes") {
+                const animName = restOfLine.match(/^([\w-]+)/)?.[1] || "unknown";
+                name = `@keyframes ${animName}`;
+            }
+
+            currentSelector = { name, startLine: i + 1 };
+        }
+
+        if (!atRuleMatch && braceDepth === 0 && line.includes("{")) {
+            const selector = line.replace(/\s*\{.*$/, "").trim();
+            if (selector && !selector.startsWith("//") && !selector.startsWith("/*")) {
+                const displayName = selector.length > 40 ? selector.slice(0, 40) + "..." : selector;
+                currentSelector = { name: displayName, startLine: i + 1 };
+            }
+        }
+
+        braceDepth += (line.match(/{/g) || []).length;
+        braceDepth -= (line.match(/}/g) || []).length;
+
+        if (braceDepth === 0 && currentSelector) {
+            sections.push({
+                type: "symbol",
+                name: `  └─ ${currentSelector.name}`,
+                startLine: baseLineOffset + currentSelector.startLine,
+                endLine: baseLineOffset + i + 1,
+            });
+            currentSelector = null;
+        }
+    }
+
+    return sections;
+}
+
+function parseJsSymbolsForOutline(jsContent: string, baseLineOffset: number): OutlineSection[] {
+    const sections: OutlineSection[] = [];
+    const lines = jsContent.split("\n");
+
+    const functionPattern =
+        /^(\s*)(async\s+)?function\s+(\w+)|^(\s*)(const|let|var)\s+(\w+)\s*=\s*(async\s+)?(function|\([^)]*\)\s*=>|\w+\s*=>)/;
+    const classPattern = /^(\s*)class\s+(\w+)/;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        const classMatch = line.match(classPattern);
+        if (classMatch) {
+            const endLine = findJsBraceEnd(lines, i);
+            sections.push({
+                type: "symbol",
+                name: `  └─ class ${classMatch[2]}`,
+                startLine: baseLineOffset + i + 1,
+                endLine: baseLineOffset + endLine,
+            });
+            continue;
+        }
+
+        const funcMatch = line.match(functionPattern);
+        if (funcMatch) {
+            const name = funcMatch[3] || funcMatch[6];
+            if (name) {
+                const endLine = findJsBraceEnd(lines, i);
+                sections.push({
+                    type: "symbol",
+                    name: `  └─ function ${name}`,
+                    startLine: baseLineOffset + i + 1,
+                    endLine: baseLineOffset + endLine,
+                });
+            }
+        }
+    }
+
+    return sections;
+}
+
+function findJsBraceEnd(lines: string[], startIndex: number): number {
+    let braceDepth = 0;
+    let foundOpen = false;
+
+    for (let i = startIndex; i < lines.length; i++) {
+        const line = lines[i];
+        for (const char of line) {
+            if (char === "{") {
+                braceDepth++;
+                foundOpen = true;
+            } else if (char === "}") {
+                braceDepth--;
+                if (foundOpen && braceDepth === 0) {
+                    return i + 1;
+                }
+            }
+        }
+    }
+
+    return lines.length;
+}
+
 function buildHtmlOutline(content: string): OutlineSection[] {
     const sections: OutlineSection[] = [];
     const lines = content.split("\n");
@@ -255,16 +370,63 @@ function buildHtmlOutline(content: string): OutlineSection[] {
         "article",
         "aside",
         "footer",
-        "script",
-        "style",
     ];
     const tagStack: Array<{ tag: string; startLine: number; id?: string; className?: string }> = [];
 
-    for (let i = 0; i < lines.length; i++) {
+    let i = 0;
+    while (i < lines.length) {
         const line = lines[i];
 
+        const styleOpenMatch = line.match(/<style([^>]*)>/i);
+        if (styleOpenMatch) {
+            const styleStartLine = i + 1;
+            for (let j = i + 1; j < lines.length; j++) {
+                if (lines[j].match(/<\/style>/i)) {
+                    sections.push({
+                        type: "symbol",
+                        name: "<style>",
+                        startLine: styleStartLine,
+                        endLine: j + 1,
+                    });
+
+                    const styleContent = lines.slice(i + 1, j).join("\n");
+                    const cssRules = parseCssRulesForOutline(styleContent, styleStartLine);
+                    sections.push(...cssRules);
+
+                    i = j;
+                    break;
+                }
+            }
+            i++;
+            continue;
+        }
+
+        const scriptOpenMatch = line.match(/<script([^>]*)>/i);
+        if (scriptOpenMatch) {
+            const scriptStartLine = i + 1;
+            for (let j = i + 1; j < lines.length; j++) {
+                if (lines[j].match(/<\/script>/i)) {
+                    sections.push({
+                        type: "symbol",
+                        name: "<script>",
+                        startLine: scriptStartLine,
+                        endLine: j + 1,
+                    });
+
+                    const scriptContent = lines.slice(i + 1, j).join("\n");
+                    const jsSymbols = parseJsSymbolsForOutline(scriptContent, scriptStartLine);
+                    sections.push(...jsSymbols);
+
+                    i = j;
+                    break;
+                }
+            }
+            i++;
+            continue;
+        }
+
         const openTagMatch = line.match(
-            /<(head|body|header|nav|main|section|article|aside|footer|script|style)([^>]*)>/i
+            /<(header|head|body|nav|main|section|article|aside|footer)([^>]*)>/i
         );
         if (openTagMatch) {
             const tag = openTagMatch[1].toLowerCase();
@@ -305,7 +467,12 @@ function buildHtmlOutline(content: string): OutlineSection[] {
         }
 
         const idMatch = line.match(/<(\w+)[^>]*id=["']([^"']+)["'][^>]*>/i);
-        if (idMatch && !majorTags.includes(idMatch[1].toLowerCase())) {
+        if (
+            idMatch &&
+            !majorTags.includes(idMatch[1].toLowerCase()) &&
+            idMatch[1].toLowerCase() !== "style" &&
+            idMatch[1].toLowerCase() !== "script"
+        ) {
             const tag = idMatch[1].toLowerCase();
             const id = idMatch[2];
             sections.push({
@@ -315,6 +482,8 @@ function buildHtmlOutline(content: string): OutlineSection[] {
                 endLine: i + 1,
             });
         }
+
+        i++;
     }
 
     sections.sort((a, b) => a.startLine - b.startLine);

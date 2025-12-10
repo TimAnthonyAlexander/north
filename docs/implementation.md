@@ -534,11 +534,17 @@ Hint: Use read_file with aroundMatch to see exact content, or use anchor-based e
 **Output:**
 - `matches`: Array of blocks containing the query
 - Each match includes: `startLine`, `endLine`, `snippet` (first 5 lines), `kind`, `name`
+- `hint`: Helpful tip when no blocks match but text exists (HTML/CSS files suggest `find_blocks`)
 
 **Supported Languages:**
 - TypeScript/JavaScript: functions, classes, methods
 - Python: functions, classes (indentation-based)
+- CSS/SCSS: selectors, `@media` queries, `@keyframes` animations
+- HTML: semantic sections, embedded `<style>` blocks with CSS rules, embedded `<script>` blocks with JS symbols
 - Generic: brace-delimited blocks
+
+**Helpful Hints:**
+When searching HTML/CSS files and no code blocks contain the query (but the text exists in the file), the tool returns a hint suggesting `find_blocks` for better structural navigation of CSS selectors, `@media` queries, and embedded blocks.
 
 #### Large File Navigation Strategy
 
@@ -561,10 +567,16 @@ The tool system includes specialized tools to efficiently navigate and understan
 - Hierarchical structure with line ranges
 - TypeScript/JavaScript: imports, symbols, exports
 - Python: imports, classes (with methods), functions
-- HTML: major sections (head, body, main, section), elements with IDs
+- HTML: major sections (head, body, main, section), elements with IDs, **embedded content parsing**
 - CSS/SCSS/Less: selectors with line ranges, media queries, keyframes
 - Generic fallback: 50-line chunks
 - Use case: "Show me the overall structure of this 1000-line file"
+
+**HTML Embedded Block Parsing:**
+For HTML files, `get_file_outline` now parses embedded `<style>` and `<script>` blocks:
+- `<style>` blocks: Shows CSS rules inside with nested indicator (`└─ .selector`)
+- `<script>` blocks: Shows JS symbols (functions, classes) with nested indicator
+- Example output includes: `<style>`, `└─ .card`, `└─ @keyframes fadeIn`, `<script>`, `└─ function init`
 
 **Enhanced Search (`search_text`):**
 - New `file` parameter: search within a specific file only
@@ -1083,7 +1095,7 @@ Both providers (`anthropic.ts` and `openai.ts`) use identical system prompts wit
 - `<communication>` - Tone, formatting, honesty rules (no lying, no guessing paths). Includes operational workflow: "If you need a file, find it first."
 - `<tool_calling>` - Schema adherence, batch-level narration (not per-call), batching etiquette (1-2 info rounds before edits, no re-reading same ranges)
 - `<planning>` - Micro-planning for 2+ file tasks (2-5 bullet plan, then execute immediately)
-- `<search_and_reading>` - Question-first search methodology, formulation checklist (broad → narrow → minimal reads), bias toward self-discovery
+- `<search_and_reading>` - Question-first search methodology, formulation checklist (broad → narrow → minimal reads), bias toward self-discovery, **tool selection by file type** (HTML/CSS → `find_blocks`, JS/TS/Python → `get_file_outline`), **optimal tool chain for HTML/CSS** (`find_blocks` → `search_text` → `read_around` → edit)
 - `<making_code_changes>` - Default workflow (locate → confirm → atomic write → verify), read before edit, one edit per turn or atomic batch, no large pastes
 - `<verification>` - Mandatory verification after edits, fix duplication/malformed structure immediately
 - `<mixed_files>` - Strategy for HTML with embedded style/script: use find_blocks first, target by coordinates, pre-check selectors
@@ -1881,10 +1893,15 @@ bun test tests/openai*.ts   # run specific tests
   - AutoAccept storage (per-project auto-accept settings)
   - Global config storage (user preferences)
 - `tests/tools-read.test.ts`: Read tool tests
+  - `get_file_outline` HTML embedded block tests (style/script parsing)
 - `tests/tools-edit.test.ts`: Edit tool tests
   - Prepare contract tests
   - Trailing newline preservation
   - Failure diagnostic tests (whitespace, near-miss, hints)
+- `tests/tools-find-code-block.test.ts`: Find code block tool tests
+  - CSS selector and `@media`/`@keyframes` detection
+  - HTML embedded style/script block parsing
+  - Helpful hints for HTML/CSS files
 - `tests/tools-find-blocks.test.ts`: Find blocks tool tests
   - Mixed HTML parsing (embedded style/script)
   - CSS rules inside style blocks
