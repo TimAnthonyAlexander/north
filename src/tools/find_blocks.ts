@@ -348,9 +348,9 @@ function findCSharpSymbols(lines: string[]): BlockEntry[] {
     const classPattern =
         /^\s*(public|private|protected|internal)?\s*(static|sealed|abstract|partial)?\s*(class|struct|record|interface)\s+(\w+)/;
     const methodPattern =
-        /^\s*(public|private|protected|internal)?\s*(static|virtual|override|async)?\s*(async\s+)?[\w<>\[\],\s]+\s+(\w+)\s*\([^)]*\)/;
+        /^\s*(public|private|protected|internal)?\s*(static|virtual|override|async)?\s*(async\s+)?[\w<>[\],\s]+\s+(\w+)\s*\([^)]*\)/;
     const propertyPattern =
-        /^\s*(public|private|protected|internal)?\s*(static|virtual|override)?\s*[\w<>\[\],\s]+\s+(\w+)\s*\{/;
+        /^\s*(public|private|protected|internal)?\s*(static|virtual|override)?\s*[\w<>[\],\s]+\s+(\w+)\s*\{/;
     const enumPattern = /^\s*(public|private|protected|internal)?\s*enum\s+(\w+)/;
 
     for (let i = 0; i < lines.length; i++) {
@@ -550,7 +550,7 @@ function findJavaSymbols(lines: string[]): BlockEntry[] {
     const classPattern =
         /^\s*(public|private|protected)?\s*(static|final|abstract)?\s*(class|interface|enum|record)\s+(\w+)/;
     const methodPattern =
-        /^\s*(public|private|protected)?\s*(static|final|synchronized|native|abstract)?\s*[\w<>\[\],\s]+\s+(\w+)\s*\(/;
+        /^\s*(public|private|protected)?\s*(static|final|synchronized|native|abstract)?\s*[\w<>[\],\s]+\s+(\w+)\s*\(/;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
