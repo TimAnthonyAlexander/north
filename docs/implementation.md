@@ -967,23 +967,29 @@ Model selection via `/model`:
 Both providers (`anthropic.ts` and `openai.ts`) use identical system prompts with a Cursor-inspired structured format using XML-like sections:
 
 **Sections:**
-- `<communication>` - Tone, formatting, honesty rules (no lying, no guessing paths)
-- `<tool_calling>` - Schema adherence, one-sentence justification before each call, never expose tool names
-- `<search_and_reading>` - Bias toward self-discovery, gather context before concluding
+- `<communication>` - Tone, formatting, honesty rules (no lying, no guessing paths). Includes operational workflow: "If you need a file, find it first."
+- `<tool_calling>` - Schema adherence, batch-level narration (not per-call), batching etiquette (1-2 info rounds before edits, no re-reading same ranges)
+- `<planning>` - Micro-planning for 2+ file tasks (2-5 bullet plan, then execute immediately)
+- `<search_and_reading>` - Question-first search methodology, formulation checklist (broad → narrow → minimal reads), bias toward self-discovery
 - `<making_code_changes>` - Read before edit, one edit per turn or atomic batch, no large pastes
 - `<debugging>` - Edit only if confident, retry logic (re-read once on mismatch, max 3 lint loops)
 - `<calling_external_apis>` - Only when explicitly requested
 - `<long_running_commands>` - Never start dev servers or processes needing CTRL+C to stop
+- `<conversation>` - Session UX rules (end with "Next I would: ...", acknowledge session resumption)
 
 **Key behaviors enforced:**
 - "If you did not read it, do not claim it exists"
-- Never guess file paths or symbol names
+- Never guess file paths or symbol names; find files/symbols before describing behavior
 - Describe actions in natural language ("I'll search the repo") not tool names
-- Plan briefly, then execute one coherent edit per turn
+- Before any batch of tool calls, write one sentence explaining the batch goal (not per-call)
+- Prefer 1-2 rounds of info gathering before any edits; edit in the same turn when ready
+- Plan briefly (2-5 bullets) for 2+ file tasks, then execute immediately
+- Phrase search needs as questions first, then translate to exact patterns
 - Retry once on edit mismatch, then ask for clarification
 - Prefer surgical edits over large rewrites; break large content into chunks
 - For new files >200 lines: create skeleton first, then add content in subsequent edits
 - Avoid generating >300 lines in a single tool call
+- End longer responses with "Next I would: ..." to signal continuation
 
 ### Mode System
 
