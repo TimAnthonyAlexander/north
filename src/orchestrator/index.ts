@@ -1575,10 +1575,6 @@ Respond with ONLY the JSON, no other text.`;
                         {
                             onThinking(chunk: string) {
                                 thinkingBuffer += chunk;
-                                context.logger.info("thinking_chunk_received", {
-                                    chunkLength: chunk.length,
-                                    totalLength: thinkingBuffer.length,
-                                });
                                 updateEntry(
                                     assistantId,
                                     {
@@ -1669,18 +1665,9 @@ Respond with ONLY the JSON, no other text.`;
                             tools: toolSchemas as ToolSchema[],
                             model: currentModel,
                             signal,
-                            thinking: (() => {
-                                const config = thinkingEnabled
-                                    ? getModelThinkingConfig(currentModel)
-                                    : undefined;
-                                context.logger.info("thinking_config", {
-                                    thinkingEnabled,
-                                    currentModel,
-                                    configSet: config !== undefined,
-                                    budgetTokens: config?.budget_tokens,
-                                });
-                                return config;
-                            })(),
+                            thinking: thinkingEnabled
+                                ? getModelThinkingConfig(currentModel)
+                                : undefined,
                         }
                     );
                 }
