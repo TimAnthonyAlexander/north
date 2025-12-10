@@ -1,20 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { homedir } from "os";
+import { getConfigDir, ensureDir } from "../utils/paths";
 
 interface GlobalConfig {
     selectedModel?: string;
-}
-
-function getHomeDir(): string {
-    return process.env.HOME || homedir();
-}
-
-function getConfigDir(): string {
-    if (process.env.NORTH_CONFIG_DIR) {
-        return process.env.NORTH_CONFIG_DIR;
-    }
-    return join(getHomeDir(), ".config", "north");
 }
 
 function getConfigPath(): string {
@@ -22,10 +11,7 @@ function getConfigPath(): string {
 }
 
 function ensureConfigDir(): void {
-    const dir = getConfigDir();
-    if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
-    }
+    ensureDir(getConfigDir());
 }
 
 function loadConfig(): GlobalConfig {

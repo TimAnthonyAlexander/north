@@ -1,16 +1,9 @@
-import {
-    existsSync,
-    mkdirSync,
-    readFileSync,
-    writeFileSync,
-    appendFileSync,
-    readdirSync,
-} from "fs";
+import { existsSync, readFileSync, writeFileSync, appendFileSync, readdirSync } from "fs";
 import { join, basename } from "path";
-import { homedir } from "os";
 import { randomBytes, createHash } from "crypto";
 import type { TranscriptEntry } from "../orchestrator/index";
 import type { StructuredSummary } from "../commands/types";
+import { getConversationsDir, ensureDir } from "../utils/paths";
 
 export interface ConversationMeta {
     id: string;
@@ -68,22 +61,8 @@ type ConversationEvent =
           ts: number;
       };
 
-function getHomeDir(): string {
-    return process.env.HOME || homedir();
-}
-
-function getConversationsDir(): string {
-    if (process.env.NORTH_CONVERSATIONS_DIR) {
-        return process.env.NORTH_CONVERSATIONS_DIR;
-    }
-    return join(getHomeDir(), ".north", "conversations");
-}
-
 function ensureConversationsDir(): void {
-    const dir = getConversationsDir();
-    if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
-    }
+    ensureDir(getConversationsDir());
 }
 
 function getEventLogPath(id: string): string {

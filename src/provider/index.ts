@@ -1,7 +1,7 @@
 import { createProvider as createAnthropicProvider } from "./anthropic";
 import { createOpenAIProvider } from "./openai";
 import { getModelProvider, type ProviderType } from "../commands/models";
-import type { Provider } from "./anthropic";
+import type { Provider } from "./types";
 
 export type {
     Provider,
@@ -15,7 +15,7 @@ export type {
     ThinkingConfig,
     StreamResult,
     TokenUsage,
-} from "./anthropic";
+} from "./types";
 export { getModelProvider, type ProviderType };
 
 export function createProviderForModel(modelId: string): Provider {

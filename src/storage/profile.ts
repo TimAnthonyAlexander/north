@@ -1,18 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
-import { homedir } from "os";
 import { createHash } from "crypto";
+import { getProjectsDir, ensureDir } from "../utils/paths";
 
 interface DeclinedMarker {
     declined: boolean;
-}
-
-function getHomeDir(): string {
-    return process.env.HOME || homedir();
-}
-
-function getProjectsDir(): string {
-    return join(getHomeDir(), ".north", "projects");
 }
 
 export function getProjectHash(repoRoot: string): string {
@@ -33,10 +25,7 @@ function getDeclinedPath(repoRoot: string): string {
 }
 
 function ensureProjectDir(repoRoot: string): void {
-    const dir = getProjectDir(repoRoot);
-    if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
-    }
+    ensureDir(getProjectDir(repoRoot));
 }
 
 export function hasProfile(repoRoot: string): boolean {

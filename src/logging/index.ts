@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, appendFileSync } from "fs";
+import { appendFileSync } from "fs";
 import { join } from "path";
-import { homedir } from "os";
+import { getLogDir, ensureDir } from "../utils/paths";
 
 export type LogLevel = "info" | "debug" | "error";
 
@@ -13,16 +13,8 @@ export interface Logger {
 let logFilePath: string | null = null;
 let currentLogLevel: LogLevel = "info";
 
-function getLogDir(): string {
-    const stateDir = process.env.XDG_STATE_HOME || join(homedir(), ".local", "state");
-    return join(stateDir, "north");
-}
-
 function ensureLogDir(): void {
-    const dir = getLogDir();
-    if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
-    }
+    ensureDir(getLogDir());
 }
 
 function formatTimestamp(): string {

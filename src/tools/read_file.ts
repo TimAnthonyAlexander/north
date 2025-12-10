@@ -1,5 +1,4 @@
-import { existsSync, readFileSync, statSync, realpathSync } from "fs";
-import { join, isAbsolute, normalize, dirname } from "path";
+import { existsSync, readFileSync, statSync } from "fs";
 import type {
     ToolDefinition,
     ToolContext,
@@ -7,42 +6,12 @@ import type {
     ReadFileInput,
     ReadFileOutput,
 } from "./types";
+import { resolveSafePath } from "../utils/editing";
 
 const MAX_FILE_SIZE = 100_000;
 const MAX_LINES = 500;
 const DEFAULT_WINDOW_LINES = 20;
 const HEAD_TAIL_LINES = 10;
-
-function resolvePath(repoRoot: string, filePath: string): string | null {
-    const resolved = isAbsolute(filePath) ? filePath : join(repoRoot, filePath);
-    const normalized = normalize(resolved);
-    const normalizedRoot = normalize(repoRoot);
-
-    if (!normalized.startsWith(normalizedRoot)) {
-        return null;
-    }
-
-    try {
-        const realPath = realpathSync(normalized);
-        const realRoot = realpathSync(normalizedRoot);
-        if (!realPath.startsWith(realRoot)) {
-            return null;
-        }
-        return realPath;
-    } catch {
-        const parentDir = dirname(normalized);
-        try {
-            const realParent = realpathSync(parentDir);
-            const realRoot = realpathSync(normalizedRoot);
-            if (!realParent.startsWith(realRoot)) {
-                return null;
-            }
-        } catch {
-            return null;
-        }
-        return normalized;
-    }
-}
 
 function findMatchLine(lines: string[], searchText: string): number | null {
     for (let i = 0; i < lines.length; i++) {
@@ -185,7 +154,7 @@ export const readFileTool: ToolDefinition<ReadFileInput, ReadFileOutput> = {
         required: ["path"],
     },
     async execute(args: ReadFileInput, ctx: ToolContext): Promise<ToolResult<ReadFileOutput>> {
-        const resolvedPath = resolvePath(ctx.repoRoot, args.path);
+        const resolvedPath = resolveSafePath(ctx.repoRoot, args.path);
         if (!resolvedPath) {
             return { ok: false, error: `Path escapes repository root: ${args.path}` };
         }

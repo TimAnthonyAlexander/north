@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { homedir } from "os";
+import { getNorthDir, ensureDir } from "../utils/paths";
 
 export interface ModelCost {
     inputTokens: number;
@@ -19,26 +19,12 @@ export interface CostBreakdown {
     byModel: Record<string, ModelCost>;
 }
 
-function getHomeDir(): string {
-    return process.env.HOME || homedir();
-}
-
-function getNorthDir(): string {
-    if (process.env.NORTH_DATA_DIR) {
-        return process.env.NORTH_DATA_DIR;
-    }
-    return join(getHomeDir(), ".north");
-}
-
 function getCostsPath(): string {
     return join(getNorthDir(), "costs.json");
 }
 
 function ensureNorthDir(): void {
-    const dir = getNorthDir();
-    if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
-    }
+    ensureDir(getNorthDir());
 }
 
 function loadCostData(): CostData {
