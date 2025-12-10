@@ -4,8 +4,11 @@
 
 An AI pair programmer that lives in your terminal. Supports Claude (Anthropic) and GPT-5 (OpenAI). No IDE lock-in, no subscription tiers, no bloat—just you, the model of your choice, and your codebase.
 
-![North in action](screenshot1.png)
-![One Shot Website](screenshot2.png)
+![North in action](screenshot_tui.png)
+North in action.
+
+![One Shot Website](screenshot_index.png)
+Example landing page created from a one-line prompt.
 
 ## Why North?
 
