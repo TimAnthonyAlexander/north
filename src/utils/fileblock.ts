@@ -17,7 +17,7 @@ export interface ParseResult {
     cleanedText: string;
 }
 
-const OPEN_TAG_REGEX = /<NORTH_FILE\s+path="([^"]+)">/g;
+const OPEN_TAG_REGEX = /<NORTH_FILE\s+path="([^"]+)"(?:\s+mode="(append)")?>/g;
 const CLOSE_TAG = "</NORTH_FILE>";
 
 export function parseFileBlocks(text: string): ParseResult {
@@ -78,6 +78,165 @@ function trimFileContent(content: string): string {
         content = content.slice(0, -1);
     }
     return content;
+}
+
+export type StreamingMode = "create" | "append";
+
+export interface SessionStartEvent {
+    type: "session_start";
+    path: string;
+    mode: StreamingMode;
+}
+
+export interface SessionContentEvent {
+    type: "session_content";
+    path: string;
+    chunk: string;
+}
+
+export interface SessionCompleteEvent {
+    type: "session_complete";
+    path: string;
+}
+
+export interface DisplayTextEvent {
+    type: "display_text";
+    text: string;
+}
+
+export type StreamEvent =
+    | SessionStartEvent
+    | SessionContentEvent
+    | SessionCompleteEvent
+    | DisplayTextEvent;
+
+interface ActiveSession {
+    path: string;
+    mode: StreamingMode;
+    contentBuffer: string;
+    tagEndIndex: number;
+}
+
+export class StreamingFileBlockParser {
+    private buffer = "";
+    private activeSession: ActiveSession | null = null;
+    private displayedLength = 0;
+
+    append(chunk: string): StreamEvent[] {
+        const events: StreamEvent[] = [];
+        this.buffer += chunk;
+
+        while (true) {
+            if (this.activeSession) {
+                const closeIndex = this.buffer.indexOf(CLOSE_TAG);
+
+                if (closeIndex !== -1) {
+                    const contentBeforeClose = this.buffer.slice(0, closeIndex);
+                    if (contentBeforeClose.length > 0) {
+                        events.push({
+                            type: "session_content",
+                            path: this.activeSession.path,
+                            chunk: contentBeforeClose,
+                        });
+                    }
+
+                    events.push({
+                        type: "session_complete",
+                        path: this.activeSession.path,
+                    });
+
+                    this.buffer = this.buffer.slice(closeIndex + CLOSE_TAG.length);
+                    this.activeSession = null;
+                    this.displayedLength = 0;
+                    continue;
+                } else {
+                    const safeLength = Math.max(0, this.buffer.length - CLOSE_TAG.length);
+                    if (safeLength > 0) {
+                        const safeContent = this.buffer.slice(0, safeLength);
+                        events.push({
+                            type: "session_content",
+                            path: this.activeSession.path,
+                            chunk: safeContent,
+                        });
+                        this.buffer = this.buffer.slice(safeLength);
+                    }
+                    break;
+                }
+            } else {
+                OPEN_TAG_REGEX.lastIndex = 0;
+                const match = OPEN_TAG_REGEX.exec(this.buffer);
+
+                if (match) {
+                    const textBefore = this.buffer.slice(0, match.index);
+                    const newDisplayText = textBefore.slice(this.displayedLength);
+                    if (newDisplayText.length > 0) {
+                        events.push({ type: "display_text", text: newDisplayText });
+                    }
+
+                    const path = match[1];
+                    const mode: StreamingMode = match[2] === "append" ? "append" : "create";
+
+                    events.push({ type: "session_start", path, mode });
+
+                    this.activeSession = {
+                        path,
+                        mode,
+                        contentBuffer: "",
+                        tagEndIndex: match.index + match[0].length,
+                    };
+
+                    this.buffer = this.buffer.slice(match.index + match[0].length);
+                    const leadingNewline = this.buffer.startsWith("\n");
+                    if (leadingNewline) {
+                        this.buffer = this.buffer.slice(1);
+                    }
+                    this.displayedLength = 0;
+                } else {
+                    const safeLength = Math.max(0, this.buffer.length - 50);
+                    const newDisplayText = this.buffer.slice(this.displayedLength, safeLength);
+                    if (newDisplayText.length > 0) {
+                        events.push({ type: "display_text", text: newDisplayText });
+                        this.displayedLength = safeLength;
+                    }
+                    break;
+                }
+            }
+        }
+
+        return events;
+    }
+
+    hasActiveSession(): boolean {
+        return this.activeSession !== null;
+    }
+
+    getActiveSessionPath(): string | null {
+        return this.activeSession?.path ?? null;
+    }
+
+    getActiveSessionMode(): StreamingMode | null {
+        return this.activeSession?.mode ?? null;
+    }
+
+    flush(): StreamEvent[] {
+        const events: StreamEvent[] = [];
+
+        if (!this.activeSession && this.buffer.length > this.displayedLength) {
+            events.push({
+                type: "display_text",
+                text: this.buffer.slice(this.displayedLength),
+            });
+            this.displayedLength = this.buffer.length;
+        }
+
+        return events;
+    }
+
+    reset(): void {
+        this.buffer = "";
+        this.activeSession = null;
+        this.displayedLength = 0;
+    }
 }
 
 export class FileBlockAccumulator {

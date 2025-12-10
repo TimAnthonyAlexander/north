@@ -97,7 +97,9 @@ src/
     ├── tokens.ts         # Token estimation for context tracking
     ├── retry.ts          # Transient error retry with exponential backoff
     ├── fileindex.ts      # File index for @ mention autocomplete
-    └── filepreview.ts    # File preview + outline generation for context
+    ├── filepreview.ts    # File preview + outline generation for context
+    ├── fileblock.ts      # NORTH_FILE streaming parser with events
+    └── filesession.ts    # Streaming file writer with auto-resume
 
 tests/
 └── openai-provider.test.ts  # OpenAI provider unit tests
@@ -936,7 +938,7 @@ When Claude requests an edit tool (approvalPolicy: "write"):
 
 ### NORTH_FILE Protocol
 
-File creation uses a streaming-safe protocol where the model outputs file contents as plain assistant text, avoiding the timeout risks of large tool call payloads.
+File creation uses a streaming-to-disk protocol where the model outputs file contents as plain assistant text. Content is written directly to disk as it streams, with automatic continuation on provider timeouts.
 
 **Format:**
 ```
@@ -945,23 +947,48 @@ File creation uses a streaming-safe protocol where the model outputs file conten
 </NORTH_FILE>
 ```
 
-**Why:**
-- Tool calls must complete before parsing; stream interruption loses all content
-- Plain text streaming allows partial content preservation
-- On timeout, partial text can be used to prompt model to continue
+**Continuation format (auto-generated on timeout):**
+```
+<NORTH_FILE path="relative/path/to/file.ts" mode="append">
+...continuation content...
+</NORTH_FILE>
+```
+
+**Why streaming-to-disk:**
+- Provider timeouts (~90s) can interrupt large file generation
+- Tool calls buffer in memory and lose all content on timeout
+- Direct-to-disk streaming preserves partial content
+- Auto-continuation resumes from last written line
 
 **Flow:**
 1. Model outputs `<NORTH_FILE path="...">` tag in response
-2. `FileBlockAccumulator` in orchestrator detects and buffers the block
-3. When `</NORTH_FILE>` closes, block extracted and removed from displayed text
-4. Diff computed (new file or overwrite existing)
-5. Standard diff review flow triggered (same as tool-based edits)
-6. On accept: file written atomically
-7. On reject: nothing written
+2. `StreamingFileBlockParser` detects open tag, emits `session_start` event
+3. `FileWriteSession` created, opens file at final path (creates parent dirs if needed)
+4. Content chunks written directly to disk as they stream
+5. Session tracks `linesWritten` and maintains 30-line trailing window for context
+6. When `</NORTH_FILE>` closes: session finalized, diff review triggered
+7. On accept: file already written, nothing more to do
+8. On reject: file deleted from disk
 
-**Parsing (src/utils/fileblock.ts):**
-- `parseFileBlocks(text)` - extracts complete blocks, returns incomplete block info
-- `FileBlockAccumulator` - streaming wrapper, tracks blocks across chunks
+**Auto-continuation on timeout:**
+1. Stream ends without close tag (provider timeout ~90s)
+2. Orchestrator detects incomplete session
+3. Sends continuation prompt with trailing window context
+4. Model responds with `<NORTH_FILE mode="append">` block
+5. Content appended to existing file
+6. Repeats until complete or max retries (3) exceeded
+7. On max retries: partial file preserved, error surfaced to user
+
+**Implementation (src/utils/):**
+- `fileblock.ts`:
+  - `StreamingFileBlockParser` - event-based streaming parser
+  - Events: `session_start`, `session_content`, `session_complete`, `display_text`
+  - Parses `mode="append"` attribute for continuation blocks
+- `filesession.ts`:
+  - `FileWriteSession` - streaming file writer with line tracking
+  - `startSession(repoRoot, path)` - creates new file
+  - `appendToSession(...)` - continues from existing state
+  - `getResumeInfo()` - returns lines written + trailing window
 
 **Tool Input Size Guard:**
 - All tool inputs checked against 50KB limit before execution

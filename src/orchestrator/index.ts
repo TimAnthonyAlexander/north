@@ -8,13 +8,13 @@ import {
 import { createToolRegistryWithAllTools, filterToolsForMode } from "../tools/index";
 import type { Logger } from "../logging/index";
 import type { FileDiff, EditPrepareResult, ShellRunInput, EditOperation } from "../tools/types";
+import { applyEditsAtomically, computeCreateFileDiff, readFileContent } from "../utils/editing";
+import { StreamingFileBlockParser } from "../utils/fileblock";
 import {
-    applyEditsAtomically,
-    computeCreateFileDiff,
-    computeUnifiedDiff,
-    readFileContent,
-} from "../utils/editing";
-import { FileBlockAccumulator, type FileBlock } from "../utils/fileblock";
+    startSession as startFileSession,
+    type FileWriteSession,
+    type ResumeInfo,
+} from "../utils/filesession";
 import { isCommandAllowed, allowCommand } from "../storage/allowlist";
 import {
     isEditsAutoAcceptEnabled,
@@ -93,6 +93,7 @@ export interface TranscriptEntry {
     learningPromptStatus?: LearningPromptStatus;
     learningPercent?: number;
     learningTopic?: string;
+    fileSessionPath?: string;
 }
 
 export interface OrchestratorState {
@@ -310,6 +311,7 @@ export function createOrchestratorWithTools(
     let shellAbortController: AbortController | null = null;
     let cancelled = false;
     let currentAttachedFiles: string[] = [];
+    let currentFileSession: FileWriteSession | null = null;
 
     if (!hasInitialState) {
         startConversation(conversationId, context.repoRoot, currentModel);
@@ -660,37 +662,20 @@ export function createOrchestratorWithTools(
         return { needsReview: true, entry: reviewEntry };
     }
 
-    async function processFileBlock(fileBlock: FileBlock): Promise<TranscriptEntry | null> {
-        const { path: filePath, content } = fileBlock;
-        const existingFile = readFileContent(context.repoRoot, filePath);
-        const fileExists = existingFile.ok;
-
-        let fileDiff;
-        let originalContent: string | undefined;
-
-        if (fileExists && existingFile.content !== undefined) {
-            originalContent = existingFile.content;
-            fileDiff = computeUnifiedDiff(originalContent, content, filePath);
-        } else {
-            fileDiff = computeCreateFileDiff(content, filePath);
+    async function processCompletedFileSession(filePath: string): Promise<TranscriptEntry | null> {
+        const fileResult = readFileContent(context.repoRoot, filePath);
+        if (!fileResult.ok || fileResult.content === undefined) {
+            context.logger.error(
+                "file_session_read_failed",
+                new Error(`Failed to read ${filePath}`)
+            );
+            return null;
         }
 
-        const applyPayload: EditOperation[] = [
-            {
-                type: "create",
-                path: filePath,
-                content,
-                originalContent,
-            },
-        ];
+        const content = fileResult.content;
+        const fileDiff = computeCreateFileDiff(content, filePath);
 
         if (isEditsAutoAcceptEnabled(context.repoRoot)) {
-            callbacks.onWriteApplyStart?.();
-            const applyStart = Date.now();
-            const applyResult = applyEditsAtomically(context.repoRoot, applyPayload);
-            const applyDuration = Date.now() - applyStart;
-            callbacks.onWriteApplyComplete?.(applyDuration, applyResult.ok);
-
             const reviewId = generateId();
             const reviewEntry: TranscriptEntry = {
                 id: reviewId,
@@ -701,7 +686,7 @@ export function createOrchestratorWithTools(
                 diffContent: [fileDiff],
                 filesCount: 1,
                 reviewStatus: "always",
-                applyPayload,
+                fileSessionPath: filePath,
             };
             addEntry(reviewEntry);
             emitState();
@@ -718,12 +703,180 @@ export function createOrchestratorWithTools(
             diffContent: [fileDiff],
             filesCount: 1,
             reviewStatus: "pending",
-            applyPayload,
+            fileSessionPath: filePath,
         };
         addEntry(reviewEntry);
         emitState();
 
         return reviewEntry;
+    }
+
+    async function applyFileSessionDecision(
+        reviewEntry: TranscriptEntry,
+        decision: WriteDecision
+    ): Promise<void> {
+        const filesCount = reviewEntry.filesCount || 0;
+        const callbackDecision = decision === "always" ? "accept" : decision;
+        callbacks.onWriteReviewDecision?.(callbackDecision, filesCount);
+
+        if (decision === "accept" || decision === "always") {
+            if (decision === "always") {
+                enableEditsAutoAccept(context.repoRoot);
+            }
+
+            updateEntry(reviewEntry.id, {
+                reviewStatus: decision === "always" ? "always" : "accepted",
+            });
+
+            if (reviewEntry.diffContent) {
+                const stats = computeDiffStats(reviewEntry.diffContent);
+                context.logger.info("file_session_accepted", {
+                    path: reviewEntry.fileSessionPath,
+                    added: stats.added,
+                    removed: stats.removed,
+                });
+            }
+        } else {
+            if (reviewEntry.fileSessionPath) {
+                const absolutePath = path.join(context.repoRoot, reviewEntry.fileSessionPath);
+                try {
+                    const fs = await import("node:fs");
+                    fs.unlinkSync(absolutePath);
+                    context.logger.info("file_session_rejected_deleted", {
+                        path: reviewEntry.fileSessionPath,
+                    });
+                } catch (err) {
+                    context.logger.error(
+                        "file_session_delete_failed",
+                        err instanceof Error ? err : new Error(String(err))
+                    );
+                }
+            }
+            updateEntry(reviewEntry.id, { reviewStatus: "rejected" });
+        }
+
+        pendingReviewId = null;
+        pendingWriteReview = null;
+        emitState();
+    }
+
+    async function continueFileGeneration(
+        session: FileWriteSession,
+        resumeInfo: ResumeInfo,
+        _assistantId: string,
+        maxRetries: number = 3
+    ): Promise<boolean> {
+        let retries = 0;
+
+        while (retries < maxRetries && !stopped && !cancelled) {
+            retries++;
+
+            const continuationPrompt = buildContinuationPrompt(resumeInfo);
+
+            const continueMessages: Message[] = [
+                ...buildMessagesForClaude(),
+                { role: "user", content: continuationPrompt },
+            ];
+
+            const continueParser = new StreamingFileBlockParser();
+            let continueComplete = false;
+
+            const continueAbortController = new AbortController();
+            currentAbortController = continueAbortController;
+
+            context.logger.info("file_continuation_attempt", {
+                path: resumeInfo.path,
+                attempt: retries,
+                linesWritten: resumeInfo.linesWritten,
+            });
+
+            const continueOutcome = await new Promise<{ success: boolean; error?: Error }>(
+                (resolve) => {
+                    provider.stream(
+                        continueMessages,
+                        {
+                            onChunk(chunk: string) {
+                                const events = continueParser.append(chunk);
+
+                                for (const event of events) {
+                                    if (event.type === "session_start" && event.mode === "append") {
+                                        continue;
+                                    }
+                                    if (event.type === "session_content") {
+                                        session.write(event.chunk);
+                                    }
+                                    if (event.type === "session_complete") {
+                                        session.finalize();
+                                        continueComplete = true;
+                                    }
+                                }
+                            },
+                            onToolCall() {},
+                            onComplete() {
+                                resolve({ success: continueComplete });
+                            },
+                            onError(error: Error) {
+                                resolve({ success: false, error });
+                            },
+                        },
+                        {
+                            model: currentModel,
+                            signal: continueAbortController.signal,
+                        }
+                    );
+                }
+            );
+
+            currentAbortController = null;
+
+            if (continueOutcome.success) {
+                context.logger.info("file_continuation_success", {
+                    path: resumeInfo.path,
+                    totalLines: session.linesWritten,
+                });
+                return true;
+            }
+
+            if (cancelled || stopped) {
+                return false;
+            }
+
+            resumeInfo = session.getResumeInfo();
+
+            context.logger.info("file_continuation_retry", {
+                path: resumeInfo.path,
+                attempt: retries,
+                linesWritten: resumeInfo.linesWritten,
+                error: continueOutcome.error?.message,
+            });
+
+            await sleep(1000);
+        }
+
+        context.logger.error(
+            "file_continuation_failed",
+            new Error(`Failed to complete file after ${maxRetries} retries: ${resumeInfo.path}`)
+        );
+        return false;
+    }
+
+    function buildContinuationPrompt(resumeInfo: ResumeInfo): string {
+        const trailingContext = resumeInfo.trailingWindow.join("\n");
+
+        return `Continue writing the file "${resumeInfo.path}" starting from line ${resumeInfo.linesWritten + 1}.
+
+CRITICAL INSTRUCTIONS:
+- Do NOT repeat any content already written
+- Output ONLY a <NORTH_FILE path="${resumeInfo.path}" mode="append"> block
+- Close the block with </NORTH_FILE> when the file is complete
+- Start IMMEDIATELY with the next line of content
+
+Last ${resumeInfo.trailingWindow.length} lines for context (DO NOT REPEAT THESE):
+\`\`\`
+${trailingContext}
+\`\`\`
+
+Continue from line ${resumeInfo.linesWritten + 1}:`;
     }
 
     async function executeToolCall(
@@ -1381,8 +1534,10 @@ Respond with ONLY the JSON, no other text.`;
             }
 
             type StreamResult = { text: string; toolCalls: ToolCall[]; stopReason: string | null };
-            const fileBlockAccumulator = new FileBlockAccumulator();
-            const pendingFileBlocks: FileBlock[] = [];
+            const streamingParser = new StreamingFileBlockParser();
+            const completedFileSessions: string[] = [];
+            currentFileSession = null;
+            let displayText = "";
 
             const streamOutcome = await new Promise<{ result: StreamResult } | { error: Error }>(
                 (resolve) => {
@@ -1390,20 +1545,56 @@ Respond with ONLY the JSON, no other text.`;
                         messages,
                         {
                             onChunk(chunk: string) {
-                                const completedBlocks = fileBlockAccumulator.append(chunk);
-                                pendingFileBlocks.push(...completedBlocks);
+                                const events = streamingParser.append(chunk);
 
-                                const cleanedText = fileBlockAccumulator.getCleanedText();
-                                const incompleteBlock = fileBlockAccumulator.getIncompleteBlock();
-                                const displayText = incompleteBlock
-                                    ? cleanedText + `[Creating ${incompleteBlock.path}...]`
-                                    : cleanedText;
+                                for (const event of events) {
+                                    switch (event.type) {
+                                        case "display_text":
+                                            displayText += event.text;
+                                            streamBuffer += event.text;
+                                            scheduleStreamFlush();
+                                            break;
 
-                                const currentContent = findEntry(assistantId)?.content || "";
-                                const newContent = displayText.slice(currentContent.length);
-                                if (newContent) {
-                                    streamBuffer += newContent;
-                                    scheduleStreamFlush();
+                                        case "session_start":
+                                            try {
+                                                if (event.mode === "append" && currentFileSession) {
+                                                    break;
+                                                }
+                                                currentFileSession = startFileSession(
+                                                    context.repoRoot,
+                                                    event.path
+                                                );
+                                                const indicator = `[Creating ${event.path}...]`;
+                                                streamBuffer += indicator;
+                                                scheduleStreamFlush();
+                                            } catch (err) {
+                                                context.logger.error(
+                                                    "file_session_start_failed",
+                                                    err instanceof Error
+                                                        ? err
+                                                        : new Error(String(err))
+                                                );
+                                            }
+                                            break;
+
+                                        case "session_content":
+                                            if (currentFileSession) {
+                                                currentFileSession.write(event.chunk);
+                                            }
+                                            break;
+
+                                        case "session_complete":
+                                            if (currentFileSession) {
+                                                currentFileSession.finalize();
+                                                completedFileSessions.push(currentFileSession.path);
+                                                context.logger.info("file_session_complete", {
+                                                    path: currentFileSession.path,
+                                                    linesWritten: currentFileSession.linesWritten,
+                                                });
+                                                currentFileSession = null;
+                                            }
+                                            break;
+                                    }
                                 }
                             },
                             onToolCall(toolCall: ToolCall) {
@@ -1412,8 +1603,13 @@ Respond with ONLY the JSON, no other text.`;
                                 toolCallsMap.set(assistantId, calls);
                             },
                             onComplete(result) {
-                                const cleanedText = fileBlockAccumulator.getCleanedText();
-                                resolve({ result: { ...result, text: cleanedText } });
+                                const flushEvents = streamingParser.flush();
+                                for (const event of flushEvents) {
+                                    if (event.type === "display_text") {
+                                        displayText += event.text;
+                                    }
+                                }
+                                resolve({ result: { ...result, text: displayText } });
                             },
                             onError(error: Error) {
                                 resolve({ error });
@@ -1437,6 +1633,11 @@ Respond with ONLY the JSON, no other text.`;
             if ("error" in streamOutcome) {
                 const err = streamOutcome.error;
                 if (err.name === "AbortError" || cancelled) {
+                    const sess = currentFileSession as FileWriteSession | null;
+                    if (sess && !sess.isComplete) {
+                        sess.abort();
+                        currentFileSession = null;
+                    }
                     updateEntry(assistantId, {
                         isStreaming: false,
                         content: findEntry(assistantId)?.content + " [Cancelled]",
@@ -1477,6 +1678,13 @@ Respond with ONLY the JSON, no other text.`;
                     continue;
                 }
 
+                {
+                    const sess = currentFileSession as FileWriteSession | null;
+                    if (sess && !sess.isComplete) {
+                        sess.abort();
+                        currentFileSession = null;
+                    }
+                }
                 callbacks.onRequestComplete?.(requestId, requestDuration, err);
                 updateEntry(assistantId, {
                     isStreaming: false,
@@ -1489,6 +1697,13 @@ Respond with ONLY the JSON, no other text.`;
             const result = streamOutcome.result;
 
             if (result.stopReason === "cancelled" || cancelled) {
+                {
+                    const sess = currentFileSession as FileWriteSession | null;
+                    if (sess && !sess.isComplete) {
+                        sess.abort();
+                        currentFileSession = null;
+                    }
+                }
                 updateEntry(assistantId, {
                     isStreaming: false,
                     content: result.text + " [Cancelled]",
@@ -1506,13 +1721,42 @@ Respond with ONLY the JSON, no other text.`;
             });
             emitState();
 
-            for (const fileBlock of pendingFileBlocks) {
+            {
+                const sess = currentFileSession as FileWriteSession | null;
+                if (sess && !sess.isComplete) {
+                    const resumeInfo = sess.getResumeInfo();
+                    context.logger.info("file_session_incomplete", {
+                        path: resumeInfo.path,
+                        linesWritten: resumeInfo.linesWritten,
+                    });
+
+                    const continueSuccess = await continueFileGeneration(
+                        sess,
+                        resumeInfo,
+                        assistantId
+                    );
+
+                    if (continueSuccess) {
+                        completedFileSessions.push(resumeInfo.path);
+                    } else {
+                        sess.abort();
+                        updateEntry(assistantId, {
+                            content:
+                                displayText +
+                                `\n\n[File creation interrupted: ${resumeInfo.path} - partial content may remain]`,
+                        });
+                    }
+                    currentFileSession = null;
+                }
+            }
+
+            for (const filePath of completedFileSessions) {
                 if (stopped) break;
 
-                const reviewEntry = await processFileBlock(fileBlock);
+                const reviewEntry = await processCompletedFileSession(filePath);
                 if (reviewEntry) {
                     const decision = await waitForWriteReviewDecision(reviewEntry);
-                    await applyWriteDecision(reviewEntry, decision);
+                    await applyFileSessionDecision(reviewEntry, decision);
                 }
             }
 
