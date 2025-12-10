@@ -64,6 +64,12 @@ interface OpenAIStreamEvent {
             input_tokens: number;
             output_tokens: number;
             total_tokens: number;
+            input_tokens_details?: {
+                cached_tokens?: number;
+            };
+            output_tokens_details?: {
+                reasoning_tokens?: number;
+            };
         };
     };
     error?: {
@@ -291,7 +297,13 @@ async function parseSSEStream(
         while (true) {
             if (signal?.aborted) {
                 reader.cancel();
-                return { text: fullText, toolCalls, thinkingBlocks, stopReason: "cancelled", usage };
+                return {
+                    text: fullText,
+                    toolCalls,
+                    thinkingBlocks,
+                    stopReason: "cancelled",
+                    usage,
+                };
             }
 
             const { done, value } = await reader.read();
@@ -407,9 +419,11 @@ async function parseSSEStream(
                                     }
                                 }
                                 if (event.response?.usage) {
+                                    const cachedTokens = event.response.usage.input_tokens_details?.cached_tokens;
                                     usage = {
                                         inputTokens: event.response.usage.input_tokens,
                                         outputTokens: event.response.usage.output_tokens,
+                                        cachedInputTokens: cachedTokens,
                                     };
                                 }
 

@@ -32,6 +32,7 @@ export interface TokenUsage {
     outputTokens: number;
     cacheReadTokens?: number;
     cacheWriteTokens?: number;
+    cachedInputTokens?: number;
 }
 
 export interface StreamResult {
@@ -337,7 +338,16 @@ export function createProvider(options?: { model?: string }): Provider {
                         if (event.delta.stop_reason) {
                             stopReason = event.delta.stop_reason;
                         }
-                        const eventUsage = (event as unknown as { usage?: { output_tokens?: number; input_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } }).usage;
+                        const eventUsage = (
+                            event as unknown as {
+                                usage?: {
+                                    output_tokens?: number;
+                                    input_tokens?: number;
+                                    cache_read_input_tokens?: number;
+                                    cache_creation_input_tokens?: number;
+                                };
+                            }
+                        ).usage;
                         if (eventUsage) {
                             usage = {
                                 inputTokens: eventUsage.input_tokens ?? 0,
@@ -347,7 +357,18 @@ export function createProvider(options?: { model?: string }): Provider {
                             };
                         }
                     } else if (event.type === "message_start") {
-                        const msg = (event as unknown as { message?: { usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } } }).message;
+                        const msg = (
+                            event as unknown as {
+                                message?: {
+                                    usage?: {
+                                        input_tokens?: number;
+                                        output_tokens?: number;
+                                        cache_read_input_tokens?: number;
+                                        cache_creation_input_tokens?: number;
+                                    };
+                                };
+                            }
+                        ).message;
                         if (msg?.usage) {
                             usage = {
                                 inputTokens: msg.usage.input_tokens ?? 0,
@@ -363,7 +384,13 @@ export function createProvider(options?: { model?: string }): Provider {
                     throw new Error("Stream ended with incomplete tool call - possible timeout");
                 }
 
-                callbacks.onComplete({ text: fullText, toolCalls, thinkingBlocks, stopReason, usage });
+                callbacks.onComplete({
+                    text: fullText,
+                    toolCalls,
+                    thinkingBlocks,
+                    stopReason,
+                    usage,
+                });
             } catch (err) {
                 callbacks.onError(err instanceof Error ? err : new Error(String(err)));
             }

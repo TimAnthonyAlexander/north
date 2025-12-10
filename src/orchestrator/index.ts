@@ -1780,6 +1780,7 @@ Respond with ONLY the JSON, no other text.`;
                     outputTokens: result.usage.outputTokens,
                     cacheReadTokens: result.usage.cacheReadTokens,
                     cacheWriteTokens: result.usage.cacheWriteTokens,
+                    cachedInputTokens: result.usage.cachedInputTokens,
                 };
                 const requestCost = calculateCost(currentModel, usageForPricing);
                 sessionCostUsd += requestCost;

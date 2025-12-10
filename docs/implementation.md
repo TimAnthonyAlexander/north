@@ -1065,14 +1065,34 @@ North tracks API costs in real-time, displaying both session and all-time totals
 4. StatusLine displays both costs: `$session / $all-time`
 
 **Token usage sources:**
-- Anthropic: `message_delta` event contains `usage` with input/output/cache tokens
-- OpenAI: `response.completed` event contains `response.usage` with input/output tokens
 
-**Cost calculation:**
-- Regular input tokens charged at base input rate
-- Cached/cache-hit tokens charged at reduced rates
-- Output tokens (including thinking/reasoning) charged at output rate
-- Extended thinking tokens billed as output tokens
+*Anthropic:*
+- `message_start` and `message_delta` events contain `usage` object
+- `input_tokens`: non-cached, non-cache-write input tokens (already excludes cached)
+- `output_tokens`: output tokens (includes extended thinking)
+- `cache_read_input_tokens`: tokens served from cache (charged at reduced cache hit rate)
+- `cache_creation_input_tokens`: tokens written to cache (charged at cache write rate)
+
+*OpenAI:*
+- `response.completed` event contains `response.usage` object
+- `input_tokens`: total input tokens
+- `output_tokens`: output tokens (includes reasoning tokens)
+- `input_tokens_details.cached_tokens`: tokens served from prompt cache (charged at reduced rate)
+
+**Cost calculation (additive model):**
+
+*Anthropic (fields are additive, not subtractive):*
+- Base input cost = `inputTokens` × inputRate
+- Cache hit cost = `cacheReadTokens` × cacheHitRate
+- Cache write cost = `cacheWriteTokens` × cacheWriteRate
+- Output cost = `outputTokens` × outputRate
+
+*OpenAI (cachedInputTokens subtracted from total):*
+- Non-cached input cost = (`inputTokens` - `cachedInputTokens`) × inputRate
+- Cached input cost = `cachedInputTokens` × cachedInputRate
+- Output cost = `outputTokens` × outputRate
+
+**Note:** Currently only supports 5-minute cache duration pricing for Anthropic. 1-hour cache has higher write rates not yet modeled.
 
 **Display format:**
 - Session cost: green color, shows cost since app started

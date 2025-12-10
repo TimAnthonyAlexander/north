@@ -115,15 +115,15 @@ export function calculateCost(modelId: string, usage: TokenUsage): number {
 
     let cost = 0;
 
-    const regularInputTokens =
-        usage.inputTokens - (usage.cachedInputTokens || 0) - (usage.cacheReadTokens || 0);
-
-    cost += (regularInputTokens / 1_000_000) * pricing.inputPerMillion;
-    cost += (usage.outputTokens / 1_000_000) * pricing.outputPerMillion;
-
-    if (usage.cachedInputTokens && pricing.cachedInputPerMillion) {
+    if (usage.cachedInputTokens !== undefined && pricing.cachedInputPerMillion) {
+        const nonCachedInput = usage.inputTokens - usage.cachedInputTokens;
+        cost += (nonCachedInput / 1_000_000) * pricing.inputPerMillion;
         cost += (usage.cachedInputTokens / 1_000_000) * pricing.cachedInputPerMillion;
+    } else {
+        cost += (usage.inputTokens / 1_000_000) * pricing.inputPerMillion;
     }
+
+    cost += (usage.outputTokens / 1_000_000) * pricing.outputPerMillion;
 
     if (usage.cacheWriteTokens && pricing.cacheWritePerMillion) {
         cost += (usage.cacheWriteTokens / 1_000_000) * pricing.cacheWritePerMillion;
@@ -145,4 +145,3 @@ export function formatCost(cost: number): string {
     }
     return `$${cost.toFixed(2)}`;
 }
-

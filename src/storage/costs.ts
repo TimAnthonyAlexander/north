@@ -68,4 +68,3 @@ export function addCost(costUsd: number): number {
 export function resetAllTimeCost(): void {
     saveCostData({ allTimeCostUsd: 0, lastUpdated: Date.now() });
 }
-

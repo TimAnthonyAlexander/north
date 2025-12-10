@@ -91,13 +91,9 @@ export function StatusLine({
                     ● {tokenDisplay} ({usagePercent}%)
                 </Text>
                 <Text color="#999999">•</Text>
-                <Text color="#66bb6a">
-                    {sessionCostDisplay}
-                </Text>
+                <Text color="#66bb6a">{sessionCostDisplay}</Text>
                 <Text color="#999999">/</Text>
-                <Text color="#42a5f5">
-                    {allTimeCostDisplay}
-                </Text>
+                <Text color="#42a5f5">{allTimeCostDisplay}</Text>
             </Box>
         </Box>
     );
