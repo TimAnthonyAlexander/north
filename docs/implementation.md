@@ -203,6 +203,7 @@ Span-based tokenizer for reliable command extraction:
 | `/model` | `/model [alias]` | Switch model (with picker if no arg) |
 | `/summarize` | `/summarize [--keep-last N]` | Summarize conversation, trim transcript |
 | `/thinking` | `/thinking [on\|off]` | Toggle extended thinking on/off |
+| `/costs` | `/costs` | Show cost breakdown dialog by model/provider |
 
 ### logging/index.ts
 
@@ -304,9 +305,11 @@ Span-based tokenizer for reliable command extraction:
 ### storage/costs.ts
 
 - Global API cost tracking at `~/.north/costs.json`
-- JSON format: `{ "allTimeCostUsd": number, "lastUpdated": number }`
-- API: `getAllTimeCost()`, `addCost(costUsd)`, `resetAllTimeCost()`
-- `addCost()` returns updated all-time total after adding
+- JSON format: `{ "allTimeCostUsd": number, "byModel": Record<string, ModelCost>, "lastUpdated": number }`
+- `ModelCost`: `{ inputTokens: number, outputTokens: number, costUsd: number }`
+- API: `getAllTimeCost()`, `getCostBreakdown()`, `addCostByModel()`, `resetAllTimeCost()`
+- `addCostByModel(modelId, inputTokens, outputTokens, costUsd)` accumulates per-model and updates total
+- `getCostBreakdown()` returns full breakdown for `/costs` dialog
 - Creates `~/.north/` directory on first write
 - **Test isolation**: Respects `NORTH_DATA_DIR` environment variable to override data directory
 
@@ -669,6 +672,18 @@ The provider system prompts now explicitly instruct the LLM to:
 - Token count formatted as K/M for readability (e.g., "42.5K (21%)")
 - Cost display: session cost (green) / all-time cost (blue) in USD
 - Updates in real-time as context fills and costs accumulate
+
+### ui/CostsDialog.tsx
+
+- Centered modal dialog showing cost breakdown
+- Triggered by `/costs` command via `showCostsDialog()` context method
+- Displays two sections: Session Costs and All-Time Costs
+- Groups costs by provider (Anthropic, OpenAI) then by model
+- Shows input/output token counts and USD cost per model
+- Provider subtotals and section totals displayed
+- Press Esc or Q to close dialog
+- Reads all-time breakdown from `~/.north/costs.json` via `getCostBreakdown()`
+- Session costs passed from orchestrator state
 
 ### ui/Composer.tsx
 

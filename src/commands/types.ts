@@ -67,6 +67,7 @@ export interface CommandContext {
     switchConversation: (id: string) => Promise<{ ok: boolean; error?: string }>;
     setThinking: (enabled: boolean) => void;
     isThinkingEnabled: () => boolean;
+    showCostsDialog: () => void;
 }
 
 export interface CommandResult {

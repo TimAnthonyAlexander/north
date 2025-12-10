@@ -2,9 +2,21 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
+export interface ModelCost {
+    inputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+}
+
 interface CostData {
     allTimeCostUsd: number;
+    byModel: Record<string, ModelCost>;
     lastUpdated: number;
+}
+
+export interface CostBreakdown {
+    allTimeCostUsd: number;
+    byModel: Record<string, ModelCost>;
 }
 
 function getHomeDir(): string {
@@ -32,17 +44,18 @@ function ensureNorthDir(): void {
 function loadCostData(): CostData {
     const path = getCostsPath();
     if (!existsSync(path)) {
-        return { allTimeCostUsd: 0, lastUpdated: Date.now() };
+        return { allTimeCostUsd: 0, byModel: {}, lastUpdated: Date.now() };
     }
     try {
         const content = readFileSync(path, "utf-8");
         const data = JSON.parse(content);
         return {
             allTimeCostUsd: data.allTimeCostUsd ?? 0,
+            byModel: data.byModel ?? {},
             lastUpdated: data.lastUpdated ?? Date.now(),
         };
     } catch {
-        return { allTimeCostUsd: 0, lastUpdated: Date.now() };
+        return { allTimeCostUsd: 0, byModel: {}, lastUpdated: Date.now() };
     }
 }
 
@@ -57,6 +70,14 @@ export function getAllTimeCost(): number {
     return data.allTimeCostUsd;
 }
 
+export function getCostBreakdown(): CostBreakdown {
+    const data = loadCostData();
+    return {
+        allTimeCostUsd: data.allTimeCostUsd,
+        byModel: data.byModel,
+    };
+}
+
 export function addCost(costUsd: number): number {
     const data = loadCostData();
     data.allTimeCostUsd += costUsd;
@@ -65,6 +86,28 @@ export function addCost(costUsd: number): number {
     return data.allTimeCostUsd;
 }
 
+export function addCostByModel(
+    modelId: string,
+    inputTokens: number,
+    outputTokens: number,
+    costUsd: number
+): number {
+    const data = loadCostData();
+
+    if (!data.byModel[modelId]) {
+        data.byModel[modelId] = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
+    }
+
+    data.byModel[modelId].inputTokens += inputTokens;
+    data.byModel[modelId].outputTokens += outputTokens;
+    data.byModel[modelId].costUsd += costUsd;
+    data.allTimeCostUsd += costUsd;
+    data.lastUpdated = Date.now();
+
+    saveCostData(data);
+    return data.allTimeCostUsd;
+}
+
 export function resetAllTimeCost(): void {
-    saveCostData({ allTimeCostUsd: 0, lastUpdated: Date.now() });
+    saveCostData({ allTimeCostUsd: 0, byModel: {}, lastUpdated: Date.now() });
 }

@@ -55,7 +55,7 @@ import { runLearningSession } from "../profile/learn";
 import { formatAttachedFilesContext } from "../utils/filepreview";
 import { digestToolOutput, clearOutputCache } from "../utils/digest";
 import { calculateCost, type TokenUsage as PricingTokenUsage } from "../utils/pricing";
-import { addCost, getAllTimeCost } from "../storage/costs";
+import { addCostByModel, getAllTimeCost, type ModelCost } from "../storage/costs";
 import * as path from "node:path";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "auto" | "denied";
@@ -119,6 +119,7 @@ export interface OrchestratorState {
     thinkingEnabled: boolean;
     sessionCostUsd: number;
     allTimeCostUsd: number;
+    sessionCostsByModel: Record<string, ModelCost>;
 }
 
 export interface OrchestratorCallbacks {
@@ -142,6 +143,7 @@ export interface OrchestratorCallbacks {
         stderrBytes: number
     ) => void;
     onExit?: () => void;
+    onShowCostsDialog?: () => void;
 }
 
 export interface OrchestratorContext {
@@ -317,6 +319,7 @@ export function createOrchestratorWithTools(
     let thinkingEnabled = true;
     let sessionCostUsd = 0;
     let allTimeCostUsd = getAllTimeCost();
+    const sessionCostsByModel: Record<string, ModelCost> = {};
 
     let streamBuffer = "";
     let streamTimer: ReturnType<typeof setTimeout> | null = null;
@@ -347,6 +350,7 @@ export function createOrchestratorWithTools(
             thinkingEnabled,
             sessionCostUsd,
             allTimeCostUsd,
+            sessionCostsByModel: { ...sessionCostsByModel },
         });
     }
 
@@ -1400,6 +1404,9 @@ Respond with ONLY the JSON, no other text.`;
             isThinkingEnabled() {
                 return thinkingEnabled;
             },
+            showCostsDialog() {
+                callbacks.onShowCostsDialog?.();
+            },
         };
     }
 
@@ -1786,7 +1793,24 @@ Respond with ONLY the JSON, no other text.`;
                 };
                 const requestCost = calculateCost(currentModel, usageForPricing);
                 sessionCostUsd += requestCost;
-                allTimeCostUsd = addCost(requestCost);
+
+                if (!sessionCostsByModel[currentModel]) {
+                    sessionCostsByModel[currentModel] = {
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        costUsd: 0,
+                    };
+                }
+                sessionCostsByModel[currentModel].inputTokens += result.usage.inputTokens;
+                sessionCostsByModel[currentModel].outputTokens += result.usage.outputTokens;
+                sessionCostsByModel[currentModel].costUsd += requestCost;
+
+                allTimeCostUsd = addCostByModel(
+                    currentModel,
+                    result.usage.inputTokens,
+                    result.usage.outputTokens,
+                    requestCost
+                );
             }
 
             updateEntry(assistantId, {

@@ -3,6 +3,7 @@ import { Box, useApp, useInput } from "ink";
 import { ScrollableTranscript } from "./ScrollableTranscript";
 import { Composer } from "./Composer";
 import { StatusLine } from "./StatusLine";
+import { CostsDialog } from "./CostsDialog";
 import { useAlternateScreen } from "./useAlternateScreen";
 import { useTerminalSize } from "./useTerminalSize";
 import {
@@ -16,6 +17,7 @@ import { disposeAllShellServices } from "../shell/index";
 import { DEFAULT_MODEL, type CommandRegistry, type Mode } from "../commands/index";
 import { markDeclined } from "../storage/profile";
 import type { ConversationState } from "../storage/conversations";
+import type { ModelCost } from "../storage/costs";
 
 interface AppProps {
     projectPath: string;
@@ -91,6 +93,8 @@ export function App({
     const [thinkingEnabled, setThinkingEnabled] = useState(true);
     const [sessionCostUsd, setSessionCostUsd] = useState(0);
     const [allTimeCostUsd, setAllTimeCostUsd] = useState(0);
+    const [sessionCostsByModel, setSessionCostsByModel] = useState<Record<string, ModelCost>>({});
+    const [showCostsDialog, setShowCostsDialog] = useState(false);
 
     useEffect(() => {
         const orch = createOrchestratorWithTools(
@@ -109,6 +113,7 @@ export function App({
                     setThinkingEnabled(state.thinkingEnabled);
                     setSessionCostUsd(state.sessionCostUsd);
                     setAllTimeCostUsd(state.allTimeCostUsd);
+                    setSessionCostsByModel(state.sessionCostsByModel);
                 },
                 onRequestStart,
                 onRequestComplete,
@@ -125,6 +130,9 @@ export function App({
                 onExit() {
                     disposeAllShellServices();
                     exit();
+                },
+                onShowCostsDialog() {
+                    setShowCostsDialog(true);
                 },
             },
             {
@@ -245,6 +253,18 @@ export function App({
     }, [transcript.length]);
 
     const isScrolled = scrollOffset > 0;
+
+    if (showCostsDialog) {
+        return (
+            <Box flexDirection="column" height={terminalSize.rows}>
+                <CostsDialog
+                    sessionCostsByModel={sessionCostsByModel}
+                    sessionTotalCost={sessionCostUsd}
+                    onClose={() => setShowCostsDialog(false)}
+                />
+            </Box>
+        );
+    }
 
     return (
         <Box flexDirection="column" height={terminalSize.rows}>
