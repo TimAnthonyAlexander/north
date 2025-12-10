@@ -193,9 +193,13 @@ export function createProvider(options?: { model?: string }): Provider {
                     return { role: m.role, content: m.content as MessageParam["content"] };
                 });
 
+                const DEFAULT_MAX_TOKENS = 8192;
+                const thinkingBudget = options?.thinking?.budget_tokens ?? 0;
+                const maxTokens = Math.max(DEFAULT_MAX_TOKENS, thinkingBudget + 2048);
+
                 const requestParams: Anthropic.MessageStreamParams = {
                     model: modelToUse,
-                    max_tokens: 8192,
+                    max_tokens: maxTokens,
                     system: systemPrompt,
                     messages: apiMessages,
                     tools: options?.tools?.map((t) => ({
