@@ -27,11 +27,19 @@ export interface ThinkingBlock {
     data?: string;
 }
 
+export interface TokenUsage {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+}
+
 export interface StreamResult {
     text: string;
     toolCalls: ToolCall[];
     thinkingBlocks: ThinkingBlock[];
     stopReason: string | null;
+    usage?: TokenUsage;
 }
 
 export interface StreamCallbacks {
@@ -203,6 +211,7 @@ export function createProvider(options?: { model?: string }): Provider {
             let currentThinkingSignature = "";
             let currentRedactedData = "";
             let stopReason: string | null = null;
+            let usage: TokenUsage | undefined;
 
             const modelToUse = options?.model || defaultModel;
             const systemPrompt = options?.systemOverride || SYSTEM_PROMPT;
@@ -248,6 +257,7 @@ export function createProvider(options?: { model?: string }): Provider {
                             toolCalls,
                             thinkingBlocks,
                             stopReason: "cancelled",
+                            usage,
                         });
                         return;
                     }
@@ -327,6 +337,25 @@ export function createProvider(options?: { model?: string }): Provider {
                         if (event.delta.stop_reason) {
                             stopReason = event.delta.stop_reason;
                         }
+                        const eventUsage = (event as unknown as { usage?: { output_tokens?: number; input_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } }).usage;
+                        if (eventUsage) {
+                            usage = {
+                                inputTokens: eventUsage.input_tokens ?? 0,
+                                outputTokens: eventUsage.output_tokens ?? 0,
+                                cacheReadTokens: eventUsage.cache_read_input_tokens,
+                                cacheWriteTokens: eventUsage.cache_creation_input_tokens,
+                            };
+                        }
+                    } else if (event.type === "message_start") {
+                        const msg = (event as unknown as { message?: { usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } } }).message;
+                        if (msg?.usage) {
+                            usage = {
+                                inputTokens: msg.usage.input_tokens ?? 0,
+                                outputTokens: msg.usage.output_tokens ?? 0,
+                                cacheReadTokens: msg.usage.cache_read_input_tokens,
+                                cacheWriteTokens: msg.usage.cache_creation_input_tokens,
+                            };
+                        }
                     }
                 }
 
@@ -334,7 +363,7 @@ export function createProvider(options?: { model?: string }): Provider {
                     throw new Error("Stream ended with incomplete tool call - possible timeout");
                 }
 
-                callbacks.onComplete({ text: fullText, toolCalls, thinkingBlocks, stopReason });
+                callbacks.onComplete({ text: fullText, toolCalls, thinkingBlocks, stopReason, usage });
             } catch (err) {
                 callbacks.onError(err instanceof Error ? err : new Error(String(err)));
             }

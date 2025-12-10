@@ -56,6 +56,7 @@ src/
 │   ├── autoaccept.ts     # Per-project edit auto-accept settings
 │   ├── config.ts         # Global config (~/.config/north/config.json)
 │   ├── conversations.ts  # Conversation persistence (event log + index)
+│   ├── costs.ts          # Global cost tracking (~/.north/costs.json)
 │   └── profile.ts        # Per-project learning profile storage
 ├── profile/
 │   └── learn.ts          # Project learning orchestration and discovery topics
@@ -108,7 +109,8 @@ src/
     ├── filepreview.ts    # File preview + outline generation for context
     ├── fileblock.ts      # NORTH_FILE streaming parser with events
     ├── filesession.ts    # Streaming file writer with auto-resume
-    └── digest.ts         # Tool output digesting for context efficiency
+    ├── digest.ts         # Tool output digesting for context efficiency
+    └── pricing.ts        # Model pricing data and cost calculation
 
 tests/
 └── openai-provider.test.ts  # OpenAI provider unit tests
@@ -298,6 +300,15 @@ Span-based tokenizer for reliable command extraction:
 - When edits auto-accept enabled, all edit tool results are automatically applied without user confirmation
 - When shell auto-approve enabled, all shell commands run automatically without individual approval
 - Creates `.north/` directory on first write
+
+### storage/costs.ts
+
+- Global API cost tracking at `~/.north/costs.json`
+- JSON format: `{ "allTimeCostUsd": number, "lastUpdated": number }`
+- API: `getAllTimeCost()`, `addCost(costUsd)`, `resetAllTimeCost()`
+- `addCost()` returns updated all-time total after adding
+- Creates `~/.north/` directory on first write
+- **Test isolation**: Respects `NORTH_DATA_DIR` environment variable to override data directory
 
 ### storage/profile.ts
 
@@ -651,11 +662,13 @@ The provider system prompts now explicitly instruct the LLM to:
 
 - Full-width status bar using `width="100%"` and `justifyContent="space-between"`
 - Left side: project name with truncation for long names (`wrap="truncate"`)
-- Right side: scroll indicator, current model name, and context usage display
+- Right side: scroll indicator, thinking indicator, current model name, context usage, and cost display
 - Scroll indicator: yellow [SCROLL] badge when scrollOffset > 0 (not at bottom)
+- Thinking indicator: 💭 emoji when extended thinking is enabled
 - Context display: color-coded circle (green < 60%, yellow 60-85%, red > 85%) + token count + percentage
 - Token count formatted as K/M for readability (e.g., "42.5K (21%)")
-- Updates in real-time as context fills
+- Cost display: session cost (green) / all-time cost (blue) in USD
+- Updates in real-time as context fills and costs accumulate
 
 ### ui/Composer.tsx
 
@@ -758,6 +771,36 @@ Token estimation for context tracking:
 - Applies 10% safety margin to reduce overflow risk
 - Returns structured breakdown: system, messages, overhead
 - Handles both string and structured message content (tool results, etc.)
+
+### utils/pricing.ts
+
+Model pricing data and cost calculation:
+- `ModelPricing`: interface for per-model pricing (input, output, cached input, cache read/write)
+- `TokenUsage`: interface for token counts (input, output, cached, cache read/write)
+- `getModelPricing(modelId)`: returns pricing data for a model (falls back to defaults for unknown models)
+- `calculateCost(modelId, usage)`: computes USD cost from token usage
+- `formatCost(cost)`: formats cost as string (e.g., "$0.123", "$1.50")
+
+**Anthropic Pricing (per 1M tokens):**
+| Model | Input | Output | Cache Write | Cache Hit |
+|-------|-------|--------|-------------|-----------|
+| claude-sonnet-4-* | $3.00 | $15.00 | $3.75 | $0.30 |
+| claude-opus-4-* | $15.00 | $75.00 | $18.75 | $1.50 |
+| claude-opus-4-1-* | $15.00 | $75.00 | $18.75 | $1.50 |
+| claude-sonnet-4-5-* | $3.00 | $15.00 | $3.75 | $0.30 |
+| claude-haiku-4-5-* | $1.00 | $5.00 | $1.25 | $0.10 |
+| claude-opus-4-5-* | $5.00 | $25.00 | $6.25 | $0.50 |
+
+**OpenAI Pricing (per 1M tokens):**
+| Model | Input | Output | Cached Input |
+|-------|-------|--------|--------------|
+| gpt-5.1 | $1.25 | $10.00 | $0.125 |
+| gpt-5.1-codex | $1.25 | $10.00 | $0.125 |
+| gpt-5.1-codex-mini | $0.25 | $2.00 | $0.025 |
+| gpt-5.1-codex-max | $1.25 | $10.00 | $0.125 |
+| gpt-5 | $1.25 | $10.00 | $0.125 |
+| gpt-5-mini | $0.25 | $2.00 | $0.025 |
+| gpt-5-nano | $0.05 | $0.40 | $0.005 |
 
 ### utils/fileindex.ts
 
@@ -1010,6 +1053,31 @@ North supports two conversation modes that control tool availability:
 - Orchestrator's `sendMessage(content, mode)` accepts mode parameter
 - Tools filtered via `filterToolsForMode(mode, allSchemas)` before sending to Claude
 - Only tools allowed by current mode are included in API request
+
+### Cost Tracking
+
+North tracks API costs in real-time, displaying both session and all-time totals.
+
+**How it works:**
+1. Providers capture actual token usage from API responses (`usage` field in `StreamResult`)
+2. After each successful API request, orchestrator calculates cost using `calculateCost()`
+3. Session cost accumulated in memory, all-time cost persisted to `~/.north/costs.json`
+4. StatusLine displays both costs: `$session / $all-time`
+
+**Token usage sources:**
+- Anthropic: `message_delta` event contains `usage` with input/output/cache tokens
+- OpenAI: `response.completed` event contains `response.usage` with input/output tokens
+
+**Cost calculation:**
+- Regular input tokens charged at base input rate
+- Cached/cache-hit tokens charged at reduced rates
+- Output tokens (including thinking/reasoning) charged at output rate
+- Extended thinking tokens billed as output tokens
+
+**Display format:**
+- Session cost: green color, shows cost since app started
+- All-time cost: blue color, shows cumulative cost across all sessions
+- Format: `$0.00` to `$0.001` (3 decimals for small), `$0.12` to `$99.99` (2 decimals)
 
 ### Context Tracking & Auto-Summarization
 

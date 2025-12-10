@@ -7,6 +7,7 @@ import type {
     ToolResultInput,
     ToolSchema,
     ThinkingBlock,
+    TokenUsage,
 } from "./anthropic";
 
 const OPENAI_API_URL = "https://api.openai.com/v1/responses";
@@ -268,11 +269,13 @@ async function parseSSEStream(
     toolCalls: ToolCall[];
     thinkingBlocks: ThinkingBlock[];
     stopReason: string | null;
+    usage?: TokenUsage;
 }> {
     let fullText = "";
     const toolCalls: ToolCall[] = [];
     const thinkingBlocks: ThinkingBlock[] = [];
     let stopReason: string | null = null;
+    let usage: TokenUsage | undefined;
 
     const toolCallsInProgress = new Map<string, ToolCallInProgress>();
 
@@ -288,7 +291,7 @@ async function parseSSEStream(
         while (true) {
             if (signal?.aborted) {
                 reader.cancel();
-                return { text: fullText, toolCalls, thinkingBlocks, stopReason: "cancelled" };
+                return { text: fullText, toolCalls, thinkingBlocks, stopReason: "cancelled", usage };
             }
 
             const { done, value } = await reader.read();
@@ -403,6 +406,12 @@ async function parseSSEStream(
                                         }
                                     }
                                 }
+                                if (event.response?.usage) {
+                                    usage = {
+                                        inputTokens: event.response.usage.input_tokens,
+                                        outputTokens: event.response.usage.output_tokens,
+                                    };
+                                }
 
                                 stopReason = toolCalls.length > 0 ? "tool_use" : "end_turn";
                                 break;
@@ -461,7 +470,7 @@ async function parseSSEStream(
         stopReason = toolCalls.length > 0 ? "tool_use" : "end_turn";
     }
 
-    return { text: fullText, toolCalls, thinkingBlocks, stopReason };
+    return { text: fullText, toolCalls, thinkingBlocks, stopReason, usage };
 }
 
 export function createOpenAIProvider(options?: { model?: string }): Provider {
@@ -538,6 +547,7 @@ export function createOpenAIProvider(options?: { model?: string }): Provider {
                         toolCalls: [],
                         thinkingBlocks: [],
                         stopReason: "cancelled",
+                        usage: undefined,
                     });
                     return;
                 }

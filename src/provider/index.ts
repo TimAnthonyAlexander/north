@@ -14,6 +14,7 @@ export type {
     ThinkingBlock,
     ThinkingConfig,
     StreamResult,
+    TokenUsage,
 } from "./anthropic";
 export { getModelProvider, type ProviderType };
 

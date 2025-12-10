@@ -9,6 +9,8 @@ interface StatusLineProps {
     contextUsedTokens: number;
     isScrolled?: boolean;
     thinkingEnabled?: boolean;
+    sessionCostUsd?: number;
+    allTimeCostUsd?: number;
 }
 
 function getContextColor(usage: number): string {
@@ -27,6 +29,19 @@ function formatTokenCount(tokens: number): string {
     return String(tokens);
 }
 
+function formatCost(cost: number): string {
+    if (cost < 0.001) {
+        return "$0.00";
+    }
+    if (cost < 0.01) {
+        return `$${cost.toFixed(3)}`;
+    }
+    if (cost < 1) {
+        return `$${cost.toFixed(2)}`;
+    }
+    return `$${cost.toFixed(2)}`;
+}
+
 export function StatusLine({
     model,
     projectPath,
@@ -34,11 +49,15 @@ export function StatusLine({
     contextUsedTokens,
     isScrolled,
     thinkingEnabled,
+    sessionCostUsd = 0,
+    allTimeCostUsd = 0,
 }: StatusLineProps) {
     const projectName = basename(projectPath);
     const usagePercent = Math.round(contextUsage * 100);
     const contextColor = getContextColor(contextUsage);
     const tokenDisplay = formatTokenCount(contextUsedTokens);
+    const sessionCostDisplay = formatCost(sessionCostUsd);
+    const allTimeCostDisplay = formatCost(allTimeCostUsd);
 
     return (
         <Box width="100%" paddingX={1} justifyContent="space-between">
@@ -70,6 +89,14 @@ export function StatusLine({
                 <Text color="#999999">•</Text>
                 <Text color={contextColor}>
                     ● {tokenDisplay} ({usagePercent}%)
+                </Text>
+                <Text color="#999999">•</Text>
+                <Text color="#66bb6a">
+                    {sessionCostDisplay}
+                </Text>
+                <Text color="#999999">/</Text>
+                <Text color="#42a5f5">
+                    {allTimeCostDisplay}
                 </Text>
             </Box>
         </Box>

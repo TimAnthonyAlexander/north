@@ -89,6 +89,8 @@ export function App({
     const [composerLineCount, setComposerLineCount] = useState(1);
     const [composerIsEmpty, setComposerIsEmpty] = useState(true);
     const [thinkingEnabled, setThinkingEnabled] = useState(true);
+    const [sessionCostUsd, setSessionCostUsd] = useState(0);
+    const [allTimeCostUsd, setAllTimeCostUsd] = useState(0);
 
     useEffect(() => {
         const orch = createOrchestratorWithTools(
@@ -105,6 +107,8 @@ export function App({
                     setLearningPercent(state.learningPercent);
                     setLearningTopic(state.learningTopic);
                     setThinkingEnabled(state.thinkingEnabled);
+                    setSessionCostUsd(state.sessionCostUsd);
+                    setAllTimeCostUsd(state.allTimeCostUsd);
                 },
                 onRequestStart,
                 onRequestComplete,
@@ -291,6 +295,8 @@ export function App({
                     contextUsedTokens={contextUsedTokens}
                     isScrolled={isScrolled}
                     thinkingEnabled={thinkingEnabled}
+                    sessionCostUsd={sessionCostUsd}
+                    allTimeCostUsd={allTimeCostUsd}
                 />
             </Box>
         </Box>

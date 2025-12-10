@@ -53,6 +53,8 @@ import { isRetryableError, calculateBackoff, sleep, DEFAULT_RETRY_CONFIG } from 
 import { runLearningSession } from "../profile/learn";
 import { formatAttachedFilesContext } from "../utils/filepreview";
 import { digestToolOutput, clearOutputCache } from "../utils/digest";
+import { calculateCost, type TokenUsage as PricingTokenUsage } from "../utils/pricing";
+import { addCost, getAllTimeCost } from "../storage/costs";
 import * as path from "node:path";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "auto" | "denied";
@@ -114,6 +116,8 @@ export interface OrchestratorState {
     learningPercent: number;
     learningTopic: string;
     thinkingEnabled: boolean;
+    sessionCostUsd: number;
+    allTimeCostUsd: number;
 }
 
 export interface OrchestratorCallbacks {
@@ -310,6 +314,8 @@ export function createOrchestratorWithTools(
     let contextLimitTokens = getModelContextLimit(currentModel);
     let contextUsage = 0;
     let thinkingEnabled = true;
+    let sessionCostUsd = 0;
+    let allTimeCostUsd = getAllTimeCost();
 
     let streamBuffer = "";
     let streamTimer: ReturnType<typeof setTimeout> | null = null;
@@ -338,6 +344,8 @@ export function createOrchestratorWithTools(
             learningPercent,
             learningTopic,
             thinkingEnabled,
+            sessionCostUsd,
+            allTimeCostUsd,
         });
     }
 
@@ -1765,6 +1773,18 @@ Respond with ONLY the JSON, no other text.`;
 
             callbacks.onRequestComplete?.(requestId, requestDuration);
             transientRetryCount = 0;
+
+            if (result.usage) {
+                const usageForPricing: PricingTokenUsage = {
+                    inputTokens: result.usage.inputTokens,
+                    outputTokens: result.usage.outputTokens,
+                    cacheReadTokens: result.usage.cacheReadTokens,
+                    cacheWriteTokens: result.usage.cacheWriteTokens,
+                };
+                const requestCost = calculateCost(currentModel, usageForPricing);
+                sessionCostUsd += requestCost;
+                allTimeCostUsd = addCost(requestCost);
+            }
 
             updateEntry(assistantId, {
                 isStreaming: false,
