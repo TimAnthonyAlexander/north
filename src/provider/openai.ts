@@ -419,7 +419,8 @@ async function parseSSEStream(
                                     }
                                 }
                                 if (event.response?.usage) {
-                                    const cachedTokens = event.response.usage.input_tokens_details?.cached_tokens;
+                                    const cachedTokens =
+                                        event.response.usage.input_tokens_details?.cached_tokens;
                                     usage = {
                                         inputTokens: event.response.usage.input_tokens,
                                         outputTokens: event.response.usage.output_tokens,

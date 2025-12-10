@@ -5,6 +5,7 @@ import {
     type ToolCall,
     type ToolSchema,
     type ThinkingBlock,
+    type TokenUsage,
 } from "../provider/index";
 import { createToolRegistryWithAllTools, filterToolsForMode } from "../tools/index";
 import type { Logger } from "../logging/index";
@@ -1569,6 +1570,7 @@ Respond with ONLY the JSON, no other text.`;
                 toolCalls: ToolCall[];
                 thinkingBlocks: ThinkingBlock[];
                 stopReason: string | null;
+                usage?: TokenUsage;
             };
             const streamingParser = new StreamingFileBlockParser();
             const completedFileSessions: string[] = [];
