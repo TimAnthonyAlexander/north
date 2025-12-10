@@ -8,7 +8,12 @@ import {
 import { createToolRegistryWithAllTools, filterToolsForMode } from "../tools/index";
 import type { Logger } from "../logging/index";
 import type { FileDiff, EditPrepareResult, ShellRunInput, EditOperation } from "../tools/types";
-import { applyEditsAtomically, computeCreateFileDiff, computeUnifiedDiff, readFileContent } from "../utils/editing";
+import {
+    applyEditsAtomically,
+    computeCreateFileDiff,
+    computeUnifiedDiff,
+    readFileContent,
+} from "../utils/editing";
 import { FileBlockAccumulator, type FileBlock } from "../utils/fileblock";
 import { isCommandAllowed, allowCommand } from "../storage/allowlist";
 import {

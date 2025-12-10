@@ -1,7 +1,6 @@
 import { describe, test, expect, afterEach } from "bun:test";
 import { editReplaceExactTool } from "../src/tools/edit_replace_exact";
 import { editInsertAtLineTool } from "../src/tools/edit_insert_at_line";
-import { editCreateFileTool } from "../src/tools/edit_create_file";
 import { editApplyBatchTool } from "../src/tools/edit_apply_batch";
 import { applyEditsAtomically } from "../src/utils/editing";
 import type { ToolContext, EditPrepareResult } from "../src/tools/types";
@@ -369,150 +368,6 @@ describe("edit_insert_at_line", () => {
     });
 });
 
-describe("edit_create_file", () => {
-    describe("Prepare Contract", () => {
-        test("creates new file", async () => {
-            tempRepo = createTempRepo();
-
-            const ctx = createContext(tempRepo.root);
-            const result = await editCreateFileTool.execute({
-                path: "new.txt",
-                content: "new content\n",
-            }, ctx);
-
-            expect(result.ok).toBe(true);
-            expect(result.data).toBeDefined();
-            if (result.data) {
-                expect(result.data.diffsByFile.length).toBe(1);
-                expect(result.data.diffsByFile[0].path).toBe("new.txt");
-                expect(result.data.diffsByFile[0].linesAdded).toBeGreaterThan(0);
-                expect(result.data.diffsByFile[0].linesRemoved).toBe(0);
-                expect(result.data.diffsByFile[0].diff).toContain("--- /dev/null");
-                expect(result.data.diffsByFile[0].diff).toContain("+++ b/new.txt");
-                expect(result.data.applyPayload[0].type).toBe("create");
-            }
-        });
-
-        test("overwrites existing file when overwrite=true", async () => {
-            tempRepo = createTempRepo();
-            createFile(tempRepo.root, "existing.txt", "original content\n");
-
-            const ctx = createContext(tempRepo.root);
-            const result = await editCreateFileTool.execute({
-                path: "existing.txt",
-                content: "new content\n",
-                overwrite: true,
-            }, ctx);
-
-            expect(result.ok).toBe(true);
-            expect(result.data).toBeDefined();
-            if (result.data) {
-                expect(result.data.diffsByFile[0].linesAdded).toBeGreaterThan(0);
-                expect(result.data.diffsByFile[0].linesRemoved).toBeGreaterThan(0);
-                expect(result.data.applyPayload[0].originalContent).toBe("original content\n");
-            }
-        });
-
-        test("fails when file exists and overwrite=false", async () => {
-            tempRepo = createTempRepo();
-            const originalContent = "content";
-            createFile(tempRepo.root, "existing.txt", originalContent);
-
-            const ctx = createContext(tempRepo.root);
-            const result = await editCreateFileTool.execute({
-                path: "existing.txt",
-                content: "new",
-            }, ctx);
-
-            expect(result.ok).toBe(false);
-            expect(result.error).toContain("already exists");
-            expect(result.data).toBeUndefined();
-
-            const finalContent = readFixtureFile(tempRepo.root, "existing.txt");
-            expect(finalContent).toBe(originalContent);
-            assertNoTempFiles(tempRepo.root);
-        });
-
-        test("creates parent directories automatically", async () => {
-            tempRepo = createTempRepo();
-
-            const ctx = createContext(tempRepo.root);
-            const result = await editCreateFileTool.execute({
-                path: "deep/nested/dir/file.txt",
-                content: "content",
-            }, ctx);
-
-            expect(result.ok).toBe(true);
-        });
-
-        test("diff format correct for new file", async () => {
-            tempRepo = createTempRepo();
-
-            const ctx = createContext(tempRepo.root);
-            const result = await editCreateFileTool.execute({
-                path: "new.txt",
-                content: "line 1\nline 2\n",
-            }, ctx);
-
-            expect(result.ok).toBe(true);
-            expect(result.data).toBeDefined();
-            if (result.data) {
-                const diff = result.data.diffsByFile[0].diff;
-                expect(diff).toContain("--- /dev/null");
-                expect(diff).toContain("+++ b/new.txt");
-                expect(diff).toContain("+line 1");
-                expect(diff).toContain("+line 2");
-            }
-        });
-    });
-
-    describe("Apply Integration", () => {
-        test("creates file with exact content", async () => {
-            tempRepo = createTempRepo();
-
-            const ctx = createContext(tempRepo.root);
-            const result = await editCreateFileTool.execute({
-                path: "new.txt",
-                content: "line 1\nline 2\nline 3\n",
-            }, ctx);
-
-            expect(result.ok).toBe(true);
-            expect(result.data).toBeDefined();
-            if (result.data) {
-                const applyResult = applyEditsAtomically(tempRepo.root, result.data.applyPayload);
-                expect(applyResult.ok).toBe(true);
-
-                const finalContent = readFixtureFile(tempRepo.root, "new.txt");
-                expect(finalContent).toBe("line 1\nline 2\nline 3\n");
-
-                assertNoTempFiles(tempRepo.root);
-            }
-        });
-
-        test("overwrites file correctly", async () => {
-            tempRepo = createTempRepo();
-            createFile(tempRepo.root, "file.txt", "old content\n");
-
-            const ctx = createContext(tempRepo.root);
-            const result = await editCreateFileTool.execute({
-                path: "file.txt",
-                content: "completely new\n",
-                overwrite: true,
-            }, ctx);
-
-            expect(result.ok).toBe(true);
-            expect(result.data).toBeDefined();
-            if (result.data) {
-                const applyResult = applyEditsAtomically(tempRepo.root, result.data.applyPayload);
-                expect(applyResult.ok).toBe(true);
-
-                const finalContent = readFixtureFile(tempRepo.root, "file.txt");
-                expect(finalContent).toBe("completely new\n");
-            }
-        });
-    });
-});
-
 describe("edit_apply_batch", () => {
     describe("Validation", () => {
         test("fails with unknown toolName", async () => {
@@ -678,10 +533,6 @@ describe("edit_apply_batch", () => {
                         toolName: "edit_replace_exact",
                         args: { path: "file2.txt", old: "content2", new: "modified2" },
                     },
-                    {
-                        toolName: "edit_create_file",
-                        args: { path: "file3.txt", content: "new file\n" },
-                    },
                 ],
             }, ctx);
 
@@ -693,11 +544,9 @@ describe("edit_apply_batch", () => {
 
                 const content1 = readFixtureFile(tempRepo.root, "file1.txt");
                 const content2 = readFixtureFile(tempRepo.root, "file2.txt");
-                const content3 = readFixtureFile(tempRepo.root, "file3.txt");
 
                 expect(content1).toBe("modified1\n");
                 expect(content2).toBe("modified2\n");
-                expect(content3).toBe("new file\n");
 
                 assertNoTempFiles(tempRepo.root);
             }

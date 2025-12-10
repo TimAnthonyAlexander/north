@@ -60,7 +60,8 @@ export function parseFileBlocks(text: string): ParseResult {
 
         const blockLength = blockEnd - openTagStart;
         const adjustedStart = openTagStart - offset;
-        cleanedText = cleanedText.slice(0, adjustedStart) + cleanedText.slice(adjustedStart + blockLength);
+        cleanedText =
+            cleanedText.slice(0, adjustedStart) + cleanedText.slice(adjustedStart + blockLength);
         offset += blockLength;
 
         OPEN_TAG_REGEX.lastIndex = blockEnd;
@@ -117,4 +118,3 @@ export class FileBlockAccumulator {
         this.processedBlocks = [];
     }
 }
-

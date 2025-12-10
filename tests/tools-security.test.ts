@@ -3,7 +3,6 @@ import { readFileTool } from "../src/tools/read_file";
 import { searchTextTool } from "../src/tools/search_text";
 import { editReplaceExactTool } from "../src/tools/edit_replace_exact";
 import { editInsertAtLineTool } from "../src/tools/edit_insert_at_line";
-import { editCreateFileTool } from "../src/tools/edit_create_file";
 import { editApplyBatchTool } from "../src/tools/edit_apply_batch";
 import type { ToolContext } from "../src/tools/types";
 import { createTempRepo, createFile, createSymlink, type TempRepo } from "./helpers/fixtures";
@@ -161,33 +160,6 @@ describe("Path Traversal Security", () => {
         });
     });
 
-    describe("edit_create_file", () => {
-        test("blocks path traversal", async () => {
-            tempRepo = createTempRepo();
-
-            const ctx = createContext(tempRepo.root);
-            const result = await editCreateFileTool.execute({
-                path: "../../../tmp/evil.txt",
-                content: "malicious",
-            }, ctx);
-
-            expect(result.ok).toBe(false);
-            expect(result.error).toContain("escapes repository root");
-        });
-
-        test("allows creating files in subdirectories", async () => {
-            tempRepo = createTempRepo();
-
-            const ctx = createContext(tempRepo.root);
-            const result = await editCreateFileTool.execute({
-                path: "subdir/newfile.txt",
-                content: "safe content",
-            }, ctx);
-
-            expect(result.ok).toBe(true);
-        });
-    });
-
     describe("edit_apply_batch", () => {
         test("blocks path traversal in batch edits", async () => {
             tempRepo = createTempRepo();
@@ -197,10 +169,11 @@ describe("Path Traversal Security", () => {
             const result = await editApplyBatchTool.execute({
                 edits: [
                     {
-                        toolName: "edit_create_file",
+                        toolName: "edit_replace_exact",
                         args: {
                             path: "../../../tmp/evil.txt",
-                            content: "malicious",
+                            old: "foo",
+                            new: "bar",
                         },
                     },
                 ],
@@ -245,24 +218,6 @@ describe("Symlink Escape Security", () => {
     });
 
     describe("edit tools with symlinks", () => {
-        test("blocks edit_create_file when parent is symlink chain escaping repo", async () => {
-            tempRepo = createTempRepo();
-            
-            const outsideDir = join(tmpdir(), `outside-dir-${Date.now()}`);
-            createFile(outsideDir, "dummy.txt", "outside");
-            
-            createSymlink(tempRepo.root, outsideDir, "evil-dir");
-
-            const ctx = createContext(tempRepo.root);
-            const result = await editCreateFileTool.execute({
-                path: "evil-dir/newfile.txt",
-                content: "malicious",
-            }, ctx);
-
-            expect(result.ok).toBe(false);
-            expect(result.error).toContain("escapes repository root");
-        });
-
         test("blocks edit_replace_exact through escaping symlink", async () => {
             tempRepo = createTempRepo();
             
@@ -299,19 +254,6 @@ describe("Security: No Side Effects on Failure", () => {
         expect(result.data).toBeUndefined();
     });
 
-    test("failed security check does not create file", async () => {
-        tempRepo = createTempRepo();
-
-        const ctx = createContext(tempRepo.root);
-        const result = await editCreateFileTool.execute({
-            path: "../../../tmp/evil.txt",
-            content: "should not be created",
-        }, ctx);
-
-        expect(result.ok).toBe(false);
-        expect(result.data).toBeUndefined();
-    });
-
     test("failed security check in batch affects no files", async () => {
         tempRepo = createTempRepo();
         createFile(tempRepo.root, "legitimate.txt", "original");
@@ -328,10 +270,11 @@ describe("Security: No Side Effects on Failure", () => {
                     },
                 },
                 {
-                    toolName: "edit_create_file",
+                    toolName: "edit_replace_exact",
                     args: {
                         path: "../../../tmp/evil.txt",
-                        content: "malicious",
+                        old: "foo",
+                        new: "bar",
                     },
                 },
             ],

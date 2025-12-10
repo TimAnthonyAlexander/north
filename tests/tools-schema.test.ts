@@ -12,7 +12,6 @@ import { detectLanguagesTool } from "../src/tools/detect_languages";
 import { hotfilesTool } from "../src/tools/hotfiles";
 import { editReplaceExactTool } from "../src/tools/edit_replace_exact";
 import { editInsertAtLineTool } from "../src/tools/edit_insert_at_line";
-import { editCreateFileTool } from "../src/tools/edit_create_file";
 import { editApplyBatchTool } from "../src/tools/edit_apply_batch";
 import { shellRunTool } from "../src/tools/shell_run";
 import type { ToolContext } from "../src/tools/types";
@@ -39,7 +38,6 @@ const ALL_TOOLS = [
     hotfilesTool,
     editReplaceExactTool,
     editInsertAtLineTool,
-    editCreateFileTool,
     editApplyBatchTool,
     shellRunTool,
 ];
@@ -130,13 +128,6 @@ describe("Tool Schema Tests", () => {
             expect(editInsertAtLineTool.inputSchema.properties?.content).toBeTruthy();
         });
 
-        test("edit_create_file has correct metadata", () => {
-            expect(editCreateFileTool.name).toBe("edit_create_file");
-            expect(editCreateFileTool.approvalPolicy).toBe("write");
-            expect(editCreateFileTool.inputSchema.properties?.path).toBeTruthy();
-            expect(editCreateFileTool.inputSchema.properties?.content).toBeTruthy();
-        });
-
         test("edit_apply_batch has correct metadata", () => {
             expect(editApplyBatchTool.name).toBe("edit_apply_batch");
             expect(editApplyBatchTool.approvalPolicy).toBe("write");
@@ -176,7 +167,6 @@ describe("Tool Schema Tests", () => {
             const editTools = [
                 editReplaceExactTool,
                 editInsertAtLineTool,
-                editCreateFileTool,
                 editApplyBatchTool,
             ];
 
