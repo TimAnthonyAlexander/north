@@ -35,11 +35,7 @@ function getProjectName(repoRoot: string): string {
     return parts[parts.length - 1] || repoRoot;
 }
 
-export function ConversationPicker({
-    conversations,
-    onSelect,
-    onCancel,
-}: ConversationPickerProps) {
+export function ConversationPicker({ conversations, onSelect, onCancel }: ConversationPickerProps) {
     const { exit } = useApp();
     const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -125,4 +121,3 @@ export function ConversationPicker({
         </Box>
     );
 }
-

@@ -83,17 +83,12 @@ function summarizeToolArgs(args: unknown): Record<string, unknown> {
 
 async function runListCommand(): Promise<void> {
     const conversations = listConversations();
-    const { waitUntilExit } = render(
-        React.createElement(ConversationList, { conversations })
-    );
+    const { waitUntilExit } = render(React.createElement(ConversationList, { conversations }));
     await waitUntilExit();
     process.exit(0);
 }
 
-async function runResumePickerCommand(
-    path: string | undefined,
-    logLevel: LogLevel
-): Promise<void> {
+async function runResumePickerCommand(path: string | undefined, logLevel: LogLevel): Promise<void> {
     const conversations = listConversations().slice(0, 20);
     if (conversations.length === 0) {
         console.log("No conversations to resume.");
@@ -131,9 +126,7 @@ function runMainWithConversation(
     if (pathOverride) {
         projectPath = detectRepoRoot(pathOverride);
     } else if (!existsSync(projectPath)) {
-        console.warn(
-            `Warning: Original project path no longer exists: ${projectPath}`
-        );
+        console.warn(`Warning: Original project path no longer exists: ${projectPath}`);
         console.warn("Some tools may be unavailable. Use --path to specify a new location.");
         repoMissing = true;
         projectPath = process.cwd();

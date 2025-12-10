@@ -92,4 +92,3 @@ export function ConversationList({ conversations }: ConversationListProps) {
         </Box>
     );
 }
-

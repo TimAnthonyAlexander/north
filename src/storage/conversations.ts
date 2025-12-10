@@ -113,11 +113,7 @@ export function appendEvent(id: string, event: ConversationEvent): void {
     appendFileSync(path, line, "utf-8");
 }
 
-export function startConversation(
-    id: string,
-    repoRoot: string,
-    model: string
-): void {
+export function startConversation(id: string, repoRoot: string, model: string): void {
     const repoHash = getRepoHash(repoRoot);
     const ts = Date.now();
 
@@ -177,10 +173,7 @@ export function logModelChanged(id: string, model: string): void {
     updateIndexLastActive(id);
 }
 
-export function logRollingSummarySet(
-    id: string,
-    summary: StructuredSummary | null
-): void {
+export function logRollingSummarySet(id: string, summary: StructuredSummary | null): void {
     appendEvent(id, {
         t: "rolling_summary_set",
         ts: Date.now(),
@@ -377,11 +370,8 @@ export function getConversationIds(): string[] {
 
     try {
         const files = readdirSync(dir);
-        return files
-            .filter((f) => f.endsWith(".jsonl"))
-            .map((f) => basename(f, ".jsonl"));
+        return files.filter((f) => f.endsWith(".jsonl")).map((f) => basename(f, ".jsonl"));
     } catch {
         return [];
     }
 }
-
