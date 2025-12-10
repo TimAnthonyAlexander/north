@@ -152,7 +152,7 @@ describe("read_file size caps", () => {
         if (result.data) {
             expect(result.data.truncated).toBe(true);
             expect(result.data.content.length).toBeLessThan(largeContent.length);
-            expect(result.data.content).toContain("[... content truncated ...]");
+            expect(result.data.content).toContain("[... content truncated at line");
         }
     });
 

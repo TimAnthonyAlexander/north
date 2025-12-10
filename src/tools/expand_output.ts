@@ -53,7 +53,7 @@ export const expandOutputTool: ToolDefinition<ExpandOutputInput, ExpandOutputOut
 
         const content = args.range
             ? getCachedOutputRange(args.outputId, args.range.start, args.range.end)
-            : cached.fullOutput;
+            : JSON.stringify(cached.fullOutput, null, 2);
 
         if (content === null) {
             return {

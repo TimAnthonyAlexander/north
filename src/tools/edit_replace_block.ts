@@ -18,11 +18,6 @@ function findLineWithText(lines: string[], text: string, startFrom: number = 0):
     return -1;
 }
 
-function getLinePreview(lines: string[], lineNum: number): string {
-    const line = lines[lineNum - 1] || "";
-    return line.length > 60 ? line.slice(0, 60) + "..." : line;
-}
-
 export const editReplaceBlockTool: ToolDefinition<EditReplaceBlockInput, EditPrepareResult> = {
     name: "edit_replace_block",
     description:
@@ -106,10 +101,6 @@ export const editReplaceBlockTool: ToolDefinition<EditReplaceBlockInput, EditPre
         const rawModified = newLines.join("\n");
         const modified = preserveTrailingNewline(original, rawModified);
         const fileDiff = computeUnifiedDiff(original, modified, args.path);
-
-        const replacedRange = inclusive
-            ? `lines ${startLine}-${endLine}`
-            : `lines ${startLine + 1}-${endLine - 1}`;
 
         return {
             ok: true,

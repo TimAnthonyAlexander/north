@@ -80,8 +80,6 @@ interface BlockBoundary {
 }
 
 function findBlockBoundaries(lines: string[], language: string | null): BlockBoundary[] {
-    const blocks: BlockBoundary[] = [];
-
     if (language === "typescript" || language === "javascript") {
         return findJsTsBlocks(lines);
     } else if (language === "python") {

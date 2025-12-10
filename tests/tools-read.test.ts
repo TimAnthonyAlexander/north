@@ -463,7 +463,7 @@ describe("read_file", () => {
         expect(result.data).toBeDefined();
         if (result.data) {
             expect(result.data.truncated).toBe(true);
-            expect(result.data.content).toContain("[... content truncated ...]");
+            expect(result.data.content).toContain("[... content truncated at line");
         }
     });
 
