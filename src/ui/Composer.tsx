@@ -18,6 +18,7 @@ interface ComposerProps {
     mode: Mode;
     onModeChange: (mode: Mode) => void;
     onLineCountChange?: (lineCount: number) => void;
+    onIsEmptyChange?: (isEmpty: boolean) => void;
     repoRoot: string;
 }
 
@@ -201,6 +202,7 @@ export function Composer({
     mode,
     onModeChange,
     onLineCountChange,
+    onIsEmptyChange,
     repoRoot,
 }: ComposerProps) {
     const [value, setValue] = useState("");
@@ -213,6 +215,10 @@ export function Composer({
         const lineCount = value.split("\n").length;
         onLineCountChange?.(lineCount);
     }, [value, onLineCountChange]);
+
+    useEffect(() => {
+        onIsEmptyChange?.(value.length === 0);
+    }, [value, onIsEmptyChange]);
 
     const suggestionState = useMemo(() => {
         if (!showSuggestions) return null;
@@ -416,6 +422,7 @@ export function Composer({
                     setSelectedIndex(Math.max(0, selectedIndex - 1));
                     return;
                 }
+                if (value.length === 0) return;
                 const lines = value.slice(0, cursorPos).split("\n");
                 if (lines.length > 1) {
                     const currentLineStart = cursorPos - lines[lines.length - 1].length;
@@ -433,6 +440,7 @@ export function Composer({
                     setSelectedIndex(Math.min(suggestions.length - 1, selectedIndex + 1));
                     return;
                 }
+                if (value.length === 0) return;
                 const beforeCursor = value.slice(0, cursorPos);
                 const afterCursor = value.slice(cursorPos);
                 const linesAfter = afterCursor.split("\n");
