@@ -91,7 +91,7 @@ async function runListCommand(): Promise<void> {
 async function runResumePickerCommand(path: string | undefined, logLevel: LogLevel): Promise<void> {
     const conversations = listConversations().slice(0, 20);
     if (conversations.length === 0) {
-        console.log("No conversations to resume.");
+        console.warn("No conversations to resume.");
         process.exit(0);
     }
 

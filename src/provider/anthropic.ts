@@ -272,10 +272,12 @@ export function createProvider(options?: { model?: string }): Provider {
                         }
                     } else if (event.type === "content_block_stop") {
                         if (currentBlockType === "tool_use" && currentToolId && currentToolName) {
-                            let parsedInput: unknown = {};
+                            let parsedInput: unknown;
                             try {
                                 parsedInput = JSON.parse(currentToolInput || "{}");
-                            } catch {}
+                            } catch {
+                                parsedInput = {};
+                            }
                             const toolCall: ToolCall = {
                                 id: currentToolId,
                                 name: currentToolName,
