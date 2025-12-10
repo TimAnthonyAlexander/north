@@ -12,7 +12,6 @@ export { getFileSymbolsTool } from "./get_file_symbols";
 export { getFileOutlineTool } from "./get_file_outline";
 export { editReplaceExactTool } from "./edit_replace_exact";
 export { editInsertAtLineTool } from "./edit_insert_at_line";
-export { editCreateFileTool } from "./edit_create_file";
 export { editApplyBatchTool } from "./edit_apply_batch";
 export { shellRunTool } from "./shell_run";
 
@@ -30,7 +29,6 @@ import { getFileSymbolsTool } from "./get_file_symbols";
 import { getFileOutlineTool } from "./get_file_outline";
 import { editReplaceExactTool } from "./edit_replace_exact";
 import { editInsertAtLineTool } from "./edit_insert_at_line";
-import { editCreateFileTool } from "./edit_create_file";
 import { editApplyBatchTool } from "./edit_apply_batch";
 import { shellRunTool } from "./shell_run";
 const READ_ONLY_TOOLS = [
@@ -61,7 +59,6 @@ export function createToolRegistryWithAllTools(): ToolRegistry {
     registry.register(getFileOutlineTool);
     registry.register(editReplaceExactTool);
     registry.register(editInsertAtLineTool);
-    registry.register(editCreateFileTool);
     registry.register(editApplyBatchTool);
     registry.register(shellRunTool);
 

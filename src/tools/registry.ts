@@ -6,6 +6,8 @@ import type {
     ApprovalPolicy,
 } from "./types";
 
+const MAX_TOOL_INPUT_SIZE = 50_000;
+
 export interface ToolRegistry {
     register(tool: ToolDefinition): void;
     get(name: string): ToolDefinition | undefined;
@@ -45,6 +47,15 @@ export function createToolRegistry(): ToolRegistry {
             if (!tool) {
                 return { ok: false, error: `Unknown tool: ${name}` };
             }
+
+            const inputSize = JSON.stringify(args).length;
+            if (inputSize > MAX_TOOL_INPUT_SIZE) {
+                return {
+                    ok: false,
+                    error: `Tool input too large (${Math.round(inputSize / 1000)}KB > 50KB limit). For new files, use <NORTH_FILE path="...">content</NORTH_FILE> protocol in your response text instead.`,
+                };
+            }
+
             try {
                 return await tool.execute(args, ctx);
             } catch (err) {

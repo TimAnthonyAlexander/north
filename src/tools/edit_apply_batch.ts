@@ -9,12 +9,10 @@ import type {
 } from "./types";
 import { editReplaceExactTool } from "./edit_replace_exact";
 import { editInsertAtLineTool } from "./edit_insert_at_line";
-import { editCreateFileTool } from "./edit_create_file";
 
 const EDIT_TOOLS: Record<string, ToolDefinition> = {
     edit_replace_exact: editReplaceExactTool,
     edit_insert_at_line: editInsertAtLineTool,
-    edit_create_file: editCreateFileTool,
 };
 
 export const editApplyBatchTool: ToolDefinition<EditBatchInput, EditPrepareResult> = {
@@ -34,7 +32,7 @@ export const editApplyBatchTool: ToolDefinition<EditBatchInput, EditPrepareResul
                         toolName: {
                             type: "string",
                             description:
-                                "Name of the edit tool: edit_replace_exact, edit_insert_at_line, or edit_create_file",
+                                "Name of the edit tool: edit_replace_exact or edit_insert_at_line",
                         },
                         args: {
                             type: "object",
@@ -62,7 +60,7 @@ export const editApplyBatchTool: ToolDefinition<EditBatchInput, EditPrepareResul
 
             if (!tool) {
                 errors.push(
-                    `Edit ${i + 1}: Unknown tool "${edit.toolName}". Use edit_replace_exact, edit_insert_at_line, or edit_create_file.`
+                    `Edit ${i + 1}: Unknown tool "${edit.toolName}". Use edit_replace_exact or edit_insert_at_line.`
                 );
                 continue;
             }

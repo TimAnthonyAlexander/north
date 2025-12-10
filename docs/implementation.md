@@ -934,6 +934,40 @@ When Claude requests an edit tool (approvalPolicy: "write"):
 5. Tool result sent to Claude with outcome (applied: true/false)
 6. Claude continues processing
 
+### NORTH_FILE Protocol
+
+File creation uses a streaming-safe protocol where the model outputs file contents as plain assistant text, avoiding the timeout risks of large tool call payloads.
+
+**Format:**
+```
+<NORTH_FILE path="relative/path/to/file.ts">
+...file contents...
+</NORTH_FILE>
+```
+
+**Why:**
+- Tool calls must complete before parsing; stream interruption loses all content
+- Plain text streaming allows partial content preservation
+- On timeout, partial text can be used to prompt model to continue
+
+**Flow:**
+1. Model outputs `<NORTH_FILE path="...">` tag in response
+2. `FileBlockAccumulator` in orchestrator detects and buffers the block
+3. When `</NORTH_FILE>` closes, block extracted and removed from displayed text
+4. Diff computed (new file or overwrite existing)
+5. Standard diff review flow triggered (same as tool-based edits)
+6. On accept: file written atomically
+7. On reject: nothing written
+
+**Parsing (src/utils/fileblock.ts):**
+- `parseFileBlocks(text)` - extracts complete blocks, returns incomplete block info
+- `FileBlockAccumulator` - streaming wrapper, tracks blocks across chunks
+
+**Tool Input Size Guard:**
+- All tool inputs checked against 50KB limit before execution
+- Prevents large payloads from being sent via tools
+- Error message directs model to use NORTH_FILE protocol instead
+
 ### Shell Approval Flow
 
 When Claude requests `shell_run` (approvalPolicy: "shell"):

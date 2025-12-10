@@ -24,8 +24,8 @@ An AI pair programmer that lives in your terminal. Supports Claude (Anthropic) a
 
 ### Two Modes, Zero Friction
 
-- **Ask Mode** (`Tab` to toggle): Read-only exploration. Claude can search, read files, and analyze—but can't modify anything. Perfect for understanding unfamiliar codebases.
-- **Agent Mode**: Full access to edit and shell tools. Claude proposes, you approve.
+- **Ask Mode** (`Tab` to toggle): Read-only exploration. The model can search, read files, and analyze—but can't modify anything. Perfect for understanding unfamiliar codebases.
+- **Agent Mode**: Full access to edit and shell tools. The model proposes, you approve.
 
 ### File Mentions
 
@@ -280,7 +280,7 @@ All tools respect `.gitignore`. Output is automatically truncated to prevent con
 
 **Search is slow?** Install ripgrep for 10-100x faster searches: `brew install ripgrep` or `apt install ripgrep`. North falls back to pure JS implementation if ripgrep isn't available.
 
-**Edit tool fails?** North's edit tools require exact text matches including whitespace. Claude will re-read the file and retry—usually self-corrects within 1-2 attempts.
+**Edit tool fails?** North's edit tools require exact text matches including whitespace. The model will re-read the file and retry—usually self-corrects within 1-2 attempts.
 
 **Shell command times out?** Commands have a 60-second timeout by default. Each command runs in a fresh bash process using Bun's built-in `Bun.spawn()` API.
 

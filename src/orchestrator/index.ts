@@ -8,7 +8,8 @@ import {
 import { createToolRegistryWithAllTools, filterToolsForMode } from "../tools/index";
 import type { Logger } from "../logging/index";
 import type { FileDiff, EditPrepareResult, ShellRunInput, EditOperation } from "../tools/types";
-import { applyEditsAtomically } from "../utils/editing";
+import { applyEditsAtomically, computeCreateFileDiff, computeUnifiedDiff, readFileContent } from "../utils/editing";
+import { FileBlockAccumulator, type FileBlock } from "../utils/fileblock";
 import { isCommandAllowed, allowCommand } from "../storage/allowlist";
 import {
     isEditsAutoAcceptEnabled,
@@ -652,6 +653,72 @@ export function createOrchestratorWithTools(
         });
 
         return { needsReview: true, entry: reviewEntry };
+    }
+
+    async function processFileBlock(fileBlock: FileBlock): Promise<TranscriptEntry | null> {
+        const { path: filePath, content } = fileBlock;
+        const existingFile = readFileContent(context.repoRoot, filePath);
+        const fileExists = existingFile.ok;
+
+        let fileDiff;
+        let originalContent: string | undefined;
+
+        if (fileExists && existingFile.content !== undefined) {
+            originalContent = existingFile.content;
+            fileDiff = computeUnifiedDiff(originalContent, content, filePath);
+        } else {
+            fileDiff = computeCreateFileDiff(content, filePath);
+        }
+
+        const applyPayload: EditOperation[] = [
+            {
+                type: "create",
+                path: filePath,
+                content,
+                originalContent,
+            },
+        ];
+
+        if (isEditsAutoAcceptEnabled(context.repoRoot)) {
+            callbacks.onWriteApplyStart?.();
+            const applyStart = Date.now();
+            const applyResult = applyEditsAtomically(context.repoRoot, applyPayload);
+            const applyDuration = Date.now() - applyStart;
+            callbacks.onWriteApplyComplete?.(applyDuration, applyResult.ok);
+
+            const reviewId = generateId();
+            const reviewEntry: TranscriptEntry = {
+                id: reviewId,
+                role: "diff_review",
+                content: "",
+                ts: Date.now(),
+                toolName: "NORTH_FILE",
+                diffContent: [fileDiff],
+                filesCount: 1,
+                reviewStatus: "always",
+                applyPayload,
+            };
+            addEntry(reviewEntry);
+            emitState();
+            return null;
+        }
+
+        const reviewId = generateId();
+        const reviewEntry: TranscriptEntry = {
+            id: reviewId,
+            role: "diff_review",
+            content: "",
+            ts: Date.now(),
+            toolName: "NORTH_FILE",
+            diffContent: [fileDiff],
+            filesCount: 1,
+            reviewStatus: "pending",
+            applyPayload,
+        };
+        addEntry(reviewEntry);
+        emitState();
+
+        return reviewEntry;
     }
 
     async function executeToolCall(
@@ -1309,14 +1376,30 @@ Respond with ONLY the JSON, no other text.`;
             }
 
             type StreamResult = { text: string; toolCalls: ToolCall[]; stopReason: string | null };
+            const fileBlockAccumulator = new FileBlockAccumulator();
+            const pendingFileBlocks: FileBlock[] = [];
+
             const streamOutcome = await new Promise<{ result: StreamResult } | { error: Error }>(
                 (resolve) => {
                     provider.stream(
                         messages,
                         {
                             onChunk(chunk: string) {
-                                streamBuffer += chunk;
-                                scheduleStreamFlush();
+                                const completedBlocks = fileBlockAccumulator.append(chunk);
+                                pendingFileBlocks.push(...completedBlocks);
+
+                                const cleanedText = fileBlockAccumulator.getCleanedText();
+                                const incompleteBlock = fileBlockAccumulator.getIncompleteBlock();
+                                const displayText = incompleteBlock
+                                    ? cleanedText + `[Creating ${incompleteBlock.path}...]`
+                                    : cleanedText;
+
+                                const currentContent = findEntry(assistantId)?.content || "";
+                                const newContent = displayText.slice(currentContent.length);
+                                if (newContent) {
+                                    streamBuffer += newContent;
+                                    scheduleStreamFlush();
+                                }
                             },
                             onToolCall(toolCall: ToolCall) {
                                 const calls = toolCallsMap.get(assistantId) || [];
@@ -1324,7 +1407,8 @@ Respond with ONLY the JSON, no other text.`;
                                 toolCallsMap.set(assistantId, calls);
                             },
                             onComplete(result) {
-                                resolve({ result });
+                                const cleanedText = fileBlockAccumulator.getCleanedText();
+                                resolve({ result: { ...result, text: cleanedText } });
                             },
                             onError(error: Error) {
                                 resolve({ error });
@@ -1416,6 +1500,16 @@ Respond with ONLY the JSON, no other text.`;
                 content: result.text,
             });
             emitState();
+
+            for (const fileBlock of pendingFileBlocks) {
+                if (stopped) break;
+
+                const reviewEntry = await processFileBlock(fileBlock);
+                if (reviewEntry) {
+                    const decision = await waitForWriteReviewDecision(reviewEntry);
+                    await applyWriteDecision(reviewEntry, decision);
+                }
+            }
 
             if (result.stopReason !== "tool_use" || result.toolCalls.length === 0) {
                 break;
