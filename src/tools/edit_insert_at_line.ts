@@ -7,10 +7,26 @@ import type {
 } from "./types";
 import { readFileContent, computeUnifiedDiff, preserveTrailingNewline } from "../utils/editing";
 
+function getContextAroundLine(lines: string[], lineNum: number, contextSize: number = 2): string[] {
+    const start = Math.max(0, lineNum - 1 - contextSize);
+    const end = Math.min(lines.length, lineNum + contextSize);
+    const context: string[] = [];
+
+    for (let i = start; i < end; i++) {
+        const marker = i + 1 === lineNum ? ">>>" : "   ";
+        const preview = lines[i].length > 50 ? lines[i].slice(0, 50) + "..." : lines[i];
+        context.push(`${marker} ${i + 1}: ${preview}`);
+    }
+
+    return context;
+}
+
 export const editInsertAtLineTool: ToolDefinition<EditInsertAtLineInput, EditPrepareResult> = {
     name: "edit_insert_at_line",
     description:
-        "Insert content at a specific line number. The content will be inserted BEFORE the specified line. Line numbers are 1-based.",
+        "Insert content at a specific line number. The content will be inserted BEFORE the specified line. " +
+        "Line numbers are 1-based. " +
+        "Consider using anchor-based tools (edit_after_anchor, edit_before_anchor) for more reliable edits that don't depend on line numbers.",
     approvalPolicy: "write",
     inputSchema: {
         type: "object",
@@ -45,13 +61,21 @@ export const editInsertAtLineTool: ToolDefinition<EditInsertAtLineInput, EditPre
         const lines = original.split("\n");
 
         if (args.line < 1) {
-            return { ok: false, error: `Line number must be at least 1, got ${args.line}` };
+            return {
+                ok: false,
+                error: `Line number must be at least 1, got ${args.line}. Use line 1 to insert at the beginning.`,
+            };
         }
 
         if (args.line > lines.length + 1) {
+            const context = getContextAroundLine(lines, lines.length);
             return {
                 ok: false,
-                error: `Line ${args.line} exceeds file length (${lines.length} lines). Use ${lines.length + 1} to append.`,
+                error:
+                    `Line ${args.line} exceeds file length (${lines.length} lines). ` +
+                    `Use ${lines.length + 1} to append at the end.\n\n` +
+                    `End of file context:\n${context.join("\n")}\n\n` +
+                    `Tip: Use anchor-based editing (edit_after_anchor) for more reliable insertion.`,
             };
         }
 

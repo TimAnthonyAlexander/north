@@ -55,7 +55,10 @@ function entryToLines(
         const allLines: string[] = [header];
 
         const hasThinking = entry.thinkingContent && entry.thinkingContent.length > 0;
-        const showThinkingContent = hasThinking && (entry.thinkingVisible === true || (entry.isStreaming && entry.thinkingVisible !== false));
+        const showThinkingContent =
+            hasThinking &&
+            (entry.thinkingVisible === true ||
+                (entry.isStreaming && entry.thinkingVisible !== false));
 
         if (showThinkingContent && entry.thinkingContent) {
             const thinkingLines = wrapText(entry.thinkingContent, contentWidth).map(

@@ -52,6 +52,7 @@ import { estimatePromptTokens } from "../utils/tokens";
 import { isRetryableError, calculateBackoff, sleep, DEFAULT_RETRY_CONFIG } from "../utils/retry";
 import { runLearningSession } from "../profile/learn";
 import { formatAttachedFilesContext } from "../utils/filepreview";
+import { digestToolOutput, clearOutputCache } from "../utils/digest";
 import * as path from "node:path";
 
 export type ShellReviewStatus = "pending" | "ran" | "always" | "auto" | "denied";
@@ -999,7 +1000,8 @@ Continue from line ${resumeInfo.linesWritten + 1}:`;
             return { needsReview: true, entry: reviewEntry, reviewType: "write" };
         }
 
-        updateEntry(toolEntryId, { toolResult: result });
+        const { digestedResult } = digestToolOutput(toolName, result);
+        updateEntry(toolEntryId, { toolResult: digestedResult });
         emitState();
 
         return { needsReview: false, entry: toolEntry };
@@ -1767,7 +1769,8 @@ Respond with ONLY the JSON, no other text.`;
             updateEntry(assistantId, {
                 isStreaming: false,
                 content: result.text,
-                thinkingBlocks: result.thinkingBlocks.length > 0 ? result.thinkingBlocks : undefined,
+                thinkingBlocks:
+                    result.thinkingBlocks.length > 0 ? result.thinkingBlocks : undefined,
                 thinkingVisible: false,
             });
             emitState();
@@ -1845,6 +1848,7 @@ Respond with ONLY the JSON, no other text.`;
         async sendMessage(content: string, mode: Mode = "agent", attachedFiles: string[] = []) {
             if (isProcessing || stopped) return;
 
+            clearOutputCache();
             isProcessing = true;
             cancelled = false;
             currentAttachedFiles = attachedFiles;

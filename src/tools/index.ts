@@ -14,6 +14,11 @@ export { editReplaceExactTool } from "./edit_replace_exact";
 export { editInsertAtLineTool } from "./edit_insert_at_line";
 export { editApplyBatchTool } from "./edit_apply_batch";
 export { shellRunTool } from "./shell_run";
+export { expandOutputTool } from "./expand_output";
+export { findCodeBlockTool } from "./find_code_block";
+export { editAfterAnchorTool } from "./edit_after_anchor";
+export { editBeforeAnchorTool } from "./edit_before_anchor";
+export { editReplaceBlockTool } from "./edit_replace_block";
 
 import type { Mode } from "../commands/types";
 import { createToolRegistry, type ToolRegistry } from "./registry";
@@ -31,6 +36,12 @@ import { editReplaceExactTool } from "./edit_replace_exact";
 import { editInsertAtLineTool } from "./edit_insert_at_line";
 import { editApplyBatchTool } from "./edit_apply_batch";
 import { shellRunTool } from "./shell_run";
+import { expandOutputTool } from "./expand_output";
+import { findCodeBlockTool } from "./find_code_block";
+import { editAfterAnchorTool } from "./edit_after_anchor";
+import { editBeforeAnchorTool } from "./edit_before_anchor";
+import { editReplaceBlockTool } from "./edit_replace_block";
+
 const READ_ONLY_TOOLS = [
     "list_root",
     "read_file",
@@ -42,6 +53,8 @@ const READ_ONLY_TOOLS = [
     "get_line_count",
     "get_file_symbols",
     "get_file_outline",
+    "expand_output",
+    "find_code_block",
 ];
 
 export function createToolRegistryWithAllTools(): ToolRegistry {
@@ -61,6 +74,11 @@ export function createToolRegistryWithAllTools(): ToolRegistry {
     registry.register(editInsertAtLineTool);
     registry.register(editApplyBatchTool);
     registry.register(shellRunTool);
+    registry.register(expandOutputTool);
+    registry.register(findCodeBlockTool);
+    registry.register(editAfterAnchorTool);
+    registry.register(editBeforeAnchorTool);
+    registry.register(editReplaceBlockTool);
 
     return registry;
 }

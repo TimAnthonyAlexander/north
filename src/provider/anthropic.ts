@@ -71,7 +71,11 @@ export interface Provider {
     systemPrompt: string;
     stream(messages: Message[], callbacks: StreamCallbacks, options?: StreamOptions): Promise<void>;
     buildToolResultMessage(results: ToolResultInput[]): Message;
-    buildAssistantMessage(text: string, toolCalls: ToolCall[], thinkingBlocks?: ThinkingBlock[]): Message;
+    buildAssistantMessage(
+        text: string,
+        toolCalls: ToolCall[],
+        thinkingBlocks?: ThinkingBlock[]
+    ): Message;
 }
 
 const SYSTEM_PROMPT = `You are North, a terminal assistant for codebases developed by Tim Anthony Alexander.
@@ -210,7 +214,8 @@ export function createProvider(options?: { model?: string }): Provider {
                 };
 
                 if (options?.thinking) {
-                    (requestParams as unknown as Record<string, unknown>).thinking = options.thinking;
+                    (requestParams as unknown as Record<string, unknown>).thinking =
+                        options.thinking;
                 }
 
                 const stream = await client.messages.stream(requestParams, {
@@ -241,7 +246,8 @@ export function createProvider(options?: { model?: string }): Provider {
                             currentThinkingSignature = "";
                         } else if (blockType === "redacted_thinking") {
                             currentBlockType = "redacted_thinking";
-                            currentRedactedData = (event.content_block as { data?: string }).data || "";
+                            currentRedactedData =
+                                (event.content_block as { data?: string }).data || "";
                         } else if (blockType === "text") {
                             currentBlockType = "text";
                         }
@@ -269,8 +275,7 @@ export function createProvider(options?: { model?: string }): Provider {
                             let parsedInput: unknown = {};
                             try {
                                 parsedInput = JSON.parse(currentToolInput || "{}");
-                            } catch {
-                            }
+                            } catch {}
                             const toolCall: ToolCall = {
                                 id: currentToolId,
                                 name: currentToolName,

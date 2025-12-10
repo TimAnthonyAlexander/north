@@ -244,7 +244,12 @@ async function parseSSEStream(
     response: Response,
     callbacks: StreamCallbacks,
     signal?: AbortSignal
-): Promise<{ text: string; toolCalls: ToolCall[]; thinkingBlocks: ThinkingBlock[]; stopReason: string | null }> {
+): Promise<{
+    text: string;
+    toolCalls: ToolCall[];
+    thinkingBlocks: ThinkingBlock[];
+    stopReason: string | null;
+}> {
     let fullText = "";
     const toolCalls: ToolCall[] = [];
     const thinkingBlocks: ThinkingBlock[] = [];

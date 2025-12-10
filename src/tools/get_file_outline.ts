@@ -63,6 +63,12 @@ function detectLanguage(filePath: string): string | null {
         ".cs": "csharp",
         ".rb": "ruby",
         ".php": "php",
+        ".html": "html",
+        ".htm": "html",
+        ".css": "css",
+        ".scss": "scss",
+        ".sass": "scss",
+        ".less": "less",
     };
     return langMap[ext] || null;
 }
@@ -235,6 +241,140 @@ function buildPythonOutline(content: string): OutlineSection[] {
     return sections;
 }
 
+function buildHtmlOutline(content: string): OutlineSection[] {
+    const sections: OutlineSection[] = [];
+    const lines = content.split("\n");
+
+    const majorTags = [
+        "head",
+        "body",
+        "header",
+        "nav",
+        "main",
+        "section",
+        "article",
+        "aside",
+        "footer",
+        "script",
+        "style",
+    ];
+    const tagStack: Array<{ tag: string; startLine: number; id?: string; className?: string }> = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        const openTagMatch = line.match(
+            /<(head|body|header|nav|main|section|article|aside|footer|script|style)([^>]*)>/i
+        );
+        if (openTagMatch) {
+            const tag = openTagMatch[1].toLowerCase();
+            const attrs = openTagMatch[2];
+            const idMatch = attrs.match(/id=["']([^"']+)["']/i);
+            const classMatch = attrs.match(/class=["']([^"']+)["']/i);
+
+            tagStack.push({
+                tag,
+                startLine: i + 1,
+                id: idMatch?.[1],
+                className: classMatch?.[1],
+            });
+        }
+
+        for (const majorTag of majorTags) {
+            const closeMatch = line.match(new RegExp(`</${majorTag}>`, "i"));
+            if (closeMatch) {
+                const lastOpenIndex = tagStack.findLastIndex((t) => t.tag === majorTag);
+                if (lastOpenIndex >= 0) {
+                    const openTag = tagStack[lastOpenIndex];
+                    let name = `<${majorTag}>`;
+                    if (openTag.id) {
+                        name = `<${majorTag} id="${openTag.id}">`;
+                    } else if (openTag.className) {
+                        const firstClass = openTag.className.split(/\s+/)[0];
+                        name = `<${majorTag} class="${firstClass}">`;
+                    }
+                    sections.push({
+                        type: "symbol",
+                        name,
+                        startLine: openTag.startLine,
+                        endLine: i + 1,
+                    });
+                    tagStack.splice(lastOpenIndex, 1);
+                }
+            }
+        }
+
+        const idMatch = line.match(/<(\w+)[^>]*id=["']([^"']+)["'][^>]*>/i);
+        if (idMatch && !majorTags.includes(idMatch[1].toLowerCase())) {
+            const tag = idMatch[1].toLowerCase();
+            const id = idMatch[2];
+            sections.push({
+                type: "symbol",
+                name: `<${tag} id="${id}">`,
+                startLine: i + 1,
+                endLine: i + 1,
+            });
+        }
+    }
+
+    sections.sort((a, b) => a.startLine - b.startLine);
+    return sections;
+}
+
+function buildCssOutline(content: string): OutlineSection[] {
+    const sections: OutlineSection[] = [];
+    const lines = content.split("\n");
+
+    let currentSelector: { name: string; startLine: number } | null = null;
+    let braceDepth = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        const atRuleMatch = line.match(/^(@media|@keyframes|@supports|@font-face|@import)\s*/);
+        if (atRuleMatch && braceDepth === 0) {
+            const atRule = atRuleMatch[1];
+            const restOfLine = line.slice(atRuleMatch[0].length).trim();
+            let name = atRule;
+
+            if (atRule === "@media") {
+                const mediaQuery = restOfLine.replace(/\s*\{.*$/, "").trim();
+                name = `@media ${mediaQuery.slice(0, 30)}${mediaQuery.length > 30 ? "..." : ""}`;
+            } else if (atRule === "@keyframes") {
+                const animName = restOfLine.match(/^(\w+)/)?.[1] || "unknown";
+                name = `@keyframes ${animName}`;
+            } else if (atRule === "@import") {
+                name = `@import ${restOfLine.slice(0, 40)}${restOfLine.length > 40 ? "..." : ""}`;
+            }
+
+            currentSelector = { name, startLine: i + 1 };
+        }
+
+        if (!atRuleMatch && braceDepth === 0 && line.includes("{")) {
+            const selector = line.replace(/\s*\{.*$/, "").trim();
+            if (selector && !selector.startsWith("//") && !selector.startsWith("/*")) {
+                const displayName = selector.length > 50 ? selector.slice(0, 50) + "..." : selector;
+                currentSelector = { name: displayName, startLine: i + 1 };
+            }
+        }
+
+        braceDepth += (line.match(/{/g) || []).length;
+        braceDepth -= (line.match(/}/g) || []).length;
+
+        if (braceDepth === 0 && currentSelector) {
+            sections.push({
+                type: "symbol",
+                name: currentSelector.name,
+                startLine: currentSelector.startLine,
+                endLine: i + 1,
+            });
+            currentSelector = null;
+        }
+    }
+
+    return sections;
+}
+
 function buildGenericOutline(content: string, _language: string | null): OutlineSection[] {
     const sections: OutlineSection[] = [];
     const lines = content.split("\n");
@@ -256,7 +396,10 @@ function buildGenericOutline(content: string, _language: string | null): Outline
 export const getFileOutlineTool: ToolDefinition<GetFileOutlineInput, GetFileOutlineOutput> = {
     name: "get_file_outline",
     description:
-        "Get a hierarchical outline of a file's structure with line numbers. Shows imports, symbols (functions, classes, etc.), and exports with their line ranges. Use this to understand the overall structure of a large file before reading specific sections.",
+        "Get a hierarchical outline of a file's structure with line numbers. " +
+        "Shows imports, symbols (functions, classes, etc.), and exports with their line ranges. " +
+        "Supports TypeScript/JavaScript, Python, HTML (major sections, IDs), and CSS (selectors, media queries). " +
+        "Use this to understand the overall structure of a large file before reading specific sections.",
     inputSchema: {
         type: "object",
         properties: {
@@ -305,6 +448,10 @@ export const getFileOutlineTool: ToolDefinition<GetFileOutlineInput, GetFileOutl
             sections = buildTypeScriptOutline(content);
         } else if (language === "python") {
             sections = buildPythonOutline(content);
+        } else if (language === "html") {
+            sections = buildHtmlOutline(content);
+        } else if (language === "css" || language === "scss" || language === "less") {
+            sections = buildCssOutline(content);
         } else {
             sections = buildGenericOutline(content, language);
         }

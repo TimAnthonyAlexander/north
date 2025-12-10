@@ -75,8 +75,13 @@ src/
 │   ├── hotfiles.ts       # Frequently modified files (git or fallback)
 │   ├── edit_replace_exact.ts  # Exact text replacement
 │   ├── edit_insert_at_line.ts # Insert at line number
+│   ├── edit_after_anchor.ts   # Insert after anchor text
+│   ├── edit_before_anchor.ts  # Insert before anchor text
+│   ├── edit_replace_block.ts  # Replace content between anchors
 │   ├── edit_create_file.ts    # Create or overwrite file
 │   ├── edit_apply_batch.ts    # Atomic batch edits
+│   ├── expand_output.ts       # Retrieve cached digested outputs
+│   ├── find_code_block.ts     # Find code blocks containing text
 │   └── shell_run.ts      # Shell command execution (requires approval)
 ├── ui/
 │   ├── App.tsx            # Root Ink component, SIGINT handling, review wiring
@@ -99,7 +104,8 @@ src/
     ├── fileindex.ts      # File index for @ mention autocomplete
     ├── filepreview.ts    # File preview + outline generation for context
     ├── fileblock.ts      # NORTH_FILE streaming parser with events
-    └── filesession.ts    # Streaming file writer with auto-resume
+    ├── filesession.ts    # Streaming file writer with auto-resume
+    └── digest.ts         # Tool output digesting for context efficiency
 
 tests/
 └── openai-provider.test.ts  # OpenAI provider unit tests
@@ -397,18 +403,86 @@ All tools follow the pattern:
 | `list_root` | List repo root entries | Respects .gitignore |
 | `find_files` | Glob pattern search | Case-insensitive, limit |
 | `search_text` | Text/regex search | Uses ripgrep if available, supports file+line range scope |
-| `read_file` | Read file content | Line ranges, truncation, smart context (imports/full) |
+| `read_file` | Read file content | Line ranges, smart context, aroundMatch windowing, head/tail inclusion |
 | `get_line_count` | Check file size | Quick stats before reading large files |
 | `get_file_symbols` | Extract symbols | Functions, classes, types, interfaces (TS/JS/Py/Rust/Go/Java) |
-| `get_file_outline` | File structure outline | Hierarchical view with line numbers |
+| `get_file_outline` | File structure outline | Hierarchical view with line numbers (TS/JS/Py/HTML/CSS) |
 | `read_readme` | Read README | Auto-detect README.* |
 | `detect_languages` | Language composition | By extension and size |
 | `hotfiles` | Important files | Git history or fallback |
-| `edit_replace_exact` | Replace exact text | Requires user approval |
+| `find_code_block` | Find code blocks | Locate functions/classes containing text |
+| `expand_output` | Retrieve full output | Access cached digested tool outputs |
+| `edit_replace_exact` | Replace exact text | Requires approval, shows similar lines on failure |
 | `edit_insert_at_line` | Insert at line | 1-based, requires approval |
+| `edit_after_anchor` | Insert after anchor | Anchor-based insertion, handles multiple matches |
+| `edit_before_anchor` | Insert before anchor | Anchor-based insertion, handles multiple matches |
+| `edit_replace_block` | Replace between anchors | Replace content between two text markers |
 | `edit_create_file` | Create/overwrite file | Requires approval |
 | `edit_apply_batch` | Atomic batch edits | All-or-nothing, requires approval |
 | `shell_run` | Execute shell command | Persistent PTY, requires approval or allowlist, stderr merged into stdout |
+
+#### Tool Output Digesting
+
+North implements a context-efficient digesting layer that stores full tool outputs locally but forwards only condensed summaries to the model:
+
+**Digest Strategies by Tool:**
+| Tool | Digest Format |
+|------|---------------|
+| `read_file` | First 50 lines + "... N more lines" + last 10 lines |
+| `search_text` | First 10 matches with context, total count |
+| `find_files` | First 20 files + "... N more" |
+| `shell_run` | First 20 lines + last 10 lines of stdout |
+| Others | Pass through (already compact) |
+
+**Cache Behavior:**
+- Full outputs are cached per conversation turn
+- Cache is cleared at the start of each `sendMessage()`
+- Use `expand_output` tool to retrieve full cached output
+- Digested outputs include `outputId` and `digestNote` for retrieval
+
+**Implementation:**
+- `src/utils/digest.ts`: `digestToolOutput()` function with per-tool strategies
+- `src/tools/expand_output.ts`: Tool to retrieve cached full outputs
+- Orchestrator integrates digest layer in `executeToolCall()`
+
+#### Anchor-Based Editing
+
+North provides anchor-based edit tools that address content by text patterns instead of brittle line numbers:
+
+**Tools:**
+- `edit_after_anchor`: Insert content after a line containing anchor text
+- `edit_before_anchor`: Insert content before a line containing anchor text
+- `edit_replace_block`: Replace content between two anchor markers
+
+**Behavior:**
+- If anchor appears once: operation proceeds
+- If anchor appears multiple times without `occurrence` specified: returns candidates list
+- Candidates include line number and preview for disambiguation
+- Anchor-based edits are more reliable than line numbers across file changes
+
+**Example:**
+```typescript
+// Instead of: edit_insert_at_line({ path, line: 42, content })
+// Use: edit_after_anchor({ path, anchor: "function setupApp() {", content })
+```
+
+#### Find Code Block Tool
+
+`find_code_block` enables "jump to place" navigation without multiple search/read cycles:
+
+**Input:**
+- `path`: File to search
+- `query`: Text to find within blocks
+- `kind`: Optional filter - "function", "class", "method", "block", "any"
+
+**Output:**
+- `matches`: Array of blocks containing the query
+- Each match includes: `startLine`, `endLine`, `snippet` (first 5 lines), `kind`, `name`
+
+**Supported Languages:**
+- TypeScript/JavaScript: functions, classes, methods
+- Python: functions, classes (indentation-based)
+- Generic: brace-delimited blocks
 
 #### Large File Navigation Strategy
 
@@ -431,6 +505,8 @@ The tool system includes specialized tools to efficiently navigate and understan
 - Hierarchical structure with line ranges
 - TypeScript/JavaScript: imports, symbols, exports
 - Python: imports, classes (with methods), functions
+- HTML: major sections (head, body, main, section), elements with IDs
+- CSS/SCSS/Less: selectors with line ranges, media queries, keyframes
 - Generic fallback: 50-line chunks
 - Use case: "Show me the overall structure of this 1000-line file"
 
@@ -443,7 +519,10 @@ The tool system includes specialized tools to efficiently navigate and understan
 **Smart Context (`read_file`):**
 - `includeContext: "imports"`: automatically includes file imports when reading a range
 - `includeContext: "full"`: expands to include full surrounding function/class
-- Use case: "Read lines 150-160 but also show me the imports"
+- `aroundMatch`: find text and return a window of lines around it
+- `windowLines`: number of lines before/after match (default: 20)
+- `includeHeadTail`: always include first 10 and last 10 lines for orientation
+- Use case: "Read around 'function handleSubmit' with head/tail for context"
 
 **System Prompt Guidance:**
 The provider system prompts now explicitly instruct the LLM to:

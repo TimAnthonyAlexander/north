@@ -77,6 +77,9 @@ export interface ReadFileInput {
     path: string;
     range?: { start: number; end: number };
     includeContext?: "imports" | "full";
+    aroundMatch?: string;
+    windowLines?: number;
+    includeHeadTail?: boolean;
 }
 
 export interface ReadFileOutput {
@@ -85,6 +88,8 @@ export interface ReadFileOutput {
     startLine: number;
     endLine: number;
     truncated: boolean;
+    totalLines?: number;
+    matchLine?: number;
 }
 
 export interface ReadReadmeOutput {
@@ -227,4 +232,67 @@ export interface GetFileOutlineOutput {
     path: string;
     language: string | null;
     sections: OutlineSection[];
+}
+
+export interface ExpandOutputInput {
+    outputId: string;
+    range?: {
+        start: number;
+        end: number;
+    };
+}
+
+export interface ExpandOutputOutput {
+    outputId: string;
+    content: string;
+    toolName: string;
+    rangeApplied: boolean;
+}
+
+export interface FindCodeBlockInput {
+    path: string;
+    query: string;
+    kind?: "function" | "class" | "method" | "block" | "any";
+}
+
+export interface CodeBlockMatch {
+    startLine: number;
+    endLine: number;
+    snippet: string;
+    kind: string;
+    name?: string;
+}
+
+export interface FindCodeBlockOutput {
+    path: string;
+    found: boolean;
+    matches: CodeBlockMatch[];
+    totalMatches: number;
+}
+
+export interface EditAfterAnchorInput {
+    path: string;
+    anchor: string;
+    content: string;
+    occurrence?: number;
+}
+
+export interface EditBeforeAnchorInput {
+    path: string;
+    anchor: string;
+    content: string;
+    occurrence?: number;
+}
+
+export interface EditReplaceBlockInput {
+    path: string;
+    blockStart: string;
+    blockEnd: string;
+    content: string;
+    inclusive?: boolean;
+}
+
+export interface AnchorCandidate {
+    line: number;
+    preview: string;
 }
