@@ -35,7 +35,9 @@ src/
 │       ├── model.ts      # /model - switch Claude model
 │       ├── mode.ts       # /mode - switch conversation mode (ask/agent)
 │       ├── summarize.ts  # /summarize - summarize and trim transcript
-│       └── learn.ts      # /learn - learn or relearn project codebase
+│       ├── learn.ts      # /learn - learn or relearn project codebase
+│       ├── conversations.ts # /conversations - picker to switch conversations
+│       └── resume.ts     # /resume <id> - switch to conversation by ID
 ├── logging/
 │   └── index.ts          # Append-only JSON-lines logger
 ├── orchestrator/
@@ -1145,6 +1147,10 @@ North persists conversations for later resumption using an append-only event log
 - `north resume <id>` - resume by ID
 - `north resume` - interactive picker of recent conversations
 - `north conversations` or `north list` - list conversations with metadata
+
+**Slash Commands:**
+- `/conversations` - picker to switch to another conversation
+- `/resume <id>` - switch to conversation by ID directly
 
 **Portability:**
 - Both `repoRoot` (path) and `repoHash` (SHA-256 prefix) stored

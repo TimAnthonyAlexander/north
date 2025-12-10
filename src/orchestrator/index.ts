@@ -24,6 +24,9 @@ import {
     logModelChanged,
     logRollingSummarySet,
     logConversationEnded,
+    loadConversation,
+    listConversations,
+    conversationExists,
 } from "../storage/conversations";
 import { getShellService } from "../shell/index";
 import {
@@ -260,7 +263,7 @@ export function createOrchestratorWithTools(
     callbacks: OrchestratorCallbacks,
     context: OrchestratorContext
 ): Orchestrator {
-    const conversationId = context.conversationId;
+    let conversationId = context.conversationId;
     const hasInitialState = context.initialState !== null;
 
     const initialModel = hasInitialState
@@ -1096,6 +1099,50 @@ Respond with ONLY the JSON, no other text.`;
             },
             getConversationId() {
                 return conversationId;
+            },
+            listRecentConversations(limit = 20) {
+                return listConversations()
+                    .slice(0, limit)
+                    .map((c) => ({
+                        id: c.id,
+                        repoRoot: c.repoRoot,
+                        lastActiveAt: c.lastActiveAt,
+                        previewText: c.previewText,
+                    }));
+            },
+            async switchConversation(targetId: string) {
+                if (targetId === conversationId) {
+                    return { ok: false, error: "Already in this conversation" };
+                }
+
+                if (!conversationExists(targetId)) {
+                    return { ok: false, error: `Conversation ${targetId} not found` };
+                }
+
+                const targetState = loadConversation(targetId);
+                if (!targetState) {
+                    return { ok: false, error: `Failed to load conversation ${targetId}` };
+                }
+
+                logConversationEnded(conversationId);
+
+                conversationId = targetId;
+                transcript = [...targetState.transcript];
+                rollingSummary = targetState.rollingSummary;
+                currentModel = targetState.model;
+                provider = createProviderForModel(currentModel);
+                contextLimitTokens = getModelContextLimit(currentModel);
+
+                pendingReviewId = null;
+                pendingWriteReview = null;
+                pendingShellReview = null;
+                pendingCommandReview = null;
+                writeToolCallIds.clear();
+                shellToolCallIds.clear();
+                toolCallsMap.clear();
+
+                emitState();
+                return { ok: true };
             },
         };
     }

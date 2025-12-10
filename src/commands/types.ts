@@ -37,6 +37,13 @@ export interface PickerOption {
     hint?: string;
 }
 
+export interface ConversationInfo {
+    id: string;
+    repoRoot: string;
+    lastActiveAt: number;
+    previewText: string;
+}
+
 export interface CommandContext {
     repoRoot: string;
     setModel: (modelId: string) => void;
@@ -56,6 +63,8 @@ export interface CommandContext {
     listCommands: () => CommandDefinition[];
     triggerLearning: () => void;
     getConversationId: () => string;
+    listRecentConversations: (limit?: number) => ConversationInfo[];
+    switchConversation: (id: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export interface CommandResult {
