@@ -423,15 +423,15 @@ All tools follow the pattern:
 |------|---------|--------------|
 | `list_root` | List repo root entries | Respects .gitignore |
 | `find_files` | Glob pattern search | Case-insensitive, limit |
-| `search_text` | Text/regex search | Uses ripgrep if available, supports file+line range scope |
+| `search_text` | Text/regex search | Uses ripgrep if available, supports file+line range scope, optional contextLines (1-5) |
 | `read_file` | Read file content | Line ranges, smart context, aroundMatch windowing, head/tail inclusion |
 | `get_line_count` | Check file size | Quick stats before reading large files |
-| `get_file_symbols` | Extract symbols | Functions, classes, types, interfaces (TS/JS/Py/Rust/Go/Java) |
+| `get_file_symbols` | Extract symbols | Functions, classes, types, interfaces (TS/JS/Py/Rust/Go/Java); redirects to find_blocks for HTML/CSS |
 | `get_file_outline` | File structure outline | Hierarchical view with line numbers (TS/JS/Py/HTML/CSS) |
 | `read_readme` | Read README | Auto-detect README.* |
 | `detect_languages` | Language composition | By extension and size |
 | `hotfiles` | Important files | Git history or fallback |
-| `find_code_block` | Find code blocks | Locate functions/classes containing text |
+| `find_code_block` | Find code blocks | Locate functions/classes containing text, deduplicates nested HTML blocks |
 | `expand_output` | Retrieve full output | Access cached digested tool outputs |
 | `edit_replace_exact` | Replace exact text | Requires approval, enhanced failure diagnostics (whitespace, near-miss) |
 | `edit_insert_at_line` | Insert at line | 1-based, requires approval |
@@ -442,7 +442,7 @@ All tools follow the pattern:
 | `edit_apply_batch` | Atomic batch edits | All-or-nothing, requires approval |
 | `shell_run` | Execute shell command | Persistent PTY, requires approval or allowlist, stderr merged into stdout |
 | `read_around` | Context window | Asymmetric before/after lines around anchor, occurrence handling |
-| `find_blocks` | Structural map | Block coordinates without content (html_section, css_rule, js_ts_symbol) |
+| `find_blocks` | Structural map | Block coordinates without content (html_section, css_rule, js_ts_symbol, csharp_symbol, php_symbol, java_symbol) |
 | `edit_by_anchor` | Unified anchor edit | Four modes: insert_before, insert_after, replace_line, replace_between |
 
 #### Tool Output Digesting
@@ -581,8 +581,10 @@ For HTML files, `get_file_outline` now parses embedded `<style>` and `<script>` 
 **Enhanced Search (`search_text`):**
 - New `file` parameter: search within a specific file only
 - New `lineRange` parameter: search within specific line range
+- New `contextLines` parameter: include 1-5 lines of context before/after each match
 - Language hints in description: "For TypeScript: search for 'export function'"
 - Use case: "Find all uses of X within lines 100-200 of file.ts"
+- Context use case: `search_text({ query: "target", contextLines: 2 })` reduces follow-up read_around calls
 
 **Smart Context (`read_file`):**
 - `includeContext: "imports"`: automatically includes file imports when reading a range
@@ -644,6 +646,9 @@ The provider system prompts now explicitly instruct the LLM to:
 - `html_section`: `<section>`, `<article>`, `<nav>`, elements with IDs
 - `css_rule`: selectors, `@media`, `@keyframes`
 - `js_ts_symbol`: functions, classes, interfaces, types, React components
+- `csharp_symbol`: namespaces, classes, structs, interfaces, methods, properties, enums
+- `php_symbol`: namespaces, classes, interfaces, traits, functions, methods
+- `java_symbol`: packages, classes, interfaces, enums, methods
 
 **Mixed HTML Support:**
 
@@ -1894,6 +1899,8 @@ bun test tests/openai*.ts   # run specific tests
   - Global config storage (user preferences)
 - `tests/tools-read.test.ts`: Read tool tests
   - `get_file_outline` HTML embedded block tests (style/script parsing)
+  - `get_file_symbols` HTML/CSS redirect hint tests
+  - `search_text` contextLines tests
 - `tests/tools-edit.test.ts`: Edit tool tests
   - Prepare contract tests
   - Trailing newline preservation
@@ -1902,11 +1909,13 @@ bun test tests/openai*.ts   # run specific tests
   - CSS selector and `@media`/`@keyframes` detection
   - HTML embedded style/script block parsing
   - Helpful hints for HTML/CSS files
+  - Nested block deduplication
 - `tests/tools-find-blocks.test.ts`: Find blocks tool tests
   - Mixed HTML parsing (embedded style/script)
   - CSS rules inside style blocks
   - JS symbols inside script blocks
   - Kind filtering
+  - C#/PHP/Java symbol detection (namespaces, classes, methods, traits)
 - `tests/tools-workflow.test.ts`: Integration-style workflow tests
   - Mixed HTML navigation patterns
   - Edit failure diagnostics workflow

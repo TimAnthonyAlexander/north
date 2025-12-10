@@ -59,6 +59,7 @@ export interface SearchTextInput {
     lineRange?: { start: number; end: number };
     regex?: boolean;
     limit?: number;
+    contextLines?: number;
 }
 
 export interface SearchMatch {
@@ -66,6 +67,7 @@ export interface SearchMatch {
     line: number;
     column: number;
     preview: string;
+    context?: string;
 }
 
 export interface SearchTextOutput {
@@ -214,6 +216,7 @@ export interface GetFileSymbolsOutput {
     path: string;
     language: string | null;
     symbols: FileSymbol[];
+    hint?: string;
 }
 
 export interface OutlineSection {

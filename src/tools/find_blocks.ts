@@ -4,7 +4,14 @@ import type { ToolDefinition, ToolContext, ToolResult } from "./types";
 
 export interface FindBlocksInput {
     path: string;
-    kind?: "html_section" | "css_rule" | "js_ts_symbol" | "all";
+    kind?:
+        | "html_section"
+        | "css_rule"
+        | "js_ts_symbol"
+        | "csharp_symbol"
+        | "php_symbol"
+        | "java_symbol"
+        | "all";
 }
 
 export interface BlockEntry {
@@ -51,17 +58,25 @@ function resolvePath(repoRoot: string, filePath: string): string | null {
     }
 }
 
-function detectLanguageKind(filePath: string): "html" | "css" | "js_ts" | "python" | "unknown" {
+type LanguageKind = "html" | "css" | "js_ts" | "python" | "csharp" | "php" | "java" | "unknown";
+
+function detectLanguageKind(filePath: string): LanguageKind {
     const ext = extname(filePath).toLowerCase();
     const htmlExts = [".html", ".htm", ".vue", ".svelte"];
     const cssExts = [".css", ".scss", ".sass", ".less"];
     const jsExts = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"];
     const pyExts = [".py"];
+    const csExts = [".cs"];
+    const phpExts = [".php"];
+    const javaExts = [".java"];
 
     if (htmlExts.includes(ext)) return "html";
     if (cssExts.includes(ext)) return "css";
     if (jsExts.includes(ext)) return "js_ts";
     if (pyExts.includes(ext)) return "python";
+    if (csExts.includes(ext)) return "csharp";
+    if (phpExts.includes(ext)) return "php";
+    if (javaExts.includes(ext)) return "java";
     return "unknown";
 }
 
@@ -323,6 +338,278 @@ function findPythonSymbols(lines: string[]): BlockEntry[] {
     }
 
     return blocks;
+}
+
+function findCSharpSymbols(lines: string[]): BlockEntry[] {
+    const blocks: BlockEntry[] = [];
+    let blockId = 0;
+
+    const namespacePattern = /^\s*namespace\s+([\w.]+)/;
+    const classPattern =
+        /^\s*(public|private|protected|internal)?\s*(static|sealed|abstract|partial)?\s*(class|struct|record|interface)\s+(\w+)/;
+    const methodPattern =
+        /^\s*(public|private|protected|internal)?\s*(static|virtual|override|async)?\s*(async\s+)?[\w<>\[\],\s]+\s+(\w+)\s*\([^)]*\)/;
+    const propertyPattern =
+        /^\s*(public|private|protected|internal)?\s*(static|virtual|override)?\s*[\w<>\[\],\s]+\s+(\w+)\s*\{/;
+    const enumPattern = /^\s*(public|private|protected|internal)?\s*enum\s+(\w+)/;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        if (
+            !trimmed ||
+            trimmed.startsWith("//") ||
+            trimmed.startsWith("/*") ||
+            trimmed.startsWith("*")
+        )
+            continue;
+
+        const namespaceMatch = line.match(namespacePattern);
+        if (namespaceMatch) {
+            const endLine = findBraceBlockEnd(lines, i);
+            blocks.push({
+                id: `cs-${blockId++}`,
+                label: `namespace ${namespaceMatch[1]}`,
+                startLine: i + 1,
+                endLine,
+            });
+            continue;
+        }
+
+        const classMatch = line.match(classPattern);
+        if (classMatch) {
+            const kind = classMatch[3];
+            const name = classMatch[4];
+            const endLine = findBraceBlockEnd(lines, i);
+            blocks.push({
+                id: `cs-${blockId++}`,
+                label: `${kind} ${name}`,
+                startLine: i + 1,
+                endLine,
+            });
+            continue;
+        }
+
+        const enumMatch = line.match(enumPattern);
+        if (enumMatch) {
+            const endLine = findBraceBlockEnd(lines, i);
+            blocks.push({
+                id: `cs-${blockId++}`,
+                label: `enum ${enumMatch[2]}`,
+                startLine: i + 1,
+                endLine,
+            });
+            continue;
+        }
+
+        const methodMatch = line.match(methodPattern);
+        if (methodMatch && !trimmed.includes("=") && !trimmed.endsWith(";")) {
+            const name = methodMatch[4];
+            if (
+                !["if", "for", "while", "switch", "catch", "using", "lock", "foreach"].includes(
+                    name
+                )
+            ) {
+                const endLine = findBraceBlockEnd(lines, i);
+                blocks.push({
+                    id: `cs-${blockId++}`,
+                    label: `method ${name}`,
+                    startLine: i + 1,
+                    endLine,
+                });
+            }
+            continue;
+        }
+
+        const propertyMatch = line.match(propertyPattern);
+        if (propertyMatch && !trimmed.includes("(")) {
+            const name = propertyMatch[3];
+            if (
+                ![
+                    "if",
+                    "for",
+                    "while",
+                    "switch",
+                    "catch",
+                    "using",
+                    "lock",
+                    "foreach",
+                    "get",
+                    "set",
+                ].includes(name)
+            ) {
+                const endLine = findBraceBlockEnd(lines, i);
+                blocks.push({
+                    id: `cs-${blockId++}`,
+                    label: `property ${name}`,
+                    startLine: i + 1,
+                    endLine,
+                });
+            }
+        }
+    }
+
+    return blocks.sort((a, b) => a.startLine - b.startLine);
+}
+
+function findPhpSymbols(lines: string[]): BlockEntry[] {
+    const blocks: BlockEntry[] = [];
+    let blockId = 0;
+
+    const namespacePattern = /^\s*namespace\s+([\w\\]+)/;
+    const classPattern = /^\s*(abstract|final)?\s*class\s+(\w+)/;
+    const interfacePattern = /^\s*interface\s+(\w+)/;
+    const traitPattern = /^\s*trait\s+(\w+)/;
+    const functionPattern = /^\s*(public|private|protected)?\s*(static)?\s*function\s+(\w+)/;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        if (
+            !trimmed ||
+            trimmed.startsWith("//") ||
+            trimmed.startsWith("/*") ||
+            trimmed.startsWith("*") ||
+            trimmed.startsWith("#")
+        )
+            continue;
+
+        const namespaceMatch = line.match(namespacePattern);
+        if (namespaceMatch) {
+            blocks.push({
+                id: `php-${blockId++}`,
+                label: `namespace ${namespaceMatch[1]}`,
+                startLine: i + 1,
+                endLine: i + 1,
+            });
+            continue;
+        }
+
+        const classMatch = line.match(classPattern);
+        if (classMatch) {
+            const endLine = findBraceBlockEnd(lines, i);
+            blocks.push({
+                id: `php-${blockId++}`,
+                label: `class ${classMatch[2]}`,
+                startLine: i + 1,
+                endLine,
+            });
+            continue;
+        }
+
+        const interfaceMatch = line.match(interfacePattern);
+        if (interfaceMatch) {
+            const endLine = findBraceBlockEnd(lines, i);
+            blocks.push({
+                id: `php-${blockId++}`,
+                label: `interface ${interfaceMatch[1]}`,
+                startLine: i + 1,
+                endLine,
+            });
+            continue;
+        }
+
+        const traitMatch = line.match(traitPattern);
+        if (traitMatch) {
+            const endLine = findBraceBlockEnd(lines, i);
+            blocks.push({
+                id: `php-${blockId++}`,
+                label: `trait ${traitMatch[1]}`,
+                startLine: i + 1,
+                endLine,
+            });
+            continue;
+        }
+
+        const functionMatch = line.match(functionPattern);
+        if (functionMatch) {
+            const name = functionMatch[3];
+            const endLine = findBraceBlockEnd(lines, i);
+            const isMethod = blocks.some(
+                (b) => b.label.startsWith("class ") && b.startLine < i + 1 && b.endLine > i + 1
+            );
+            blocks.push({
+                id: `php-${blockId++}`,
+                label: isMethod ? `method ${name}` : `function ${name}`,
+                startLine: i + 1,
+                endLine,
+            });
+        }
+    }
+
+    return blocks.sort((a, b) => a.startLine - b.startLine);
+}
+
+function findJavaSymbols(lines: string[]): BlockEntry[] {
+    const blocks: BlockEntry[] = [];
+    let blockId = 0;
+
+    const packagePattern = /^\s*package\s+([\w.]+)/;
+    const classPattern =
+        /^\s*(public|private|protected)?\s*(static|final|abstract)?\s*(class|interface|enum|record)\s+(\w+)/;
+    const methodPattern =
+        /^\s*(public|private|protected)?\s*(static|final|synchronized|native|abstract)?\s*[\w<>\[\],\s]+\s+(\w+)\s*\(/;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        if (
+            !trimmed ||
+            trimmed.startsWith("//") ||
+            trimmed.startsWith("/*") ||
+            trimmed.startsWith("*") ||
+            trimmed.startsWith("@")
+        )
+            continue;
+
+        const packageMatch = line.match(packagePattern);
+        if (packageMatch) {
+            blocks.push({
+                id: `java-${blockId++}`,
+                label: `package ${packageMatch[1]}`,
+                startLine: i + 1,
+                endLine: i + 1,
+            });
+            continue;
+        }
+
+        const classMatch = line.match(classPattern);
+        if (classMatch) {
+            const kind = classMatch[3];
+            const name = classMatch[4];
+            const endLine = findBraceBlockEnd(lines, i);
+            blocks.push({
+                id: `java-${blockId++}`,
+                label: `${kind} ${name}`,
+                startLine: i + 1,
+                endLine,
+            });
+            continue;
+        }
+
+        const methodMatch = line.match(methodPattern);
+        if (
+            methodMatch &&
+            !trimmed.includes("=") &&
+            (line.includes("{") || trimmed.endsWith("{"))
+        ) {
+            const name = methodMatch[3];
+            if (!["if", "for", "while", "switch", "catch", "try", "synchronized"].includes(name)) {
+                const endLine = findBraceBlockEnd(lines, i);
+                blocks.push({
+                    id: `java-${blockId++}`,
+                    label: `method ${name}`,
+                    startLine: i + 1,
+                    endLine,
+                });
+            }
+        }
+    }
+
+    return blocks.sort((a, b) => a.startLine - b.startLine);
 }
 
 function findBraceBlockEnd(lines: string[], startIndex: number): number {
@@ -604,10 +891,10 @@ export const findBlocksTool: ToolDefinition<FindBlocksInput, FindBlocksOutput> =
     name: "find_blocks",
     description:
         "Get a structural map of a file with line ranges but no content. " +
-        "Returns block coordinates for navigation. For HTML files, automatically detects " +
+        "Returns block coordinates for navigation. Supports HTML (with embedded style/script), " +
+        "CSS, JS/TS, Python, C#, PHP, and Java. For HTML files, automatically detects " +
         "embedded <style> and <script> blocks with their CSS rules and JS symbols. " +
-        "Filter by kind: html_section (sections, articles, IDs), css_rule (selectors, @media), " +
-        "js_ts_symbol (functions, classes, interfaces, components), or all (default, includes embedded blocks for HTML).",
+        "Filter by kind: html_section, css_rule, js_ts_symbol, csharp_symbol, php_symbol, java_symbol, or all (auto-detect).",
     inputSchema: {
         type: "object",
         properties: {
@@ -618,7 +905,7 @@ export const findBlocksTool: ToolDefinition<FindBlocksInput, FindBlocksOutput> =
             kind: {
                 type: "string",
                 description:
-                    "Filter blocks by kind: 'html_section', 'css_rule', 'js_ts_symbol', or 'all' (default: auto-detect from file extension)",
+                    "Filter blocks by kind: 'html_section', 'css_rule', 'js_ts_symbol', 'csharp_symbol', 'php_symbol', 'java_symbol', or 'all' (default: auto-detect from file extension)",
             },
         },
         required: ["path"],
@@ -667,6 +954,12 @@ export const findBlocksTool: ToolDefinition<FindBlocksInput, FindBlocksOutput> =
                 blocks = findJsTsSymbols(lines);
             } else if (langKind === "python") {
                 blocks = findPythonSymbols(lines);
+            } else if (langKind === "csharp") {
+                blocks = findCSharpSymbols(lines);
+            } else if (langKind === "php") {
+                blocks = findPhpSymbols(lines);
+            } else if (langKind === "java") {
+                blocks = findJavaSymbols(lines);
             } else {
                 blocks = findJsTsSymbols(lines);
             }
@@ -676,6 +969,12 @@ export const findBlocksTool: ToolDefinition<FindBlocksInput, FindBlocksOutput> =
             blocks = findCssRules(lines);
         } else if (requestedKind === "js_ts_symbol") {
             blocks = findJsTsSymbols(lines);
+        } else if (requestedKind === "csharp_symbol") {
+            blocks = findCSharpSymbols(lines);
+        } else if (requestedKind === "php_symbol") {
+            blocks = findPhpSymbols(lines);
+        } else if (requestedKind === "java_symbol") {
+            blocks = findJavaSymbols(lines);
         }
 
         return {

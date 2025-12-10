@@ -279,6 +279,49 @@ describe("find_code_block", () => {
             expect(result.ok).toBe(true);
             expect(result.data?.found).toBe(true);
         });
+
+        test("deduplicates nested blocks", async () => {
+            tempRepo = createTempRepo();
+            createFile(
+                tempRepo.root,
+                "nested.html",
+                `<!DOCTYPE html>
+<html>
+<body>
+    <section id="outer">
+        <div class="inner">
+            <p>nested content with keyword</p>
+        </div>
+    </section>
+</body>
+</html>`
+            );
+
+            const ctx = createContext(tempRepo.root);
+            const result = await findCodeBlockTool.execute(
+                { path: "nested.html", query: "keyword" },
+                ctx
+            );
+
+            expect(result.ok).toBe(true);
+            if (result.data?.found) {
+                const blocks = result.data.matches;
+                for (let i = 0; i < blocks.length; i++) {
+                    for (let j = i + 1; j < blocks.length; j++) {
+                        const blockI = blocks[i];
+                        const blockJ = blocks[j];
+                        const iContainsJ =
+                            blockI.startLine <= blockJ.startLine &&
+                            blockI.endLine >= blockJ.endLine;
+                        const jContainsI =
+                            blockJ.startLine <= blockI.startLine &&
+                            blockJ.endLine >= blockI.endLine;
+                        expect(iContainsJ && blockI.startLine !== blockJ.startLine || blockI.endLine !== blockJ.endLine).toBe(false);
+                        expect(jContainsI && blockI.startLine !== blockJ.startLine || blockI.endLine !== blockJ.endLine).toBe(false);
+                    }
+                }
+            }
+        });
     });
 
     describe("helpful hints", () => {

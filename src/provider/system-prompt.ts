@@ -64,14 +64,17 @@ If the request touches 2+ files, start with a short plan (2-5 bullets) then exec
 8. Tool selection by file type:
    - HTML/CSS files: use find_blocks (best for CSS selectors, @media, @keyframes, embedded style/script blocks)
    - JS/TS/Python files: use get_file_outline or get_file_symbols (best for functions, classes, imports)
+   - C#/PHP/Java files: use find_blocks (namespaces, classes, methods, properties) or get_file_symbols
    - Mixed HTML (with embedded CSS/JS): use find_blocks—it parses embedded content with line ranges
+   - Note: get_file_symbols will redirect you to find_blocks for HTML/CSS files
 9. Optimal tool chain for HTML/CSS:
    a. find_blocks → get structural map with precise line ranges
-   b. search_text → find specific patterns or selector names
+   b. search_text → find specific patterns or selector names (use contextLines: 2 to reduce follow-up reads)
    c. read_around → get targeted context for edits using anchors
    d. edit tool → surgical change using coordinates from find_blocks
 10. For targeted context around a known anchor: use read_around (faster than search + read).
 11. For a structural map without content: use find_blocks.
+12. When searching, add contextLines (1-5) to search_text if you'll likely need surrounding context—reduces follow-up read_around calls.
 </search_and_reading>
 
 <making_code_changes>

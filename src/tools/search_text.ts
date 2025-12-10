@@ -52,7 +52,8 @@ function searchInFile(
     query: string,
     isRegex: boolean,
     lineRange: { start: number; end: number } | undefined,
-    limit: number
+    limit: number,
+    contextLines?: number
 ): SearchMatch[] {
     const matches: SearchMatch[] = [];
 
@@ -91,12 +92,25 @@ function searchInFile(
                 preview = preview.slice(0, PREVIEW_LENGTH) + "...";
             }
 
-            matches.push({
+            const match: SearchMatch = {
                 path: relative(repoRoot, filePath),
                 line: i + 1,
                 column: matchIndex + 1,
                 preview,
-            });
+            };
+
+            if (contextLines && contextLines > 0) {
+                const contextStart = Math.max(0, i - contextLines);
+                const contextEnd = Math.min(lines.length - 1, i + contextLines);
+                const contextArr: string[] = [];
+                for (let j = contextStart; j <= contextEnd; j++) {
+                    const prefix = j === i ? "> " : "  ";
+                    contextArr.push(`${j + 1}|${prefix}${lines[j]}`);
+                }
+                match.context = contextArr.join("\n");
+            }
+
+            matches.push(match);
         }
     }
 
@@ -280,6 +294,12 @@ export const searchTextTool: ToolDefinition<SearchTextInput, SearchTextOutput> =
                 type: "number",
                 description: `Maximum number of matches to return. Defaults to ${DEFAULT_LIMIT}, max ${MAX_LIMIT}.`,
             },
+            contextLines: {
+                type: "number",
+                description:
+                    "Number of context lines to include before and after each match. " +
+                    "When set, each match includes surrounding lines (reduces need for follow-up read_around). Max 5.",
+            },
         },
         required: ["query"],
     },
@@ -298,6 +318,7 @@ export const searchTextTool: ToolDefinition<SearchTextInput, SearchTextOutput> =
 
         const isRegex = args.regex ?? false;
         const limit = Math.min(args.limit || DEFAULT_LIMIT, MAX_LIMIT);
+        const contextLines = args.contextLines ? Math.min(args.contextLines, 5) : undefined;
 
         if (args.file) {
             const resolvedPath = resolvePath(ctx.repoRoot, args.file);
@@ -320,7 +341,8 @@ export const searchTextTool: ToolDefinition<SearchTextInput, SearchTextOutput> =
                 args.query,
                 isRegex,
                 args.lineRange,
-                limit
+                limit,
+                contextLines
             );
 
             return {

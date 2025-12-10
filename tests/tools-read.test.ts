@@ -384,6 +384,83 @@ describe("search_text", () => {
             expect(result.data.matches[0].column).toBe(3);
         }
     });
+
+    test("includes context lines when contextLines is specified", async () => {
+        tempRepo = createTempRepo();
+        const content = `line 1
+line 2
+function target() {
+line 4
+line 5
+line 6`;
+        createFile(tempRepo.root, "test.js", content);
+
+        const ctx = createContext(tempRepo.root);
+        const result = await searchTextTool.execute({
+            query: "target",
+            file: "test.js",
+            contextLines: 2,
+        }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            expect(result.data.matches.length).toBe(1);
+            const match = result.data.matches[0];
+            expect(match.context).toBeDefined();
+            expect(match.context).toContain("line 1");
+            expect(match.context).toContain("line 2");
+            expect(match.context).toContain("target");
+            expect(match.context).toContain("line 4");
+            expect(match.context).toContain("line 5");
+            expect(match.context).toContain("> ");
+        }
+    });
+
+    test("contextLines is capped at 5", async () => {
+        tempRepo = createTempRepo();
+        let content = "";
+        for (let i = 1; i <= 20; i++) {
+            content += `line ${i}\n`;
+        }
+        createFile(tempRepo.root, "test.txt", content);
+
+        const ctx = createContext(tempRepo.root);
+        const result = await searchTextTool.execute({
+            query: "line 10",
+            file: "test.txt",
+            contextLines: 100,
+        }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            const match = result.data.matches[0];
+            expect(match.context).toBeDefined();
+            const contextLines = match.context!.split("\n");
+            expect(contextLines.length).toBeLessThanOrEqual(11);
+        }
+    });
+
+    test("context includes line numbers", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "a\nb\nc\nd\ne\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await searchTextTool.execute({
+            query: "c",
+            file: "test.txt",
+            contextLines: 1,
+        }, ctx);
+
+        expect(result.ok).toBe(true);
+        if (result.data) {
+            const match = result.data.matches[0];
+            expect(match.context).toContain("2|");
+            expect(match.context).toContain("3|");
+            expect(match.context).toContain("4|");
+        }
+    });
 });
 
 describe("read_file", () => {
@@ -666,6 +743,56 @@ describe("get_file_symbols", () => {
                 expect(typeof symbol.name).toBe("string");
                 expect(typeof symbol.type).toBe("string");
             }
+        }
+    });
+
+    test("returns hint for HTML files redirecting to find_blocks", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "index.html", "<html><body>Test</body></html>");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await getFileSymbolsTool.execute({ path: "index.html" }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            expect(result.data.symbols).toEqual([]);
+            expect(result.data.hint).toBeDefined();
+            expect(result.data.hint).toContain("find_blocks");
+            expect(result.data.hint).toContain("HTML");
+        }
+    });
+
+    test("returns hint for CSS files redirecting to find_blocks", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "styles.css", ".header { color: blue; }");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await getFileSymbolsTool.execute({ path: "styles.css" }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            expect(result.data.symbols).toEqual([]);
+            expect(result.data.hint).toBeDefined();
+            expect(result.data.hint).toContain("find_blocks");
+            expect(result.data.hint).toContain("CSS");
+        }
+    });
+
+    test("returns hint for SCSS files redirecting to find_blocks", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "styles.scss", "$color: blue; .header { color: $color; }");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await getFileSymbolsTool.execute({ path: "styles.scss" }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            expect(result.data.symbols).toEqual([]);
+            expect(result.data.hint).toBeDefined();
+            expect(result.data.hint).toContain("find_blocks");
         }
     });
 });

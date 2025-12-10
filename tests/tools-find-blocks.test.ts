@@ -473,5 +473,227 @@ class MyClass {
             expect(result.error).toContain("directory");
         });
     });
+
+    describe("C# Files", () => {
+        test("finds namespace, class, and method blocks", async () => {
+            tempRepo = createTempRepo();
+            const csContent = `using System;
+
+namespace MyApp.Services
+{
+    public class UserService
+    {
+        private readonly ILogger _logger;
+
+        public UserService(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public async Task<User> GetUserAsync(int id)
+        {
+            return await _db.Users.FindAsync(id);
+        }
+    }
+}`;
+            createFile(tempRepo.root, "UserService.cs", csContent);
+
+            const ctx = createContext(tempRepo.root);
+            const result = await findBlocksTool.execute({ path: "UserService.cs" }, ctx);
+
+            expect(result.ok).toBe(true);
+            expect(result.data).toBeDefined();
+            if (result.data) {
+                const namespaceBlock = result.data.blocks.find((b) => b.label.includes("namespace"));
+                expect(namespaceBlock).toBeDefined();
+
+                const classBlock = result.data.blocks.find((b) => b.label.includes("class UserService"));
+                expect(classBlock).toBeDefined();
+
+                const methodBlock = result.data.blocks.find((b) => b.label.includes("method GetUserAsync"));
+                expect(methodBlock).toBeDefined();
+            }
+        });
+
+        test("finds interface and enum", async () => {
+            tempRepo = createTempRepo();
+            const csContent = `namespace MyApp
+{
+    public interface IUserService
+    {
+        Task<User> GetUser(int id);
+    }
+
+    public enum UserStatus
+    {
+        Active,
+        Inactive
+    }
+}`;
+            createFile(tempRepo.root, "Interfaces.cs", csContent);
+
+            const ctx = createContext(tempRepo.root);
+            const result = await findBlocksTool.execute({ path: "Interfaces.cs" }, ctx);
+
+            expect(result.ok).toBe(true);
+            expect(result.data).toBeDefined();
+            if (result.data) {
+                const interfaceBlock = result.data.blocks.find((b) => b.label.includes("interface IUserService"));
+                expect(interfaceBlock).toBeDefined();
+
+                const enumBlock = result.data.blocks.find((b) => b.label.includes("enum UserStatus"));
+                expect(enumBlock).toBeDefined();
+            }
+        });
+    });
+
+    describe("PHP Files", () => {
+        test("finds namespace, class, and method blocks", async () => {
+            tempRepo = createTempRepo();
+            const phpContent = `<?php
+
+namespace App\\Services;
+
+class UserService
+{
+    private $db;
+
+    public function __construct(Database $db)
+    {
+        $this->db = $db;
+    }
+
+    public function getUser(int $id): User
+    {
+        return $this->db->find($id);
+    }
+
+    private static function validateId($id): bool
+    {
+        return is_numeric($id);
+    }
+}`;
+            createFile(tempRepo.root, "UserService.php", phpContent);
+
+            const ctx = createContext(tempRepo.root);
+            const result = await findBlocksTool.execute({ path: "UserService.php" }, ctx);
+
+            expect(result.ok).toBe(true);
+            expect(result.data).toBeDefined();
+            if (result.data) {
+                const namespaceBlock = result.data.blocks.find((b) => b.label.includes("namespace"));
+                expect(namespaceBlock).toBeDefined();
+
+                const classBlock = result.data.blocks.find((b) => b.label.includes("class UserService"));
+                expect(classBlock).toBeDefined();
+
+                const methodBlocks = result.data.blocks.filter((b) => b.label.includes("method"));
+                expect(methodBlocks.length).toBeGreaterThanOrEqual(2);
+            }
+        });
+
+        test("finds trait and interface", async () => {
+            tempRepo = createTempRepo();
+            const phpContent = `<?php
+
+trait Loggable
+{
+    public function log(string $message): void
+    {
+        echo $message;
+    }
+}
+
+interface UserRepositoryInterface
+{
+    public function find(int $id): ?User;
+}`;
+            createFile(tempRepo.root, "Contracts.php", phpContent);
+
+            const ctx = createContext(tempRepo.root);
+            const result = await findBlocksTool.execute({ path: "Contracts.php" }, ctx);
+
+            expect(result.ok).toBe(true);
+            expect(result.data).toBeDefined();
+            if (result.data) {
+                const traitBlock = result.data.blocks.find((b) => b.label.includes("trait Loggable"));
+                expect(traitBlock).toBeDefined();
+
+                const interfaceBlock = result.data.blocks.find((b) => b.label.includes("interface UserRepositoryInterface"));
+                expect(interfaceBlock).toBeDefined();
+            }
+        });
+    });
+
+    describe("Java Files", () => {
+        test("finds package, class, and method blocks", async () => {
+            tempRepo = createTempRepo();
+            const javaContent = `package com.myapp.services;
+
+import java.util.List;
+
+public class UserService {
+    private final UserRepository repo;
+
+    public UserService(UserRepository repo) {
+        this.repo = repo;
+    }
+
+    public User getUser(int id) {
+        return repo.findById(id);
+    }
+
+    private void validate(User user) {
+        if (user == null) throw new IllegalArgumentException();
+    }
+}`;
+            createFile(tempRepo.root, "UserService.java", javaContent);
+
+            const ctx = createContext(tempRepo.root);
+            const result = await findBlocksTool.execute({ path: "UserService.java" }, ctx);
+
+            expect(result.ok).toBe(true);
+            expect(result.data).toBeDefined();
+            if (result.data) {
+                const packageBlock = result.data.blocks.find((b) => b.label.includes("package"));
+                expect(packageBlock).toBeDefined();
+
+                const classBlock = result.data.blocks.find((b) => b.label.includes("class UserService"));
+                expect(classBlock).toBeDefined();
+
+                const methodBlocks = result.data.blocks.filter((b) => b.label.includes("method"));
+                expect(methodBlocks.length).toBeGreaterThanOrEqual(2);
+            }
+        });
+
+        test("finds interface and enum", async () => {
+            tempRepo = createTempRepo();
+            const javaContent = `package com.myapp;
+
+public interface UserRepository {
+    User findById(int id);
+    List<User> findAll();
+}
+
+public enum Status {
+    ACTIVE,
+    INACTIVE
+}`;
+            createFile(tempRepo.root, "Contracts.java", javaContent);
+
+            const ctx = createContext(tempRepo.root);
+            const result = await findBlocksTool.execute({ path: "Contracts.java" }, ctx);
+
+            expect(result.ok).toBe(true);
+            expect(result.data).toBeDefined();
+            if (result.data) {
+                const interfaceBlock = result.data.blocks.find((b) => b.label.includes("interface UserRepository"));
+                expect(interfaceBlock).toBeDefined();
+
+                const enumBlock = result.data.blocks.find((b) => b.label.includes("enum Status"));
+                expect(enumBlock).toBeDefined();
+            }
+        });
+    });
 });
 

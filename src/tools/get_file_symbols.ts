@@ -63,9 +63,16 @@ function detectLanguage(filePath: string): string | null {
         ".cs": "csharp",
         ".rb": "ruby",
         ".php": "php",
+        ".html": "html",
+        ".htm": "html",
+        ".css": "css",
+        ".scss": "scss",
+        ".less": "less",
     };
     return langMap[ext] || null;
 }
+
+const MARKUP_LANGUAGES = ["html", "css", "scss", "less"];
 
 function extractTypeScriptSymbols(content: string): FileSymbol[] {
     const symbols: FileSymbol[] = [];
@@ -410,6 +417,21 @@ export const getFileSymbolsTool: ToolDefinition<GetFileSymbolsInput, GetFileSymb
 
         const language = detectLanguage(args.path);
         let symbols: FileSymbol[] = [];
+
+        if (MARKUP_LANGUAGES.includes(language || "")) {
+            return {
+                ok: true,
+                data: {
+                    path: args.path,
+                    language,
+                    symbols: [],
+                    hint:
+                        `HTML/CSS files don't export symbols in the traditional sense. ` +
+                        `For structural navigation of ${language?.toUpperCase()} files, use find_blocks instead—` +
+                        `it provides a map of HTML sections, CSS selectors, @media queries, and embedded blocks.`,
+                },
+            };
+        }
 
         if (language === "typescript" || language === "javascript") {
             symbols = extractTypeScriptSymbols(content);

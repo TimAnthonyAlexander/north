@@ -362,7 +362,43 @@ function findHtmlBlocks(lines: string[]): BlockBoundary[] {
         }
     }
 
-    return blocks.sort((a, b) => a.startLine - b.startLine);
+    return deduplicateNestedBlocks(blocks.sort((a, b) => a.startLine - b.startLine));
+}
+
+function deduplicateNestedBlocks(blocks: BlockBoundary[]): BlockBoundary[] {
+    if (blocks.length === 0) return blocks;
+
+    const result: BlockBoundary[] = [];
+    const sorted = [...blocks].sort((a, b) => {
+        if (a.startLine !== b.startLine) return a.startLine - b.startLine;
+        return b.endLine - b.startLine - (a.endLine - a.startLine);
+    });
+
+    for (const block of sorted) {
+        const isContainedByExisting = result.some(
+            (existing) =>
+                existing.startLine <= block.startLine &&
+                existing.endLine >= block.endLine &&
+                !(existing.startLine === block.startLine && existing.endLine === block.endLine)
+        );
+
+        if (!isContainedByExisting) {
+            const containsExisting = result.findIndex(
+                (existing) =>
+                    block.startLine <= existing.startLine &&
+                    block.endLine >= existing.endLine &&
+                    !(block.startLine === existing.startLine && block.endLine === existing.endLine)
+            );
+
+            if (containsExisting >= 0) {
+                continue;
+            }
+
+            result.push(block);
+        }
+    }
+
+    return result.sort((a, b) => a.startLine - b.startLine);
 }
 
 function findBlockEnd(lines: string[], startIndex: number): number {
