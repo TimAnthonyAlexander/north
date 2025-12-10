@@ -20,67 +20,67 @@ interface WhitespaceDiagnosis {
 
 function detectWhitespaceMismatch(searchText: string, content: string): WhitespaceDiagnosis {
     const issues: string[] = [];
-    
+
     const searchHasTabs = searchText.includes("\t");
     const searchHasSpaceIndent = /^ {2,}/m.test(searchText);
     const contentHasTabs = content.includes("\t");
     const contentHasSpaceIndent = /^ {2,}/m.test(content);
-    
+
     if (searchHasTabs && !contentHasTabs && contentHasSpaceIndent) {
         issues.push("Your search uses tabs but file uses spaces for indentation");
     } else if (searchHasSpaceIndent && !contentHasSpaceIndent && contentHasTabs) {
         issues.push("Your search uses spaces but file uses tabs for indentation");
     }
-    
+
     const searchHasCRLF = searchText.includes("\r\n");
     const contentHasCRLF = content.includes("\r\n");
-    
+
     if (searchHasCRLF && !contentHasCRLF) {
         issues.push("Your search uses CRLF (\\r\\n) but file uses LF (\\n) line endings");
     } else if (!searchHasCRLF && contentHasCRLF) {
         issues.push("Your search uses LF (\\n) but file uses CRLF (\\r\\n) line endings");
     }
-    
+
     const searchHasTrailing = /[ \t]+$/m.test(searchText);
     const searchLines = searchText.split("\n");
     const firstSearchLine = searchLines[0];
-    
+
     if (searchHasTrailing) {
         const contentLines = content.split("\n");
         const hasMatchingLineWithoutTrailing = contentLines.some(
-            line => line.trimEnd() === firstSearchLine.trimEnd() && line !== firstSearchLine
+            (line) => line.trimEnd() === firstSearchLine.trimEnd() && line !== firstSearchLine
         );
         if (hasMatchingLineWithoutTrailing) {
             issues.push("Your search has trailing whitespace that doesn't exist in the file");
         }
     }
-    
+
     let hint: string | null = null;
     if (issues.length > 0) {
         hint = "Try using read_file with aroundMatch to copy the exact text, including whitespace.";
     }
-    
+
     return { issues, hint };
 }
 
 function levenshteinDistance(a: string, b: string): number {
     if (a.length === 0) return b.length;
     if (b.length === 0) return a.length;
-    
+
     if (a.length > 200 || b.length > 200) {
         return Math.abs(a.length - b.length) + (a === b ? 0 : 1);
     }
-    
+
     const matrix: number[][] = [];
-    
+
     for (let i = 0; i <= b.length; i++) {
         matrix[i] = [i];
     }
-    
+
     for (let j = 0; j <= a.length; j++) {
         matrix[0][j] = j;
     }
-    
+
     for (let i = 1; i <= b.length; i++) {
         for (let j = 1; j <= a.length; j++) {
             if (b.charAt(i - 1) === a.charAt(j - 1)) {
@@ -94,7 +94,7 @@ function levenshteinDistance(a: string, b: string): number {
             }
         }
     }
-    
+
     return matrix[b.length][a.length];
 }
 
@@ -113,24 +113,24 @@ function findNearMissCandidates(
     const contentLines = content.split("\n");
     const searchLines = searchText.split("\n");
     const candidates: NearMissCandidate[] = [];
-    
+
     if (searchLines.length === 0) return [];
-    
+
     const firstSearchLine = searchLines[0].trim();
     if (firstSearchLine.length < 3) return [];
-    
+
     for (let i = 0; i < contentLines.length; i++) {
         const contentLine = contentLines[i];
         const contentTrimmed = contentLine.trim();
-        
+
         if (contentTrimmed.length === 0) continue;
-        
+
         const distance = levenshteinDistance(firstSearchLine, contentTrimmed);
         const threshold = Math.max(5, Math.floor(firstSearchLine.length * 0.3));
-        
+
         if (distance > 0 && distance <= threshold) {
             let diffHint = "";
-            
+
             if (contentTrimmed.length !== firstSearchLine.length) {
                 diffHint = `length differs: ${firstSearchLine.length} vs ${contentTrimmed.length} chars`;
             } else {
@@ -148,12 +148,13 @@ function findNearMissCandidates(
                     diffHint = `${distance} character(s) different`;
                 }
             }
-            
-            const preview = contentLine.length > 60 ? contentLine.slice(0, 60) + "..." : contentLine;
+
+            const preview =
+                contentLine.length > 60 ? contentLine.slice(0, 60) + "..." : contentLine;
             candidates.push({ line: i + 1, preview, distance, diffHint });
         }
     }
-    
+
     candidates.sort((a, b) => a.distance - b.distance);
     return candidates.slice(0, maxResults);
 }
@@ -270,14 +271,14 @@ export const editReplaceExactTool: ToolDefinition<EditReplaceExactInput, EditPre
             const partialMatches = findPartialMatches(original, args.old);
 
             let errorMsg = `Text not found in file.`;
-            
+
             if (wsDiagnosis.issues.length > 0) {
                 errorMsg += `\n\nPossible whitespace issues:\n`;
                 for (const issue of wsDiagnosis.issues) {
                     errorMsg += `  - ${issue}\n`;
                 }
             }
-            
+
             if (nearMisses.length > 0) {
                 errorMsg += `\n\nNear matches found:\n`;
                 for (const candidate of nearMisses) {
@@ -295,7 +296,7 @@ export const editReplaceExactTool: ToolDefinition<EditReplaceExactInput, EditPre
                     errorMsg += `  - Line ${match.line}: "${match.preview}" (${match.similarity})\n`;
                 }
             }
-            
+
             errorMsg += `\n\nHint: Use read_file with aroundMatch to see exact content, or use anchor-based editing (edit_by_anchor).`;
 
             return { ok: false, error: errorMsg };

@@ -502,7 +502,8 @@ function findJsTsSymbolsInRange(
     const classPattern = /^(\s*)(export\s+)?(abstract\s+)?class\s+(\w+)/;
     const functionPattern =
         /^(\s*)(export\s+)?(async\s+)?function\s+(\w+)|^(\s*)(export\s+)?(const|let)\s+(\w+)\s*=\s*(async\s+)?(\([^)]*\)|[^=]+)\s*=>/;
-    const constFuncPattern = /^\s*(const|let|var)\s+(\w+)\s*=\s*(async\s+)?(function|\([^)]*\)\s*=>|\w+\s*=>)/;
+    const constFuncPattern =
+        /^\s*(const|let|var)\s+(\w+)\s*=\s*(async\s+)?(function|\([^)]*\)\s*=>|\w+\s*=>)/;
 
     for (let i = rangeStart; i < rangeEnd && i < lines.length; i++) {
         const line = lines[i];
