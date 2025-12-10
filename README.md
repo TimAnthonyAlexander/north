@@ -9,7 +9,7 @@ An AI pair programmer that lives in your terminal. Supports Claude (Anthropic) a
 
 ## Why North?
 
-<!-- Showcasing North's precise editing capabilities! Latest demo edit: 2024-12-22 -->
+<!-- Showcasing North's precise editing capabilities! Latest demo edit: 2025-01-24 -->
 **99.3% edit success rate.** North's deterministic edit tools with exact-match verification mean edits land correctly the first time. No fuzzy matching, no silent failures.
 
 **One-shots production-ready code.** Complex React components, full API endpoints, beautiful landing pages—North builds them in a single pass. The kind of output that takes other tools 10+ iterations.
