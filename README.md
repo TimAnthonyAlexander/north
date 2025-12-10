@@ -93,10 +93,32 @@ Use `/learn` anytime to re-learn the project after major changes.
 | `/learn` | `/learn` | Learn or relearn the project codebase. Overwrites existing profile. |
 | `/summarize [--keep-last N]` | `/summarize --keep-last 10` | Compress conversation history into structured summary, keeping last N messages verbatim (default: 10). |
 | `/new` | `/new` | Start fresh conversation (clears transcript and summary, preserves shell session). |
+| `/conversations` | `/conversations` | Open picker to switch between saved conversations. |
+| `/resume <id>` | `/resume abc123` | Switch to a specific conversation by ID. |
 | `/help` | `/help` | List all available commands with descriptions. |
 | `/quit` | `/quit` | Exit North cleanly. |
 
 Commands can be mixed with regular messages: `/model sonnet-4 Can you help me refactor this?`
+
+### Conversation Management
+
+Every conversation is automatically persisted, so you can pick up where you left off. North stores conversations at `~/.north/conversations/` using append-only event logs for crash safety.
+
+**CLI subcommands:**
+
+```bash
+north                    # Start a new conversation
+north resume             # Open picker to select from recent conversations
+north resume abc123      # Resume a specific conversation by ID
+north conversations      # List all saved conversations with metadata
+north list               # Alias for north conversations
+```
+
+**In-session commands:**
+
+Use `/conversations` to open a picker and switch conversations, or `/resume <id>` to jump directly to a specific conversation. Your current conversation is saved automatically—switching doesn't lose progress.
+
+Each conversation remembers its transcript, rolling summary, model selection, and the project it was started in.
 
 ## Install
 
@@ -238,6 +260,11 @@ All tools respect `.gitignore`. Output is automatically truncated to prevent con
 
 **Global config** (`~/.config/north/config.json`):
 - `selectedModel` — persisted model selection across sessions
+
+**Conversations** (`~/.north/conversations/`):
+- `<id>.jsonl` — append-only event log per conversation (crash-safe)
+- `<id>.snapshot.json` — optional snapshot for fast resume
+- `index.json` — conversation metadata for listing
 
 **Project profiles** (`~/.north/projects/<hash>/`):
 - `profile.md` — learned project context (architecture, conventions, workflows)
