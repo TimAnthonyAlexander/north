@@ -433,7 +433,7 @@ All tools follow the pattern:
 | `hotfiles` | Important files | Git history or fallback |
 | `find_code_block` | Find code blocks | Locate functions/classes containing text |
 | `expand_output` | Retrieve full output | Access cached digested tool outputs |
-| `edit_replace_exact` | Replace exact text | Requires approval, shows similar lines on failure |
+| `edit_replace_exact` | Replace exact text | Requires approval, enhanced failure diagnostics (whitespace, near-miss) |
 | `edit_insert_at_line` | Insert at line | 1-based, requires approval |
 | `edit_after_anchor` | Insert after anchor | Anchor-based insertion, handles multiple matches |
 | `edit_before_anchor` | Insert before anchor | Anchor-based insertion, handles multiple matches |
@@ -488,6 +488,38 @@ North provides anchor-based edit tools that address content by text patterns ins
 ```typescript
 // Instead of: edit_insert_at_line({ path, line: 42, content })
 // Use: edit_after_anchor({ path, anchor: "function setupApp() {", content })
+```
+
+#### Edit Failure Diagnostics
+
+`edit_replace_exact` provides enhanced failure diagnostics when text is not found:
+
+**Whitespace Detection:**
+- Tab vs space indentation mismatches
+- CRLF vs LF line ending differences
+- Trailing whitespace mismatches
+
+**Near-Miss Candidates:**
+- Uses Levenshtein distance to find lines similar to the search text
+- Reports character-level differences (e.g., "differs at position 12: 'a' vs 'e'")
+- Shows line numbers for near matches
+
+**Actionable Hints:**
+- Suggests `read_file` with `aroundMatch` for verification
+- Recommends anchor-based editing as alternative
+
+**Example error output:**
+```
+Text not found in file.
+
+Possible whitespace issues:
+  - Your search uses tabs but file uses spaces for indentation
+
+Near matches found:
+  - Line 42: "const myVariable = 1;"
+    (differs at position 12: 'a' vs 'e')
+
+Hint: Use read_file with aroundMatch to see exact content, or use anchor-based editing (edit_by_anchor).
 ```
 
 #### Find Code Block Tool
@@ -601,7 +633,26 @@ The provider system prompts now explicitly instruct the LLM to:
 - `css_rule`: selectors, `@media`, `@keyframes`
 - `js_ts_symbol`: functions, classes, interfaces, types, React components
 
-**Use case:** Get coordinates in one call, then use `read_around` for targeted reading.
+**Mixed HTML Support:**
+
+For HTML files with embedded `<style>` and `<script>` blocks, `find_blocks` automatically detects and parses both:
+- Returns the `<style>` block itself with line range
+- Parses CSS rules inside the style block (selectors, @media, @keyframes)
+- Returns the `<script>` block itself with line range
+- Parses JS/TS symbols inside the script block (functions, classes)
+
+**Example output for mixed HTML:**
+```
+blocks: [
+  { id: "html-0", label: "<header>", startLine: 5, endLine: 20 },
+  { id: "style-0", label: "<style> (lines 22-45)", startLine: 22, endLine: 45 },
+  { id: "style0-css-0", label: ".site-footer", startLine: 24, endLine: 28 },
+  { id: "script-0", label: "<script> (lines 50-80)", startLine: 50, endLine: 80 },
+  { id: "script0-js-0", label: "function initApp", startLine: 52, endLine: 65 }
+]
+```
+
+**Use case:** Get coordinates in one call, then use `read_around` for targeted reading. For mixed HTML files, use this to locate specific CSS rules or JS functions before editing.
 
 #### edit_by_anchor Tool
 
@@ -1033,7 +1084,10 @@ Both providers (`anthropic.ts` and `openai.ts`) use identical system prompts wit
 - `<tool_calling>` - Schema adherence, batch-level narration (not per-call), batching etiquette (1-2 info rounds before edits, no re-reading same ranges)
 - `<planning>` - Micro-planning for 2+ file tasks (2-5 bullet plan, then execute immediately)
 - `<search_and_reading>` - Question-first search methodology, formulation checklist (broad → narrow → minimal reads), bias toward self-discovery
-- `<making_code_changes>` - Read before edit, one edit per turn or atomic batch, no large pastes
+- `<making_code_changes>` - Default workflow (locate → confirm → atomic write → verify), read before edit, one edit per turn or atomic batch, no large pastes
+- `<verification>` - Mandatory verification after edits, fix duplication/malformed structure immediately
+- `<mixed_files>` - Strategy for HTML with embedded style/script: use find_blocks first, target by coordinates, pre-check selectors
+- `<tool_churn_limits>` - After 2 reads + 1 write without success, switch to structure-first and atomic edits
 - `<debugging>` - Edit only if confident, retry logic (re-read once on mismatch, max 3 lint loops)
 - `<calling_external_apis>` - Only when explicitly requested
 - `<long_running_commands>` - Never start dev servers or processes needing CTRL+C to stop
@@ -1052,6 +1106,10 @@ Both providers (`anthropic.ts` and `openai.ts`) use identical system prompts wit
 - For new files >200 lines: create skeleton first, then add content in subsequent edits
 - Avoid generating >300 lines in a single tool call
 - End longer responses with "Next I would: ..." to signal continuation
+- **Default workflow:** LOCATE → CONFIRM → ATOMIC WRITE → VERIFY
+- **Verification mandatory:** After every edit, read the edited region to confirm
+- **Mixed files:** For HTML with embedded CSS/JS, use find_blocks to get structural map first
+- **Tool churn limits:** After 2 reads + 1 write on same file, switch to structure-first atomic edits
 
 ### Mode System
 
@@ -1824,6 +1882,19 @@ bun test tests/openai*.ts   # run specific tests
   - Global config storage (user preferences)
 - `tests/tools-read.test.ts`: Read tool tests
 - `tests/tools-edit.test.ts`: Edit tool tests
+  - Prepare contract tests
+  - Trailing newline preservation
+  - Failure diagnostic tests (whitespace, near-miss, hints)
+- `tests/tools-find-blocks.test.ts`: Find blocks tool tests
+  - Mixed HTML parsing (embedded style/script)
+  - CSS rules inside style blocks
+  - JS symbols inside script blocks
+  - Kind filtering
+- `tests/tools-workflow.test.ts`: Integration-style workflow tests
+  - Mixed HTML navigation patterns
+  - Edit failure diagnostics workflow
+  - Structure-first editing patterns
+  - CSS selector pre-checking
 - `tests/tools-security.test.ts`: Path traversal and symlink security tests
 - `tests/tools-shell.test.ts`: Shell service tests
 - `tests/rules-cursor.test.ts`: Cursor rules loader tests

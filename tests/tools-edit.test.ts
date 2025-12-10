@@ -655,3 +655,146 @@ describe("Newline and Encoding Edge Cases", () => {
     });
 });
 
+describe("edit_replace_exact failure diagnostics", () => {
+    test("detects tab vs space indentation mismatch in error message", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "function test() {\n  const x = 1;\n}\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await editReplaceExactTool.execute({
+            path: "test.txt",
+            old: "function test() {\n\tconst x = 1;\n}",
+            new: "function test() {\n\tconst x = 2;\n}",
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("not found");
+        expect(result.error).toContain("whitespace");
+    });
+
+    test("detects CRLF vs LF mismatch in error message", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "line 1\nline 2\nline 3\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await editReplaceExactTool.execute({
+            path: "test.txt",
+            old: "line 1\r\nline 2",
+            new: "changed",
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("not found");
+        expect(result.error).toContain("CRLF");
+    });
+
+    test("shows near-miss candidates with character difference", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "const myVariable = 1;\nconst otherVar = 2;\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await editReplaceExactTool.execute({
+            path: "test.txt",
+            old: "const myVaraible = 1;",
+            new: "const myVariable = 2;",
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("not found");
+        expect(result.error).toContain("Near match");
+        expect(result.error).toContain("Line");
+    });
+
+    test("shows line number for partial matches", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "line 1\nfunction doSomething() {\n  return true;\n}\nline 5\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await editReplaceExactTool.execute({
+            path: "test.txt",
+            old: "function doSomething() {\n  return false;\n}",
+            new: "function doSomethingElse() {\n  return false;\n}",
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("not found");
+        expect(result.error).toMatch(/Line \d+/);
+    });
+
+    test("suggests aroundMatch for verification", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "const test = 'value';\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await editReplaceExactTool.execute({
+            path: "test.txt",
+            old: "const tset = 'value';",
+            new: "const test = 'newvalue';",
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("aroundMatch");
+    });
+
+    test("shows similar word matches when no near-miss found", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "function handleUserLogin(user, password) {\n  return authenticate(user, password);\n}\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await editReplaceExactTool.execute({
+            path: "test.txt",
+            old: "completely different text that does not exist at all anywhere",
+            new: "replacement",
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("not found");
+    });
+
+    test("handles multiline search with first line match detection", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "function test() {\n  console.log('hello');\n  return true;\n}\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await editReplaceExactTool.execute({
+            path: "test.txt",
+            old: "function test() {\n  console.log('wrong');\n  return true;\n}",
+            new: "function test() {\n  console.log('right');\n  return true;\n}",
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("not found");
+    });
+
+    test("detects trailing whitespace differences", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "const x = 1;\nconst y = 2;\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await editReplaceExactTool.execute({
+            path: "test.txt",
+            old: "const x = 1;   ",
+            new: "const x = 2;",
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("not found");
+    });
+
+    test("error message is actionable with hints", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "const value = 'test';\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await editReplaceExactTool.execute({
+            path: "test.txt",
+            old: "const valeu = 'test';",
+            new: "const value = 'changed';",
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("Hint");
+        expect(result.error).toMatch(/read_file|aroundMatch|anchor/);
+    });
+});
+

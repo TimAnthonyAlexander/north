@@ -360,13 +360,253 @@ function findPythonBlockEnd(lines: string[], startIndex: number, baseIndent: num
     return lines.length;
 }
 
+interface EmbeddedBlock {
+    type: "style" | "script";
+    startLine: number;
+    endLine: number;
+    contentStartLine: number;
+    contentEndLine: number;
+}
+
+function findEmbeddedBlocks(lines: string[]): EmbeddedBlock[] {
+    const blocks: EmbeddedBlock[] = [];
+    let i = 0;
+
+    while (i < lines.length) {
+        const line = lines[i];
+
+        const styleOpenMatch = line.match(/<style([^>]*)>/i);
+        if (styleOpenMatch) {
+            const startLine = i + 1;
+            let contentStartLine = startLine;
+
+            if (!line.match(/<style[^>]*>.*<\/style>/i)) {
+                if (line.trim().endsWith(">") || line.includes("><")) {
+                    contentStartLine = i + 2;
+                }
+
+                for (let j = i + 1; j < lines.length; j++) {
+                    if (lines[j].match(/<\/style>/i)) {
+                        blocks.push({
+                            type: "style",
+                            startLine,
+                            endLine: j + 1,
+                            contentStartLine,
+                            contentEndLine: j + 1,
+                        });
+                        i = j;
+                        break;
+                    }
+                }
+            }
+        }
+
+        const scriptOpenMatch = line.match(/<script([^>]*)>/i);
+        if (scriptOpenMatch) {
+            const startLine = i + 1;
+            let contentStartLine = startLine;
+
+            if (!line.match(/<script[^>]*>.*<\/script>/i)) {
+                if (line.trim().endsWith(">") || line.includes("><")) {
+                    contentStartLine = i + 2;
+                }
+
+                for (let j = i + 1; j < lines.length; j++) {
+                    if (lines[j].match(/<\/script>/i)) {
+                        blocks.push({
+                            type: "script",
+                            startLine,
+                            endLine: j + 1,
+                            contentStartLine,
+                            contentEndLine: j + 1,
+                        });
+                        i = j;
+                        break;
+                    }
+                }
+            }
+        }
+
+        i++;
+    }
+
+    return blocks;
+}
+
+function findCssRulesInRange(
+    lines: string[],
+    rangeStart: number,
+    rangeEnd: number,
+    idPrefix: string
+): BlockEntry[] {
+    const blocks: BlockEntry[] = [];
+    let blockId = 0;
+    let currentSelector: { label: string; startLine: number } | null = null;
+    let braceDepth = 0;
+
+    for (let i = rangeStart; i < rangeEnd && i < lines.length; i++) {
+        const line = lines[i];
+
+        const atRuleMatch = line.match(/^\s*(@media|@keyframes|@supports|@font-face)\s*/);
+        if (atRuleMatch && braceDepth === 0) {
+            const atRule = atRuleMatch[1];
+            const restOfLine = line.slice(line.indexOf(atRule) + atRule.length).trim();
+            let label = atRule;
+
+            if (atRule === "@media") {
+                const mediaQuery = restOfLine.replace(/\s*\{.*$/, "").trim();
+                label = `@media ${mediaQuery.slice(0, 40)}${mediaQuery.length > 40 ? "..." : ""}`;
+            } else if (atRule === "@keyframes") {
+                const animName = restOfLine.match(/^([\w-]+)/)?.[1] || "unknown";
+                label = `@keyframes ${animName}`;
+            }
+
+            currentSelector = { label, startLine: i + 1 };
+        }
+
+        if (!atRuleMatch && braceDepth === 0 && line.includes("{")) {
+            const selector = line.replace(/\s*\{.*$/, "").trim();
+            if (selector && !selector.startsWith("//") && !selector.startsWith("/*")) {
+                const displayLabel =
+                    selector.length > 50 ? selector.slice(0, 50) + "..." : selector;
+                currentSelector = { label: displayLabel, startLine: i + 1 };
+            }
+        }
+
+        braceDepth += (line.match(/{/g) || []).length;
+        braceDepth -= (line.match(/}/g) || []).length;
+
+        if (braceDepth === 0 && currentSelector) {
+            blocks.push({
+                id: `${idPrefix}-${blockId++}`,
+                label: currentSelector.label,
+                startLine: currentSelector.startLine,
+                endLine: i + 1,
+            });
+            currentSelector = null;
+        }
+    }
+
+    return blocks;
+}
+
+function findJsTsSymbolsInRange(
+    lines: string[],
+    rangeStart: number,
+    rangeEnd: number,
+    idPrefix: string
+): BlockEntry[] {
+    const blocks: BlockEntry[] = [];
+    let blockId = 0;
+
+    const classPattern = /^(\s*)(export\s+)?(abstract\s+)?class\s+(\w+)/;
+    const functionPattern =
+        /^(\s*)(export\s+)?(async\s+)?function\s+(\w+)|^(\s*)(export\s+)?(const|let)\s+(\w+)\s*=\s*(async\s+)?(\([^)]*\)|[^=]+)\s*=>/;
+    const constFuncPattern = /^\s*(const|let|var)\s+(\w+)\s*=\s*(async\s+)?(function|\([^)]*\)\s*=>|\w+\s*=>)/;
+
+    for (let i = rangeStart; i < rangeEnd && i < lines.length; i++) {
+        const line = lines[i];
+
+        const classMatch = line.match(classPattern);
+        if (classMatch) {
+            const endLine = Math.min(findBraceBlockEnd(lines, i), rangeEnd);
+            blocks.push({
+                id: `${idPrefix}-${blockId++}`,
+                label: `class ${classMatch[4]}`,
+                startLine: i + 1,
+                endLine,
+            });
+            continue;
+        }
+
+        const funcMatch = line.match(functionPattern);
+        if (funcMatch) {
+            const name = funcMatch[4] || funcMatch[8];
+            if (name) {
+                const endLine = Math.min(findBraceBlockEnd(lines, i), rangeEnd);
+                blocks.push({
+                    id: `${idPrefix}-${blockId++}`,
+                    label: `function ${name}`,
+                    startLine: i + 1,
+                    endLine,
+                });
+            }
+            continue;
+        }
+
+        const constFuncMatch = line.match(constFuncPattern);
+        if (constFuncMatch) {
+            const name = constFuncMatch[2];
+            const endLine = Math.min(findBraceBlockEnd(lines, i), rangeEnd);
+            blocks.push({
+                id: `${idPrefix}-${blockId++}`,
+                label: `function ${name}`,
+                startLine: i + 1,
+                endLine,
+            });
+        }
+    }
+
+    return blocks.sort((a, b) => a.startLine - b.startLine);
+}
+
+function findMixedHtmlBlocks(lines: string[]): BlockEntry[] {
+    const blocks: BlockEntry[] = [];
+    let styleBlockId = 0;
+    let scriptBlockId = 0;
+
+    const htmlSections = findHtmlSections(lines);
+    blocks.push(...htmlSections);
+
+    const embeddedBlocks = findEmbeddedBlocks(lines);
+
+    for (const embedded of embeddedBlocks) {
+        if (embedded.type === "style") {
+            blocks.push({
+                id: `style-${styleBlockId}`,
+                label: `<style> (lines ${embedded.startLine}-${embedded.endLine})`,
+                startLine: embedded.startLine,
+                endLine: embedded.endLine,
+            });
+
+            const cssRules = findCssRulesInRange(
+                lines,
+                embedded.contentStartLine - 1,
+                embedded.contentEndLine - 1,
+                `style${styleBlockId}-css`
+            );
+            blocks.push(...cssRules);
+            styleBlockId++;
+        } else if (embedded.type === "script") {
+            blocks.push({
+                id: `script-${scriptBlockId}`,
+                label: `<script> (lines ${embedded.startLine}-${embedded.endLine})`,
+                startLine: embedded.startLine,
+                endLine: embedded.endLine,
+            });
+
+            const jsSymbols = findJsTsSymbolsInRange(
+                lines,
+                embedded.contentStartLine - 1,
+                embedded.contentEndLine - 1,
+                `script${scriptBlockId}-js`
+            );
+            blocks.push(...jsSymbols);
+            scriptBlockId++;
+        }
+    }
+
+    return blocks.sort((a, b) => a.startLine - b.startLine);
+}
+
 export const findBlocksTool: ToolDefinition<FindBlocksInput, FindBlocksOutput> = {
     name: "find_blocks",
     description:
         "Get a structural map of a file with line ranges but no content. " +
-        "Returns block coordinates for navigation. Filter by kind: " +
-        "html_section (sections, articles, IDs), css_rule (selectors, @media), " +
-        "js_ts_symbol (functions, classes, interfaces, components), or all.",
+        "Returns block coordinates for navigation. For HTML files, automatically detects " +
+        "embedded <style> and <script> blocks with their CSS rules and JS symbols. " +
+        "Filter by kind: html_section (sections, articles, IDs), css_rule (selectors, @media), " +
+        "js_ts_symbol (functions, classes, interfaces, components), or all (default, includes embedded blocks for HTML).",
     inputSchema: {
         type: "object",
         properties: {
@@ -419,7 +659,7 @@ export const findBlocksTool: ToolDefinition<FindBlocksInput, FindBlocksOutput> =
 
         if (requestedKind === "all") {
             if (langKind === "html") {
-                blocks = findHtmlSections(lines);
+                blocks = findMixedHtmlBlocks(lines);
             } else if (langKind === "css") {
                 blocks = findCssRules(lines);
             } else if (langKind === "js_ts") {

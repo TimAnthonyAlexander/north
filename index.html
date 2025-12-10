@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Terminal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            font-family: 'Courier New', monospace;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #00ff88;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 800px;
+            padding: 3rem;
+            background: rgba(10, 14, 39, 0.7);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            position: relative;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #00ff88, #00ddff, #ff0088, #00ff88);
+            background-size: 400% 400%;
+            animation: borderGlow 8s ease infinite;
+            z-index: -1;
+            opacity: 0.5;
+        }
+
+        @keyframes borderGlow {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .terminal-header {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1px solid currentColor;
+        }
+
+        .dot:nth-child(1) { color: #ff5f56; }
+        .dot:nth-child(2) { color: #ffbd2e; }
+        .dot:nth-child(3) { color: #27c93f; }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(90deg, #00ff88, #00ddff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: textShimmer 3s ease-in-out infinite;
+        }
+
+        @keyframes textShimmer {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .prompt {
+            display: flex;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+            align-items: center;
+        }
+
+        .prompt::before {
+            content: '>';
+            color: #00ddff;
+            font-weight: bold;
+            animation: blink 1.5s step-end infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        .command {
+            color: #ffbd2e;
+            font-size: 1.1rem;
+        }
+
+        .output {
+            line-height: 1.8;
+            margin: 1rem 0;
+            padding-left: 1rem;
+            border-left: 2px solid rgba(0, 221, 255, 0.3);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .card {
+            padding: 1.5rem;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            border-color: #00ff88;
+            transform: translateY(-4px);
+            background: rgba(0, 255, 136, 0.05);
+        }
+
+        .card h3 {
+            color: #00ddff;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+
+        .card p {
+            color: rgba(0, 255, 136, 0.7);
+            font-size: 0.85rem;
+        }
+
+        .footer {
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(0, 255, 136, 0.2);
+            text-align: center;
+            color: rgba(0, 255, 136, 0.5);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="terminal-header">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+
+        <h1>Cosmic Terminal</h1>
+
+        <div class="prompt">
+            <span class="command">./initialize --creative-mode</span>
+        </div>
+
+        <div class="output">
+            <p>System initialized successfully...</p>
+            <p>Loading hyperspace modules...</p>
+            <p>Connection established: 200 OK</p>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Explore</h3>
+                <p>Navigate through the digital cosmos</p>
+            </div>
+            <div class="card">
+                <h3>Create</h3>
+                <p>Build something extraordinary</p>
+            </div>
+            <div class="card">
+                <h3>Deploy</h3>
+                <p>Launch into production orbit</p>
+            </div>
+            <div class="card">
+                <h3>Monitor</h3>
+                <p>Track system vitals in real-time</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            terminal.v2.4.1 | uptime: ∞ | latency: 12ms
+        </div>
+    </div>
+</body>
+</html>
