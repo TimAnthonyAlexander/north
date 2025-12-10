@@ -201,9 +201,13 @@ Span-based tokenizer for reliable command extraction:
 | `/new` | `/new` | Reset chat (clears transcript + summary, keeps PTY) |
 | `/help` | `/help` | List available commands |
 | `/model` | `/model [alias]` | Switch model (with picker if no arg) |
+| `/mode` | `/mode [ask\|agent]` | Switch conversation mode (with picker if no arg) |
 | `/summarize` | `/summarize [--keep-last N]` | Summarize conversation, trim transcript |
 | `/thinking` | `/thinking [on\|off]` | Toggle extended thinking on/off |
 | `/costs` | `/costs` | Show cost breakdown dialog by model/provider |
+| `/learn` | `/learn` | Learn or relearn project codebase |
+| `/conversations` | `/conversations` | Picker to switch conversations |
+| `/resume` | `/resume <id>` | Switch to conversation by ID |
 
 ### logging/index.ts
 

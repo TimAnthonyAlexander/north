@@ -93,6 +93,8 @@ Use `/learn` anytime to re-learn the project after major changes.
 |---------|-------|-------------|
 | `/model [name]` | `/model opus-4.5` or `/model` | Switch model (shows picker if no argument). Supports all Anthropic and OpenAI models. Selection persists across sessions. |
 | `/mode [ask\|agent]` | `/mode ask` or `/mode` | Switch conversation mode (shows picker if no argument). Also toggleable via `Tab` key. |
+| `/thinking [on\|off]` | `/thinking on` or `/thinking` | Toggle extended thinking on/off for Claude models that support it. |
+| `/costs` | `/costs` | Show cost breakdown dialog by model and provider (session + all-time). |
 | `/learn` | `/learn` | Learn or relearn the project codebase. Overwrites existing profile. |
 | `/summarize [--keep-last N]` | `/summarize --keep-last 10` | Compress conversation history into structured summary, keeping last N messages verbatim (default: 10). |
 | `/new` | `/new` | Start fresh conversation (clears transcript and summary, preserves shell session). |
@@ -230,6 +232,10 @@ bun run build:binary:linux        # Linux x64
 | `read_readme` | Auto-detect and read README files |
 | `detect_languages` | Analyze language composition by extension and size |
 | `hotfiles` | Find frequently modified files via git history |
+| `expand_output` | Retrieve full output from cached digested tool results |
+| `find_code_block` | Find code blocks (functions, classes) containing specific text |
+| `read_around` | Read context window around an anchor string |
+| `find_blocks` | Get structural map (coordinates) without content for HTML/CSS/JS files |
 
 ### Large File Navigation Strategy
 
@@ -239,6 +245,8 @@ North includes specialized tools for efficiently navigating large files without 
 2. **Understand structure** using `get_file_symbols` (functions, classes) or `get_file_outline` (hierarchical view)
 3. **Find targets** with `search_text` scoped to specific files and line ranges
 4. **Read strategically** using `read_file` with targeted line ranges and optional context modes
+5. **Jump to place** with `find_code_block` to locate functions/classes containing text
+6. **Get context** with `read_around` for focused windows around anchor strings
 
 This approach reduces token usage by 60-80% when working with large files.
 
@@ -248,14 +256,40 @@ This approach reduces token usage by 60-80% when working with large files.
 |------|---------|
 | `edit_replace_exact` | Replace exact text matches (deterministic, no fuzzy matching) |
 | `edit_insert_at_line` | Insert content at specific line number |
-| `edit_create_file` | Create new files or overwrite existing ones |
 | `edit_apply_batch` | Apply multiple edits atomically (all-or-nothing) |
+| `edit_after_anchor` | Insert content after a line containing anchor text |
+| `edit_before_anchor` | Insert content before a line containing anchor text |
+| `edit_replace_block` | Replace content between two anchor markers |
+| `edit_by_anchor` | Unified anchor-based editing (insert before/after, replace line/block) |
 
 ### Shell Tool (requires approval)
 
 | Tool | Purpose |
 |------|---------|
 | `shell_run` | Execute shell commands with 60s timeout. Build an allowlist to skip approval prompts for trusted commands |
+
+### File Creation (NORTH_FILE Protocol)
+
+New files are created using a streaming-to-disk protocol rather than tool calls. The model outputs file contents directly in its response:
+
+```
+<NORTH_FILE path="src/components/Button.tsx">
+export const Button = ({ label }) => (
+  <button>{label}</button>
+);
+</NORTH_FILE>
+```
+
+**Why streaming?** Provider timeouts (~90 seconds) can interrupt large file generation. Tool calls buffer in memory and lose all content on timeout. Direct-to-disk streaming preserves partial content and supports auto-continuation.
+
+**How it works:**
+1. Model outputs `<NORTH_FILE path="...">` tag in response
+2. Content is written directly to disk as it streams (no memory buffering)
+3. On `</NORTH_FILE>` close, a diff review is triggered
+4. Accept: file already written, nothing more to do
+5. Reject: file is deleted from disk
+
+**Auto-continuation:** If the provider times out mid-file, North detects the incomplete block, sends a continuation prompt with context (last 30 lines), and the model resumes with `<NORTH_FILE mode="append">`. This repeats until complete or max retries (3) exceeded.
 
 All tools respect `.gitignore`. Output is automatically truncated to prevent context overflow.
 
