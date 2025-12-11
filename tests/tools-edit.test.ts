@@ -721,7 +721,7 @@ describe("edit_replace_exact failure diagnostics", () => {
         expect(result.error).toMatch(/Line \d+/);
     });
 
-    test("suggests aroundMatch for verification", async () => {
+    test("suggests read_around for verification", async () => {
         tempRepo = createTempRepo();
         createFile(tempRepo.root, "test.txt", "const test = 'value';\n");
 
@@ -733,7 +733,7 @@ describe("edit_replace_exact failure diagnostics", () => {
         }, ctx);
 
         expect(result.ok).toBe(false);
-        expect(result.error).toContain("aroundMatch");
+        expect(result.error).toContain("read_around");
     });
 
     test("shows similar word matches when no near-miss found", async () => {
@@ -794,7 +794,7 @@ describe("edit_replace_exact failure diagnostics", () => {
 
         expect(result.ok).toBe(false);
         expect(result.error).toContain("Hint");
-        expect(result.error).toMatch(/read_file|aroundMatch|anchor/);
+        expect(result.error).toMatch(/read_around|anchor/);
     });
 });
 

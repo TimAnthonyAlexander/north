@@ -220,7 +220,7 @@ describe("Tool Workflow Integration", () => {
 
             expect(result.ok).toBe(false);
             expect(result.error).toBeDefined();
-            expect(result.error).toMatch(/hint|read_file|aroundMatch|anchor/i);
+            expect(result.error).toMatch(/hint|read_around|anchor/i);
         });
     });
 

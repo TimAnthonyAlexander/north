@@ -57,7 +57,7 @@ function detectWhitespaceMismatch(searchText: string, content: string): Whitespa
 
     let hint: string | null = null;
     if (issues.length > 0) {
-        hint = "Try using read_file with aroundMatch to copy the exact text, including whitespace.";
+        hint = "Try using read_around to copy the exact text, including whitespace.";
     }
 
     return { issues, hint };
@@ -297,7 +297,7 @@ export const editReplaceExactTool: ToolDefinition<EditReplaceExactInput, EditPre
                 }
             }
 
-            errorMsg += `\n\nHint: Use read_file with aroundMatch to see exact content, or use anchor-based editing (edit_by_anchor).`;
+            errorMsg += `\n\nHint: Use read_around to see exact content, or use anchor-based editing (edit_by_anchor).`;
 
             return { ok: false, error: errorMsg };
         }

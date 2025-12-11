@@ -78,9 +78,6 @@ export interface SearchTextOutput {
 export interface ReadFileInput {
     path: string;
     range?: { start: number; end: number };
-    includeContext?: "imports" | "full";
-    aroundMatch?: string;
-    windowLines?: number;
     includeHeadTail?: boolean;
 }
 
@@ -91,7 +88,6 @@ export interface ReadFileOutput {
     endLine: number;
     truncated: boolean;
     totalLines?: number;
-    matchLine?: number;
 }
 
 export interface ReadReadmeOutput {

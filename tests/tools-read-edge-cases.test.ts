@@ -5,7 +5,6 @@ import type { ToolContext } from "../src/tools/types";
 import {
     createTempRepo,
     createFile,
-    createTypescriptFixture,
     type TempRepo,
 } from "./helpers/fixtures";
 
@@ -28,114 +27,6 @@ function createContext(repoRoot: string): ToolContext {
         },
     };
 }
-
-describe("read_file includeContext edge cases", () => {
-    test("includeContext full expands to surrounding function", async () => {
-        tempRepo = createTempRepo();
-
-        const content = `import { something } from "./module";
-
-function outerFunction() {
-    const a = 1;
-    const b = 2;
-    const target = 3;
-    const c = 4;
-    return a + b + target + c;
-}
-
-function anotherFunction() {
-    return 42;
-}`;
-
-        createFile(tempRepo.root, "test.ts", content);
-
-        const ctx = createContext(tempRepo.root);
-        const result = await readFileTool.execute({
-            path: "test.ts",
-            range: { start: 6, end: 6 },
-            includeContext: "full",
-        }, ctx);
-
-        expect(result.ok).toBe(true);
-        expect(result.data).toBeDefined();
-        if (result.data) {
-            expect(result.data.content).toContain("function outerFunction");
-            expect(result.data.content).toContain("const target = 3");
-            expect(result.data.content).toContain("return a + b + target + c");
-
-            expect(result.data.startLine).toBeLessThan(6);
-            expect(result.data.endLine).toBeGreaterThan(6);
-        }
-    });
-
-    test("includeContext full expands to surrounding class", async () => {
-        tempRepo = createTempRepo();
-
-        const content = `class MyClass {
-    private value: number;
-
-    constructor(val: number) {
-        this.value = val;
-    }
-
-    getValue(): number {
-        return this.value;
-    }
-}
-
-const instance = new MyClass(42);`;
-
-        createFile(tempRepo.root, "test.ts", content);
-
-        const ctx = createContext(tempRepo.root);
-        const result = await readFileTool.execute({
-            path: "test.ts",
-            range: { start: 5, end: 5 },
-            includeContext: "full",
-        }, ctx);
-
-        expect(result.ok).toBe(true);
-        expect(result.data).toBeDefined();
-        if (result.data) {
-            expect(result.data.content).toContain("class MyClass");
-            expect(result.data.content).toContain("this.value = val");
-            expect(result.data.content).toContain("getValue");
-
-            expect(result.data.startLine).toBe(1);
-        }
-    });
-
-    test("includeContext full handles nested functions", async () => {
-        tempRepo = createTempRepo();
-
-        const content = `function outer() {
-    function inner() {
-        const target = "here";
-        return target;
-    }
-    return inner();
-}`;
-
-        createFile(tempRepo.root, "test.ts", content);
-
-        const ctx = createContext(tempRepo.root);
-        const result = await readFileTool.execute({
-            path: "test.ts",
-            range: { start: 3, end: 3 },
-            includeContext: "full",
-        }, ctx);
-
-        expect(result.ok).toBe(true);
-        expect(result.data).toBeDefined();
-        if (result.data) {
-            expect(result.data.content).toContain("function inner");
-            expect(result.data.content).toContain("const target");
-
-            expect(result.data.startLine).toBeLessThan(3);
-            expect(result.data.endLine).toBeGreaterThan(3);
-        }
-    });
-});
 
 describe("read_file size caps", () => {
     test("truncates at 100KB by bytes", async () => {

@@ -500,31 +500,6 @@ describe("read_file", () => {
         }
     });
 
-    test("includeContext imports includes import statements", async () => {
-        tempRepo = createTempRepo();
-        createFile(
-            tempRepo.root,
-            "test.ts",
-            'import { foo } from "./foo";\nimport bar from "./bar";\n\nconst x = 1;\nconst y = 2;\n'
-        );
-
-        const ctx = createContext(tempRepo.root);
-        const result = await readFileTool.execute({
-            path: "test.ts",
-            range: { start: 4, end: 5 },
-            includeContext: "imports",
-        }, ctx);
-
-        expect(result.ok).toBe(true);
-        expect(result.data).toBeDefined();
-        if (result.data) {
-            expect(result.data.content).toContain("import { foo }");
-            expect(result.data.content).toContain("import bar");
-            expect(result.data.content).toContain("const x = 1");
-            expect(result.data.startLine).toBe(1);
-        }
-    });
-
     test("truncates at 500 lines", async () => {
         tempRepo = createTempRepo();
         let content = "";
@@ -567,6 +542,172 @@ describe("read_file", () => {
 
         expect(result.ok).toBe(false);
         expect(result.error).toContain("directory");
+    });
+
+    test("errors when range end is zero", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "line 1\nline 2\nline 3\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await readFileTool.execute({
+            path: "test.txt",
+            range: { start: 1, end: 0 },
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("end line must be positive");
+    });
+
+    test("errors when range end is negative", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "line 1\nline 2\nline 3\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await readFileTool.execute({
+            path: "test.txt",
+            range: { start: 1, end: -5 },
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("end line must be positive");
+    });
+
+    test("errors when range start is greater than end", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "line 1\nline 2\nline 3\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await readFileTool.execute({
+            path: "test.txt",
+            range: { start: 10, end: 5 },
+        }, ctx);
+
+        expect(result.ok).toBe(false);
+        expect(result.error).toContain("start");
+        expect(result.error).toContain("cannot be greater than end");
+    });
+
+    test("reads medium-sized file (106 lines) correctly", async () => {
+        tempRepo = createTempRepo();
+        let content = "";
+        for (let i = 1; i <= 106; i++) {
+            content += `line ${i}\n`;
+        }
+        createFile(tempRepo.root, "medium.txt", content);
+
+        const ctx = createContext(tempRepo.root);
+        const result = await readFileTool.execute({ path: "medium.txt" }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            expect(result.data.content).toContain("line 1");
+            expect(result.data.content).toContain("line 106");
+            expect(result.data.totalLines).toBe(107);
+            expect(result.data.truncated).toBe(false);
+        }
+    });
+
+    test("handles file at 500 line boundary", async () => {
+        tempRepo = createTempRepo();
+        let content = "";
+        for (let i = 1; i <= 499; i++) {
+            content += `line ${i}\n`;
+        }
+        content += "line 500";
+        createFile(tempRepo.root, "boundary.txt", content);
+
+        const ctx = createContext(tempRepo.root);
+        const result = await readFileTool.execute({ path: "boundary.txt" }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            expect(result.data.truncated).toBe(false);
+            expect(result.data.totalLines).toBe(500);
+            expect(result.data.content).toContain("line 500");
+        }
+    });
+
+    test("handles empty file", async () => {
+        tempRepo = createTempRepo();
+        createEmptyFile(tempRepo.root, "empty.txt");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await readFileTool.execute({ path: "empty.txt" }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            expect(result.data.content).toBe("");
+            expect(result.data.truncated).toBe(false);
+        }
+    });
+
+    test("reads full file when range matches file bounds", async () => {
+        tempRepo = createTempRepo();
+        createFile(tempRepo.root, "test.txt", "line 1\nline 2\nline 3\n");
+
+        const ctx = createContext(tempRepo.root);
+        const result = await readFileTool.execute({
+            path: "test.txt",
+            range: { start: 1, end: 4 },
+        }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            expect(result.data.content).toBe("line 1\nline 2\nline 3\n");
+            expect(result.data.startLine).toBe(1);
+            expect(result.data.endLine).toBe(4);
+        }
+    });
+
+    test("includeHeadTail works on small files (under 500 lines)", async () => {
+        tempRepo = createTempRepo();
+        let content = "";
+        for (let i = 1; i <= 50; i++) {
+            content += `line ${i}\n`;
+        }
+        createFile(tempRepo.root, "small.txt", content);
+
+        const ctx = createContext(tempRepo.root);
+        const result = await readFileTool.execute({
+            path: "small.txt",
+            includeHeadTail: true,
+        }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            expect(result.data.content).toContain("line 1");
+            expect(result.data.content).toContain("line 50");
+        }
+    });
+
+    test("includeHeadTail with range includes head/tail context", async () => {
+        tempRepo = createTempRepo();
+        let content = "";
+        for (let i = 1; i <= 100; i++) {
+            content += `line ${i}\n`;
+        }
+        createFile(tempRepo.root, "test.txt", content);
+
+        const ctx = createContext(tempRepo.root);
+        const result = await readFileTool.execute({
+            path: "test.txt",
+            range: { start: 50, end: 60 },
+            includeHeadTail: true,
+        }, ctx);
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeDefined();
+        if (result.data) {
+            expect(result.data.content).toContain("line 1");
+            expect(result.data.content).toContain("line 50");
+            expect(result.data.content).toContain("line 60");
+            expect(result.data.content).toContain("line 100");
+        }
     });
 });
 

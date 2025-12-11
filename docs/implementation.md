@@ -67,7 +67,7 @@ src/
 │   ├── list_root.ts      # List repo root entries
 │   ├── find_files.ts     # Glob pattern file search
 │   ├── search_text.ts    # Text/regex search (ripgrep or fallback, supports file+range)
-│   ├── read_file.ts      # File content reader with ranges and smart context
+│   ├── read_file.ts      # File content reader with ranges and head/tail inclusion
 │   ├── get_line_count.ts # Quick file size checker
 │   ├── get_file_symbols.ts # Symbol extraction (functions, classes, types)
 │   ├── get_file_outline.ts # Hierarchical file structure outline
@@ -424,7 +424,7 @@ All tools follow the pattern:
 | `list_root` | List repo root entries | Respects .gitignore |
 | `find_files` | Glob pattern search | Case-insensitive, limit |
 | `search_text` | Text/regex search | Uses ripgrep if available, supports file+line range scope, optional contextLines (1-5) |
-| `read_file` | Read file content | Line ranges, smart context, aroundMatch windowing, head/tail inclusion |
+| `read_file` | Read file content | Line ranges, head/tail inclusion; use read_around for text search |
 | `get_line_count` | Check file size | Quick stats before reading large files |
 | `get_file_symbols` | Extract symbols | Functions, classes, types, interfaces (TS/JS/Py/Rust/Go/Java); redirects to find_blocks for HTML/CSS |
 | `get_file_outline` | File structure outline | Hierarchical view with line numbers (TS/JS/Py/HTML/CSS) |
@@ -505,7 +505,7 @@ North provides anchor-based edit tools that address content by text patterns ins
 - Shows line numbers for near matches
 
 **Actionable Hints:**
-- Suggests `read_file` with `aroundMatch` for verification
+- Suggests `read_around` for verification
 - Recommends anchor-based editing as alternative
 
 **Example error output:**
@@ -519,7 +519,7 @@ Near matches found:
   - Line 42: "const myVariable = 1;"
     (differs at position 12: 'a' vs 'e')
 
-Hint: Use read_file with aroundMatch to see exact content, or use anchor-based editing (edit_by_anchor).
+Hint: Use read_around to see exact content, or use anchor-based editing (edit_by_anchor).
 ```
 
 #### Find Code Block Tool
@@ -586,13 +586,10 @@ For HTML files, `get_file_outline` now parses embedded `<style>` and `<script>` 
 - Use case: "Find all uses of X within lines 100-200 of file.ts"
 - Context use case: `search_text({ query: "target", contextLines: 2 })` reduces follow-up read_around calls
 
-**Smart Context (`read_file`):**
-- `includeContext: "imports"`: automatically includes file imports when reading a range
-- `includeContext: "full"`: expands to include full surrounding function/class
-- `aroundMatch`: find text and return a window of lines around it
-- `windowLines`: number of lines before/after match (default: 20)
+**Read File (`read_file`):**
+- `range`: read specific line range (1-indexed)
 - `includeHeadTail`: always include first 10 and last 10 lines for orientation
-- Use case: "Read around 'function handleSubmit' with head/tail for context"
+- Use `read_around` tool instead for text-based searching with context
 
 **System Prompt Guidance:**
 The provider system prompts now explicitly instruct the LLM to:
@@ -1768,7 +1765,7 @@ The ignore checker:
 ### Output Truncation
 
 All tools enforce limits to prevent context overflow:
-- `read_file`: 500 lines or 100KB max, optional context modes (imports/full)
+- `read_file`: 500 lines or 100KB max, optional head/tail inclusion
 - `search_text`: 50 matches default, 200 max, supports file-specific and line range searches
 - `find_files`: 50 files default, 500 max
 - `get_line_count`: No limits, quick stat check
