@@ -92,6 +92,8 @@ export const CommandReview = memo(function CommandReview({
 
     const selectedOption = selectedId ? options.find((o) => o.id === selectedId) : null;
 
+    const boxWidth = commandName === "model" ? 80 : 120;
+
     return (
         <Box
             flexDirection="column"
@@ -99,6 +101,7 @@ export const CommandReview = memo(function CommandReview({
             borderStyle="round"
             borderColor={getBorderColor(status)}
             paddingX={1}
+            width={boxWidth}
         >
             <Box marginBottom={1}>
                 <Text bold color="blue">
@@ -112,7 +115,7 @@ export const CommandReview = memo(function CommandReview({
                 <>
                     <Box flexDirection="column" marginBottom={1}>
                         {options.map((option, i) => (
-                            <Box key={option.id} width="100%" flexDirection="row">
+                            <Box key={option.id} flexDirection="row">
                                 <Text
                                     color={i === highlightedIndex ? "cyan" : "white"}
                                     bold={i === highlightedIndex}
