@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { basename } from "path";
+import { getModelDisplay } from "../commands/models";
 
 interface StatusLineProps {
     model: string;
@@ -53,6 +54,7 @@ export function StatusLine({
     messageCount = 0,
 }: StatusLineProps) {
     const projectName = basename(projectPath);
+    const modelDisplay = getModelDisplay(model);
     const usagePercent = Math.round(contextUsage * 100);
     const contextColor = getContextColor(contextUsage);
     const tokenDisplay = formatTokenCount(contextUsedTokens);
@@ -79,7 +81,7 @@ export function StatusLine({
                         <Text color="#999999">•</Text>
                     </>
                 )}
-                <Text color="magenta">{model}</Text>
+                <Text color="magenta">{modelDisplay}</Text>
                 <Text color="#999999">•</Text>
                 <Text color="#9c27b0">{messageCount} msgs</Text>
 
