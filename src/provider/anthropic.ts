@@ -61,7 +61,11 @@ export function createProvider(options?: { model?: string }): Provider {
             let stopReason: string | null = null;
             let usage: TokenUsage | undefined;
 
-            const modelToUse = options?.model || defaultModel;
+            let modelToUse = options?.model || defaultModel;
+            // Strip -thinking suffix for the actual API call - the thinking config is passed separately
+            if (modelToUse.endsWith("-thinking")) {
+                modelToUse = modelToUse.slice(0, -9);
+            }
             const systemPrompt = options?.systemOverride || ANTHROPIC_SYSTEM_PROMPT;
 
             try {

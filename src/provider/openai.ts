@@ -396,7 +396,11 @@ export function createOpenAIProvider(options?: { model?: string }): Provider {
             callbacks: StreamCallbacks,
             options?: StreamOptions
         ): Promise<void> {
-            const modelToUse = options?.model || defaultModel;
+            let modelToUse = options?.model || defaultModel;
+            // Strip -thinking suffix if present (OpenAI doesn't use it, but be defensive)
+            if (modelToUse.endsWith("-thinking")) {
+                modelToUse = modelToUse.slice(0, -9);
+            }
             const systemPrompt = options?.systemOverride || OPENAI_SYSTEM_PROMPT;
 
             const apiKey = process.env.OPENAI_API_KEY;

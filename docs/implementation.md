@@ -160,16 +160,24 @@ Centralized model list shared by `/model` command and Composer autocomplete:
 - `getModelContextLimit(modelId)`: returns context limit in tokens
 - `getModelProvider(modelId)`: returns provider type for model
 - `getModelThinkingConfig(modelId)`: returns thinking config if model supports extended thinking
+- `isThinkingModel(modelId)`: returns true if model ID ends with `-thinking` suffix
 - `DEFAULT_MODEL`: default pinned model ID (Claude Sonnet 4)
 
-**Extended Thinking Budgets:**
-- All Claude 4+ models support extended thinking
-- Opus models: 16K token budget
-- Sonnet models: 8-10K token budget
-- Haiku models: 5K token budget
+**Extended Thinking Model Selection:**
+- Thinking is now selected at model-choice time, not toggled separately
+- Each Anthropic model exists twice: once without thinking, once with `-thinking` suffix
+- Example: `claude-sonnet-4-20250514` (fast) vs `claude-sonnet-4-20250514-thinking` (with extended thinking)
+- When you select a model with `-thinking` suffix, extended thinking is enabled automatically
+- OpenAI models don't have thinking variants (reasoning built into those models)
 
-**Supported Models:**
-- Anthropic: sonnet-4, opus-4, opus-4-1, sonnet-4-5, haiku-4-5, opus-4-5
+**Supported Model Variants:**
+- Anthropic: 
+  - sonnet-4, sonnet-4-thinking
+  - opus-4, opus-4-thinking
+  - opus-4-1, opus-4-1-thinking
+  - sonnet-4-5, sonnet-4-5-thinking
+  - haiku-4-5, haiku-4-5-thinking
+  - opus-4-5, opus-4-5-thinking
 - OpenAI: gpt-5.1, gpt-5.1-codex, gpt-5.1-codex-mini, gpt-5.1-codex-max, gpt-5, gpt-5-mini, gpt-5-nano
 
 #### commands/registry.ts
@@ -203,7 +211,6 @@ Span-based tokenizer for reliable command extraction:
 | `/model` | `/model [alias]` | Switch model (with picker if no arg) |
 | `/mode` | `/mode [ask\|agent]` | Switch conversation mode (with picker if no arg) |
 | `/summarize` | `/summarize [--keep-last N]` | Summarize conversation, trim transcript |
-| `/thinking` | `/thinking [on\|off]` | Toggle extended thinking on/off |
 | `/costs` | `/costs` | Show cost breakdown dialog by model/provider |
 | `/learn` | `/learn` | Learn or relearn project codebase |
 | `/conversations` | `/conversations` | Picker to switch conversations |
@@ -364,6 +371,10 @@ Span-based tokenizer for reliable command extraction:
 
 - Wraps `@anthropic-ai/sdk`
 - Default model: `claude-sonnet-4-20250514`
+- Handles `-thinking` suffix in model IDs:
+  - Model IDs may end with `-thinking` suffix (e.g., `claude-sonnet-4-20250514-thinking`)
+  - Provider automatically strips suffix before API call
+  - Passes thinking config separately via `thinking` option
 - Streaming via `client.messages.stream()` (Messages API)
 - Supports tool definitions and tool_use blocks
 - Per-request options: `model`, `tools`, `systemOverride`, `signal` (AbortSignal), `thinking` (ThinkingConfig)
@@ -385,6 +396,7 @@ Span-based tokenizer for reliable command extraction:
 - Uses native fetch with SSE streaming (no SDK dependency)
 - Endpoint: `https://api.openai.com/v1/responses` (Responses API)
 - Default model: `gpt-5.1`
+- Note: OpenAI models do not have `-thinking` variants; reasoning is intrinsic to their models
 - Streaming via SSE events: `response.output_text.delta`, `response.function_call_arguments.delta`
 - Tool format converted to OpenAI function format: `{ type: "function", function: { name, description, parameters } }`
 - Tool results sent as `function_call_output` items with matching `call_id`
@@ -734,9 +746,9 @@ blocks: [
 
 - Full-width status bar using `width="100%"` and `justifyContent="space-between"`
 - Left side: project name with truncation for long names (`wrap="truncate"`)
-- Right side: scroll indicator, thinking indicator, current model name, context usage, and cost display
+- Right side: scroll indicator, current model name, context usage, and cost display
 - Scroll indicator: yellow [SCROLL] badge when scrollOffset > 0 (not at bottom)
-- Thinking indicator: 💭 emoji when extended thinking is enabled
+- Model display: shows the selected model (including `-thinking` suffix if thinking is enabled)
 - Context display: color-coded circle (green < 60%, yellow 60-85%, red > 85%) + token count + percentage
 - Token count formatted as K/M for readability (e.g., "42.5K (21%)")
 - Cost display: session cost (green) / all-time cost (blue) in USD
@@ -1076,7 +1088,14 @@ Model selection via `/model`:
 - `getModelProvider(modelId)` determines which provider to use
 - `createProviderForModel()` creates appropriate provider instance
 - Switching between providers (e.g., Claude → GPT) recreates provider
-- `currentModel` stored in orchestrator state
+- Extended thinking is now selected at model time, not via separate toggle:
+  - Select a model with `-thinking` suffix to enable extended thinking
+  - Example: `claude-sonnet-4-5-thinking` enables thinking for Sonnet 4.5
+  - OpenAI models do not have thinking variants (reasoning is intrinsic to those models)
+- Anthropic provider automatically strips `-thinking` suffix before API call and passes thinking config
+- `isThinkingModel(modelId)` checks if thinking is enabled for current model
+- `currentModel` stored in orchestrator state (includes `-thinking` suffix if enabled)
+- `thinkingEnabled` computed from whether `currentModel` ends with `-thinking`
 - Context limit updates automatically on model change
 - **Selection persisted globally** to `~/.config/north/config.json`
 - On startup, loads saved model or defaults to Claude Sonnet 4

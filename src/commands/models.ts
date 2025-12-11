@@ -17,6 +17,14 @@ export const MODELS: readonly ModelInfo[] = [
         display: "Claude Sonnet 4",
         contextLimitTokens: 200_000,
         provider: "anthropic",
+        supportsThinking: false,
+    },
+    {
+        alias: "sonnet-4-thinking",
+        pinned: "claude-sonnet-4-20250514-thinking",
+        display: "Claude Sonnet 4 (Thinking)",
+        contextLimitTokens: 200_000,
+        provider: "anthropic",
         supportsThinking: true,
         thinkingBudget: 8_000,
     },
@@ -24,6 +32,14 @@ export const MODELS: readonly ModelInfo[] = [
         alias: "opus-4",
         pinned: "claude-opus-4-20250514",
         display: "Claude Opus 4",
+        contextLimitTokens: 200_000,
+        provider: "anthropic",
+        supportsThinking: false,
+    },
+    {
+        alias: "opus-4-thinking",
+        pinned: "claude-opus-4-20250514-thinking",
+        display: "Claude Opus 4 (Thinking)",
         contextLimitTokens: 200_000,
         provider: "anthropic",
         supportsThinking: true,
@@ -35,6 +51,14 @@ export const MODELS: readonly ModelInfo[] = [
         display: "Claude Opus 4.1",
         contextLimitTokens: 200_000,
         provider: "anthropic",
+        supportsThinking: false,
+    },
+    {
+        alias: "opus-4-1-thinking",
+        pinned: "claude-opus-4-1-20250805-thinking",
+        display: "Claude Opus 4.1 (Thinking)",
+        contextLimitTokens: 200_000,
+        provider: "anthropic",
         supportsThinking: true,
         thinkingBudget: 16_000,
     },
@@ -42,6 +66,14 @@ export const MODELS: readonly ModelInfo[] = [
         alias: "sonnet-4-5",
         pinned: "claude-sonnet-4-5-20250929",
         display: "Claude Sonnet 4.5",
+        contextLimitTokens: 200_000,
+        provider: "anthropic",
+        supportsThinking: false,
+    },
+    {
+        alias: "sonnet-4-5-thinking",
+        pinned: "claude-sonnet-4-5-20250929-thinking",
+        display: "Claude Sonnet 4.5 (Thinking)",
         contextLimitTokens: 200_000,
         provider: "anthropic",
         supportsThinking: true,
@@ -53,6 +85,14 @@ export const MODELS: readonly ModelInfo[] = [
         display: "Claude Haiku 4.5",
         contextLimitTokens: 200_000,
         provider: "anthropic",
+        supportsThinking: false,
+    },
+    {
+        alias: "haiku-4-5-thinking",
+        pinned: "claude-haiku-4-5-20251001-thinking",
+        display: "Claude Haiku 4.5 (Thinking)",
+        contextLimitTokens: 200_000,
+        provider: "anthropic",
         supportsThinking: true,
         thinkingBudget: 5_000,
     },
@@ -60,6 +100,14 @@ export const MODELS: readonly ModelInfo[] = [
         alias: "opus-4-5",
         pinned: "claude-opus-4-5-20251101",
         display: "Claude Opus 4.5",
+        contextLimitTokens: 200_000,
+        provider: "anthropic",
+        supportsThinking: false,
+    },
+    {
+        alias: "opus-4-5-thinking",
+        pinned: "claude-opus-4-5-20251101-thinking",
+        display: "Claude Opus 4.5 (Thinking)",
         contextLimitTokens: 200_000,
         provider: "anthropic",
         supportsThinking: true,
@@ -145,6 +193,18 @@ export function resolveModelId(input: string): string | null {
     return null;
 }
 
+export function getBaseModelId(modelId: string): string {
+    // Remove -thinking suffix to get the base model ID
+    if (modelId.endsWith("-thinking")) {
+        return modelId.slice(0, -9);
+    }
+    return modelId;
+}
+
+export function isThinkingModel(modelId: string): boolean {
+    return modelId.endsWith("-thinking");
+}
+
 export function getModelProvider(modelId: string): ProviderType {
     for (const model of MODELS) {
         if (model.pinned === modelId) {
@@ -194,12 +254,6 @@ export function getModelThinkingConfig(
                 budget_tokens: model.thinkingBudget,
             };
         }
-    }
-    if (modelId.startsWith("claude-") && modelId.includes("-4")) {
-        return {
-            type: "enabled",
-            budget_tokens: 8_000,
-        };
     }
     return undefined;
 }

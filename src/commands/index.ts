@@ -23,6 +23,7 @@ export {
     resolveModelId,
     getModelDisplay,
     getModelAliases,
+    isThinkingModel,
     type ModelInfo,
 } from "./models";
 
@@ -36,7 +37,6 @@ import { modeCommand } from "./commands/mode";
 import { learnCommand } from "./commands/learn";
 import { conversationsCommand } from "./commands/conversations";
 import { resumeCommand } from "./commands/resume";
-import { thinkingCommand } from "./commands/thinking";
 import { costsCommand } from "./commands/costs";
 
 export function createCommandRegistryWithAllCommands(): CommandRegistry {
@@ -50,7 +50,6 @@ export function createCommandRegistryWithAllCommands(): CommandRegistry {
     registry.register(learnCommand);
     registry.register(conversationsCommand);
     registry.register(resumeCommand);
-    registry.register(thinkingCommand);
     registry.register(costsCommand);
     return registry;
 }

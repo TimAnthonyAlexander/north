@@ -314,7 +314,6 @@ export function App({
                     contextUsage={contextUsage}
                     contextUsedTokens={contextUsedTokens}
                     isScrolled={isScrolled}
-                    thinkingEnabled={thinkingEnabled}
                     sessionCostUsd={sessionCostUsd}
                     allTimeCostUsd={allTimeCostUsd}
                 />

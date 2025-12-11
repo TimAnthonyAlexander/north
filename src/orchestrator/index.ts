@@ -47,7 +47,7 @@ import {
     type CommandReviewStatus,
     type Mode,
 } from "../commands/index";
-import { DEFAULT_MODEL, getModelContextLimit, getModelThinkingConfig } from "../commands/models";
+import { DEFAULT_MODEL, getModelContextLimit, getModelThinkingConfig, isThinkingModel } from "../commands/models";
 import { getSavedModel } from "../storage/config";
 import { estimatePromptTokens } from "../utils/tokens";
 import { isRetryableError, calculateBackoff, sleep, DEFAULT_RETRY_CONFIG } from "../utils/retry";
@@ -316,10 +316,14 @@ export function createOrchestratorWithTools(
     let contextUsedTokens = 0;
     let contextLimitTokens = getModelContextLimit(currentModel);
     let contextUsage = 0;
-    let thinkingEnabled = true;
     let sessionCostUsd = 0;
     let allTimeCostUsd = getAllTimeCost();
     const sessionCostsByModel: Record<string, ModelCost> = {};
+
+    // thinkingEnabled is derived from whether the current model ends with -thinking
+    function getThinkingEnabled(): boolean {
+        return isThinkingModel(currentModel);
+    }
 
     let streamBuffer = "";
     let streamTimer: ReturnType<typeof setTimeout> | null = null;
@@ -347,7 +351,7 @@ export function createOrchestratorWithTools(
             learningInProgress,
             learningPercent,
             learningTopic,
-            thinkingEnabled,
+            thinkingEnabled: getThinkingEnabled(),
             sessionCostUsd,
             allTimeCostUsd,
             sessionCostsByModel: { ...sessionCostsByModel },
@@ -1397,13 +1401,6 @@ Respond with ONLY the JSON, no other text.`;
                 emitState();
                 return { ok: true };
             },
-            setThinking(enabled: boolean) {
-                thinkingEnabled = enabled;
-                emitState();
-            },
-            isThinkingEnabled() {
-                return thinkingEnabled;
-            },
             showCostsDialog() {
                 callbacks.onShowCostsDialog?.();
             },
@@ -1684,7 +1681,7 @@ Respond with ONLY the JSON, no other text.`;
                             tools: toolSchemas as ToolSchema[],
                             model: currentModel,
                             signal,
-                            thinking: thinkingEnabled
+                            thinking: getThinkingEnabled()
                                 ? getModelThinkingConfig(currentModel)
                                 : undefined,
                         }

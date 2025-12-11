@@ -8,7 +8,6 @@ interface StatusLineProps {
     contextUsage: number;
     contextUsedTokens: number;
     isScrolled?: boolean;
-    thinkingEnabled?: boolean;
     sessionCostUsd?: number;
     allTimeCostUsd?: number;
     messageCount?: number;
@@ -49,7 +48,6 @@ export function StatusLine({
     contextUsage,
     contextUsedTokens,
     isScrolled,
-    thinkingEnabled,
     sessionCostUsd = 0,
     allTimeCostUsd = 0,
     messageCount = 0,
@@ -78,12 +76,6 @@ export function StatusLine({
                         <Text color="yellow" bold>
                             [SCROLL]
                         </Text>
-                        <Text color="#999999">•</Text>
-                    </>
-                )}
-                {thinkingEnabled && (
-                    <>
-                        <Text color="cyan">💭</Text>
                         <Text color="#999999">•</Text>
                     </>
                 )}
