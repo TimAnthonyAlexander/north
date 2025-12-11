@@ -24,6 +24,7 @@ export {
     getModelDisplay,
     getModelAliases,
     isThinkingModel,
+    getBaseModelId,
     type ModelInfo,
 } from "./models";
 

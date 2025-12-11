@@ -5,8 +5,9 @@ import type {
     CommandResult,
     PickerOption,
 } from "../types";
-import { MODELS, resolveModelId, getModelDisplay } from "../models";
+import { MODELS, resolveModelId, getModelDisplay, getBaseModelId } from "../models";
 import { saveSelectedModel } from "../../storage/config";
+import { getModelPricing } from "../../utils/pricing";
 
 export const modelCommand: CommandDefinition = {
     name: "model",
@@ -34,11 +35,19 @@ export const modelCommand: CommandDefinition = {
             };
         }
 
-        const options: PickerOption[] = MODELS.map((m) => ({
-            id: m.pinned,
-            label: m.display,
-            hint: m.alias,
-        }));
+        const options: PickerOption[] = MODELS.map((m) => {
+            const baseModelId = getBaseModelId(m.pinned);
+            const pricing = getModelPricing(baseModelId);
+            const pricingHint = pricing
+                ? `$${pricing.inputPerMillion}/$${pricing.outputPerMillion} per 1M`
+                : "";
+            const hint = pricingHint ? `${m.alias} • ${pricingHint}` : m.alias;
+            return {
+                id: m.pinned,
+                label: m.display,
+                hint,
+            };
+        });
 
         const selected = await ctx.showPicker("model", "Select model", options);
 
