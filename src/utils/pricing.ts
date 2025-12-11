@@ -1,4 +1,4 @@
-export type ProviderType = "anthropic" | "openai";
+export type ProviderType = "anthropic" | "openai" | "openrouter";
 
 export interface ModelPricing {
     inputPerMillion: number;
@@ -85,6 +85,13 @@ const OPENAI_PRICING: Record<string, ModelPricing> = {
     },
 };
 
+const OPENROUTER_PRICING: Record<string, ModelPricing> = {
+    "openai/gpt-5.1": { ...OPENAI_PRICING["gpt-5.1"] },
+    "anthropic/claude-sonnet-4-5-20250929": {
+        ...ANTHROPIC_PRICING["claude-sonnet-4-5-20250929"],
+    },
+};
+
 export interface TokenUsage {
     inputTokens: number;
     outputTokens: number;
@@ -99,6 +106,28 @@ export function getModelPricing(modelId: string): ModelPricing | null {
     }
     if (OPENAI_PRICING[modelId]) {
         return OPENAI_PRICING[modelId];
+    }
+    if (OPENROUTER_PRICING[modelId]) {
+        return OPENROUTER_PRICING[modelId];
+    }
+    if (modelId.includes("/")) {
+        const [vendor, baseModel] = modelId.split("/", 2);
+        if (vendor === "openai") {
+            if (OPENAI_PRICING[baseModel]) {
+                return OPENAI_PRICING[baseModel];
+            }
+            if (baseModel.startsWith("gpt-")) {
+                return OPENAI_PRICING["gpt-5.1"];
+            }
+        }
+        if (vendor === "anthropic") {
+            if (ANTHROPIC_PRICING[baseModel]) {
+                return ANTHROPIC_PRICING[baseModel];
+            }
+            if (baseModel.startsWith("claude-")) {
+                return ANTHROPIC_PRICING["claude-sonnet-4-20250514"];
+            }
+        }
     }
     if (modelId.startsWith("claude-")) {
         return ANTHROPIC_PRICING["claude-sonnet-4-20250514"];

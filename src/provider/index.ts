@@ -1,5 +1,6 @@
 import { createProvider as createAnthropicProvider } from "./anthropic";
 import { createOpenAIProvider } from "./openai";
+import { createOpenRouterProvider } from "./openrouter";
 import { getModelProvider, type ProviderType } from "../commands/models";
 import type { Provider } from "./types";
 
@@ -27,6 +28,8 @@ export function createProviderByType(providerType: ProviderType, modelId?: strin
     switch (providerType) {
         case "openai":
             return createOpenAIProvider({ model: modelId });
+        case "openrouter":
+            return createOpenRouterProvider({ model: modelId });
         case "anthropic":
         default:
             return createAnthropicProvider({ model: modelId });

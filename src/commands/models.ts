@@ -1,4 +1,4 @@
-export type ProviderType = "anthropic" | "openai";
+export type ProviderType = "anthropic" | "openai" | "openrouter";
 
 export interface ModelInfo {
     alias: string;
@@ -162,6 +162,20 @@ export const MODELS: readonly ModelInfo[] = [
         contextLimitTokens: 1_000_000,
         provider: "openai",
     },
+    {
+        alias: "or-gpt-5.1",
+        pinned: "openai/gpt-5.1",
+        display: "OpenRouter (GPT-5.1)",
+        contextLimitTokens: 1_000_000,
+        provider: "openrouter",
+    },
+    {
+        alias: "or-claude-sonnet-4-5",
+        pinned: "anthropic/claude-sonnet-4-5-20250929",
+        display: "OpenRouter (Claude Sonnet 4.5)",
+        contextLimitTokens: 200_000,
+        provider: "openrouter",
+    },
 ] as const;
 
 export const DEFAULT_MODEL = MODELS[0].pinned;
@@ -190,6 +204,10 @@ export function resolveModelId(input: string): string | null {
         return input;
     }
 
+    if (normalized.includes("/")) {
+        return input;
+    }
+
     return null;
 }
 
@@ -210,6 +228,9 @@ export function getModelProvider(modelId: string): ProviderType {
         if (model.pinned === modelId) {
             return model.provider;
         }
+    }
+    if (modelId.includes("/")) {
+        return "openrouter";
     }
     if (modelId.startsWith("gpt-")) {
         return "openai";
@@ -241,7 +262,14 @@ export function getModelContextLimit(modelId: string): number {
 
 export function getAssistantName(modelId: string): string {
     const provider = getModelProvider(modelId);
-    return provider === "openai" ? "GPT" : "Claude";
+    if (provider === "openai") {
+        return "GPT";
+    }
+    if (provider === "openrouter") {
+        const baseModel = modelId.includes("/") ? modelId.split("/")[1] : modelId;
+        return baseModel.startsWith("gpt-") ? "GPT" : "Claude";
+    }
+    return "Claude";
 }
 
 export function getModelThinkingConfig(
