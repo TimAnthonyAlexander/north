@@ -24,6 +24,26 @@ function getBorderColor(status: CommandReviewStatus): string {
     }
 }
 
+function renderHint(hint: string) {
+    // Parse hint for [PRICE]...[/PRICE] markers
+    const parts = hint.split(/(\[PRICE\].*?\[\/PRICE\])/);
+    return parts.map((part, i) => {
+        if (part.startsWith("[PRICE]") && part.endsWith("[/PRICE]")) {
+            const price = part.slice(7, -8); // Remove [PRICE] and [/PRICE]
+            return (
+                <Text key={i} color="#ff9800">
+                    {price}
+                </Text>
+            );
+        }
+        return (
+            <Text key={i} color="#999999">
+                {part}
+            </Text>
+        );
+    });
+}
+
 export const CommandReview = memo(function CommandReview({
     commandName,
     prompt,
@@ -97,10 +117,11 @@ export const CommandReview = memo(function CommandReview({
                                     {option.label}
                                 </Text>
                                 {option.hint && (
-                                    <Text color="gray" dimColor>
-                                        {" "}
-                                        ({option.hint})
-                                    </Text>
+                                    <Box>
+                                        <Text color="#999999"> (</Text>
+                                        {renderHint(option.hint)}
+                                        <Text color="#999999">)</Text>
+                                    </Box>
                                 )}
                             </Box>
                         ))}
