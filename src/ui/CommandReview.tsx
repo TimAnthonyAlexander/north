@@ -42,9 +42,9 @@ function renderHint(hint: string, isHighlighted: boolean) {
 
     // No price tag, just return regular hint
     return (
-        <Text color={isHighlighted ? "cyan" : "#999999"} marginLeft={1}>
-            {hint}
-        </Text>
+        <Box marginLeft={1}>
+            <Text color={isHighlighted ? "cyan" : "#999999"}>{hint}</Text>
+        </Box>
     );
 }
 

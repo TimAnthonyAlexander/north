@@ -35,16 +35,18 @@ function formatCost(cost: number): string {
 interface GroupedCosts {
     anthropic: { modelId: string; cost: ModelCost }[];
     openai: { modelId: string; cost: ModelCost }[];
+    openrouter: { modelId: string; cost: ModelCost }[];
 }
 
 function groupByProvider(costs: Record<string, ModelCost>): GroupedCosts {
-    const result: GroupedCosts = { anthropic: [], openai: [] };
+    const result: GroupedCosts = { anthropic: [], openai: [], openrouter: [] };
     for (const [modelId, cost] of Object.entries(costs)) {
         const provider = getModelProvider(modelId);
         result[provider].push({ modelId, cost });
     }
     result.anthropic.sort((a, b) => b.cost.costUsd - a.cost.costUsd);
     result.openai.sort((a, b) => b.cost.costUsd - a.cost.costUsd);
+    result.openrouter.sort((a, b) => b.cost.costUsd - a.cost.costUsd);
     return result;
 }
 
@@ -102,7 +104,10 @@ function CostSection({
     totalCost: number;
 }) {
     const grouped = groupByProvider(costs);
-    const hasAnyCosts = grouped.anthropic.length > 0 || grouped.openai.length > 0;
+    const hasAnyCosts =
+        grouped.anthropic.length > 0 ||
+        grouped.openai.length > 0 ||
+        grouped.openrouter.length > 0;
 
     return (
         <Box flexDirection="column" width="100%" marginBottom={1}>
@@ -115,6 +120,8 @@ function CostSection({
                     <ProviderSection name="Anthropic" models={grouped.anthropic} />
                     {grouped.anthropic.length > 0 && grouped.openai.length > 0 && <Text> </Text>}
                     <ProviderSection name="OpenAI" models={grouped.openai} />
+                    {grouped.openai.length > 0 && grouped.openrouter.length > 0 && <Text> </Text>}
+                    <ProviderSection name="OpenRouter" models={grouped.openrouter} />
                     <Text> </Text>
                     <Box justifyContent="space-between" width="100%">
                         <Text bold>TOTAL</Text>
