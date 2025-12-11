@@ -24,24 +24,28 @@ function getBorderColor(status: CommandReviewStatus): string {
     }
 }
 
-function renderHint(hint: string) {
+function renderHint(hint: string, isHighlighted: boolean) {
     // Parse hint for [PRICE]...[/PRICE] markers
-    const parts = hint.split(/(\[PRICE\].*?\[\/PRICE\])/);
-    return parts.map((part, i) => {
-        if (part.startsWith("[PRICE]") && part.endsWith("[/PRICE]")) {
-            const price = part.slice(7, -8); // Remove [PRICE] and [/PRICE]
-            return (
-                <Text key={i} color="#ff9800">
-                    {price}
-                </Text>
-            );
-        }
+    const priceMatch = hint.match(/\[PRICE\](.*?)\[\/PRICE\]/);
+    
+    if (priceMatch) {
+        const price = priceMatch[1];
+        const left = hint.replace(/\s*\[PRICE\].*?\[\/PRICE\]/, "").trim();
+        
         return (
-            <Text key={i} color="#999999">
-                {part}
-            </Text>
+            <Box flexGrow={1} flexDirection="row" justifyContent="space-between" marginLeft={1}>
+                <Text color={isHighlighted ? "cyan" : "#999999"}>{left}</Text>
+                <Text color="#ff9800">{price}</Text>
+            </Box>
         );
-    });
+    }
+    
+    // No price tag, just return regular hint
+    return (
+        <Text color={isHighlighted ? "cyan" : "#999999"} marginLeft={1}>
+            {hint}
+        </Text>
+    );
 }
 
 export const CommandReview = memo(function CommandReview({
@@ -108,7 +112,7 @@ export const CommandReview = memo(function CommandReview({
                 <>
                     <Box flexDirection="column" marginBottom={1}>
                         {options.map((option, i) => (
-                            <Box key={option.id}>
+                            <Box key={option.id} width="100%" flexDirection="row">
                                 <Text
                                     color={i === highlightedIndex ? "cyan" : "white"}
                                     bold={i === highlightedIndex}
@@ -116,13 +120,7 @@ export const CommandReview = memo(function CommandReview({
                                     {i === highlightedIndex ? "› " : "  "}
                                     {option.label}
                                 </Text>
-                                {option.hint && (
-                                    <Box>
-                                        <Text color="#999999"> (</Text>
-                                        {renderHint(option.hint)}
-                                        <Text color="#999999">)</Text>
-                                    </Box>
-                                )}
+                                {option.hint && renderHint(option.hint, i === highlightedIndex)}
                             </Box>
                         ))}
                     </Box>

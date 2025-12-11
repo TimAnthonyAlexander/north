@@ -41,7 +41,7 @@ export const modelCommand: CommandDefinition = {
             const pricingHint = pricing
                 ? `[PRICE]$${pricing.inputPerMillion}/$${pricing.outputPerMillion} per 1M[/PRICE]`
                 : "";
-            const hint = pricingHint ? `${m.alias} • ${pricingHint}` : m.alias;
+            const hint = pricingHint ? `${m.alias} ${pricingHint}` : m.alias;
             return {
                 id: m.pinned,
                 label: m.display,
