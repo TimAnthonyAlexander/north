@@ -12,7 +12,6 @@ interface StatusLineProps {
     sessionCostUsd?: number;
     allTimeCostUsd?: number;
     messageCount?: number;
-
 }
 
 function getContextColor(usage: number): string {
@@ -54,7 +53,6 @@ export function StatusLine({
     sessionCostUsd = 0,
     allTimeCostUsd = 0,
     messageCount = 0,
-
 }: StatusLineProps) {
     const projectName = basename(projectPath);
     const usagePercent = Math.round(contextUsage * 100);
