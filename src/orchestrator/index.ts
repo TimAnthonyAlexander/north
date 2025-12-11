@@ -47,7 +47,12 @@ import {
     type CommandReviewStatus,
     type Mode,
 } from "../commands/index";
-import { DEFAULT_MODEL, getModelContextLimit, getModelThinkingConfig, isThinkingModel } from "../commands/models";
+import {
+    DEFAULT_MODEL,
+    getModelContextLimit,
+    getModelThinkingConfig,
+    isThinkingModel,
+} from "../commands/models";
 import { getSavedModel } from "../storage/config";
 import { estimatePromptTokens } from "../utils/tokens";
 import { isRetryableError, calculateBackoff, sleep, DEFAULT_RETRY_CONFIG } from "../utils/retry";
