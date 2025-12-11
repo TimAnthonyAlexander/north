@@ -1,3 +1,9 @@
+import {
+    loadOpenRouterModelCache,
+    saveOpenRouterModelCache,
+    type OpenRouterModelCacheEntry,
+} from "../storage/openrouterModels";
+
 export type ProviderType = "anthropic" | "openai" | "openrouter";
 
 export interface ModelInfo {
@@ -10,7 +16,7 @@ export interface ModelInfo {
     thinkingBudget?: number;
 }
 
-export const MODELS: readonly ModelInfo[] = [
+const BASE_MODELS: readonly ModelInfo[] = [
     {
         alias: "sonnet-4",
         pinned: "claude-sonnet-4-20250514",
@@ -162,28 +168,158 @@ export const MODELS: readonly ModelInfo[] = [
         contextLimitTokens: 1_000_000,
         provider: "openai",
     },
-    {
-        alias: "or-gpt-5.1",
-        pinned: "openai/gpt-5.1",
-        display: "OpenRouter (GPT-5.1)",
-        contextLimitTokens: 1_000_000,
-        provider: "openrouter",
-    },
-    {
-        alias: "or-claude-sonnet-4-5",
-        pinned: "anthropic/claude-sonnet-4-5-20250929",
-        display: "OpenRouter (Claude Sonnet 4.5)",
-        contextLimitTokens: 200_000,
-        provider: "openrouter",
-    },
 ] as const;
 
-export const DEFAULT_MODEL = MODELS[0].pinned;
+const OPENROUTER_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+function toAlias(modelId: string): string {
+    const sanitized = modelId.replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
+    return `or-${sanitized}`;
+}
+
+function mapCacheEntryToModel(entry: OpenRouterModelCacheEntry): ModelInfo | null {
+    if (!entry.id) return null;
+    const provider = entry.id.split("/", 1)[0];
+    const allow =
+        provider === "openai" || provider === "anthropic" ? entry.id.endsWith(":free") : true;
+    if (!allow) return null;
+
+    return {
+        alias: toAlias(entry.id),
+        pinned: entry.id,
+        display: entry.name || entry.id,
+        contextLimitTokens: entry.context_length ?? 200_000,
+        provider: "openrouter",
+        supportsThinking: false,
+    };
+}
+
+let openRouterModelsCache: ModelInfo[] = [];
+
+function loadOpenRouterModelsFromCache(): void {
+    const cache = loadOpenRouterModelCache();
+    if (!cache?.models) {
+        openRouterModelsCache = [];
+        return;
+    }
+    openRouterModelsCache = cache.models
+        .map(mapCacheEntryToModel)
+        .filter((m): m is ModelInfo => m !== null);
+}
+
+loadOpenRouterModelsFromCache();
+
+export function getModels(): readonly ModelInfo[] {
+    return [...BASE_MODELS, ...openRouterModelsCache];
+}
+
+export const DEFAULT_MODEL = BASE_MODELS[0].pinned;
+
+interface OpenRouterApiModel {
+    id: string;
+    name?: string;
+    context_length?: number;
+    supported_parameters?: string[];
+    pricing?: {
+        prompt?: string;
+        completion?: string;
+        request?: string;
+        image?: string;
+    };
+    description?: string;
+}
+
+interface OpenRouterApiResponse {
+    data?: OpenRouterApiModel[];
+}
+
+function isFreeModel(model: OpenRouterApiModel): boolean {
+    const pricing = model.pricing || {};
+    return (
+        model.id.endsWith(":free") ||
+        (pricing.prompt === "0" &&
+            pricing.completion === "0" &&
+            (pricing.request === undefined || pricing.request === "0"))
+    );
+}
+
+function shouldInclude(model: OpenRouterApiModel): boolean {
+    if (!model.id) return false;
+    if (!model.supported_parameters?.includes("tools")) return false;
+
+    const provider = model.id.split("/", 1)[0];
+    const free = isFreeModel(model);
+
+    if ((provider === "openai" || provider === "anthropic") && !free) {
+        return false;
+    }
+
+    return true;
+}
+
+function toCacheEntry(model: OpenRouterApiModel): OpenRouterModelCacheEntry {
+    return {
+        id: model.id,
+        name: model.name,
+        context_length: model.context_length,
+        supported_parameters: model.supported_parameters,
+        pricing: model.pricing,
+        description: model.description,
+    };
+}
+
+export async function refreshOpenRouterModelsIfStale(): Promise<void> {
+    const existingCache = loadOpenRouterModelCache();
+    const now = Date.now();
+    const isFresh =
+        existingCache && existingCache.fetchedAt && now - existingCache.fetchedAt < OPENROUTER_MAX_AGE_MS;
+    if (isFresh) {
+        loadOpenRouterModelsFromCache();
+        return;
+    }
+
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+        loadOpenRouterModelsFromCache();
+        return;
+    }
+
+    try {
+        const res = await fetch(
+            "https://openrouter.ai/api/v1/models?supported_parameters=tools",
+            {
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                },
+            }
+        );
+
+        if (!res.ok) {
+            loadOpenRouterModelsFromCache();
+            return;
+        }
+
+        const json = (await res.json()) as OpenRouterApiResponse;
+        const filtered = (json.data ?? []).filter(shouldInclude);
+        const cacheEntries = filtered.map(toCacheEntry);
+
+        saveOpenRouterModelCache({
+            fetchedAt: now,
+            models: cacheEntries,
+        });
+
+        openRouterModelsCache = cacheEntries
+            .map(mapCacheEntryToModel)
+            .filter((m): m is ModelInfo => m !== null);
+    } catch {
+        loadOpenRouterModelsFromCache();
+    }
+}
 
 export function resolveModelId(input: string): string | null {
     const normalized = input.toLowerCase().trim();
 
-    for (const model of MODELS) {
+    for (const model of getModels()) {
         if (model.pinned === normalized || model.pinned.toLowerCase() === normalized) {
             return model.pinned;
         }
@@ -212,7 +348,6 @@ export function resolveModelId(input: string): string | null {
 }
 
 export function getBaseModelId(modelId: string): string {
-    // Remove -thinking suffix to get the base model ID
     if (modelId.endsWith("-thinking")) {
         return modelId.slice(0, -9);
     }
@@ -224,7 +359,7 @@ export function isThinkingModel(modelId: string): boolean {
 }
 
 export function getModelProvider(modelId: string): ProviderType {
-    for (const model of MODELS) {
+    for (const model of getModels()) {
         if (model.pinned === modelId) {
             return model.provider;
         }
@@ -239,7 +374,7 @@ export function getModelProvider(modelId: string): ProviderType {
 }
 
 export function getModelDisplay(modelId: string): string {
-    for (const model of MODELS) {
+    for (const model of getModels()) {
         if (model.pinned === modelId) {
             return model.display;
         }
@@ -248,11 +383,11 @@ export function getModelDisplay(modelId: string): string {
 }
 
 export function getModelAliases(): string[] {
-    return MODELS.map((m) => m.alias);
+    return getModels().map((m) => m.alias);
 }
 
 export function getModelContextLimit(modelId: string): number {
-    for (const model of MODELS) {
+    for (const model of getModels()) {
         if (model.pinned === modelId) {
             return model.contextLimitTokens;
         }
@@ -260,22 +395,15 @@ export function getModelContextLimit(modelId: string): number {
     return 200_000;
 }
 
-export function getAssistantName(modelId: string): string {
-    const provider = getModelProvider(modelId);
-    if (provider === "openai") {
-        return "GPT";
-    }
-    if (provider === "openrouter") {
-        const baseModel = modelId.includes("/") ? modelId.split("/")[1] : modelId;
-        return baseModel.startsWith("gpt-") ? "GPT" : "Claude";
-    }
-    return "Claude";
+export function getAssistantName(): string {
+
+    return "Assistant";
 }
 
 export function getModelThinkingConfig(
     modelId: string
 ): { type: "enabled"; budget_tokens: number } | undefined {
-    for (const model of MODELS) {
+    for (const model of getModels()) {
         if (model.pinned === modelId && model.supportsThinking && model.thinkingBudget) {
             return {
                 type: "enabled",

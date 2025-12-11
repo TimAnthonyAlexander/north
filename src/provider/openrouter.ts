@@ -9,7 +9,7 @@ import type {
     ThinkingBlock,
     TokenUsage,
 } from "./types";
-import { OPENAI_SYSTEM_PROMPT } from "./system-prompt";
+import { OPENAI_SYSTEM_PROMPT, OPENROUTER_SYSTEM_PROMPT } from "./system-prompt";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/responses";
 const OPENROUTER_REFERER = "https://north-cli.dev";
@@ -330,33 +330,89 @@ async function parseSSEStream(
                                 break;
 
                             case "response.failed": {
+                                const errorInfo = {
+                                    type: event.type,
+                                    error: event.error,
+                                    response: {
+                                        id: event.response?.id,
+                                        status: event.response?.status,
+                                    },
+                                };
                                 const errorMsg =
                                     event.error?.message ||
                                     event.response?.status ||
                                     "Response failed";
-                                throw new Error(errorMsg);
+
+                                // Some providers behind OpenRouter emit a JSON parse error on the
+                                // terminal [DONE] event. If we've already streamed text, treat
+                                // this as a non-fatal end-of-stream instead of crashing the turn.
+                                if (
+                                    errorMsg.includes("JSON Parse error") ||
+                                    errorMsg.includes('Unexpected identifier "DONE"')
+                                ) {
+                                    if (!stopReason) {
+                                        stopReason =
+                                            toolCalls.length > 0 ? "tool_use" : "end_turn";
+                                    }
+                                    break;
+                                }
+
+                                throw new Error(
+                                    `OpenRouter stream response.failed: ${errorMsg} | ${JSON.stringify(
+                                        errorInfo
+                                    )}`
+                                );
                             }
 
                             case "response.incomplete":
                                 stopReason = "end_turn";
                                 break;
 
-                            case "error":
-                                throw new Error(event.error?.message || "Unknown error");
+                            case "error": {
+                                const errorInfo = {
+                                    type: event.type,
+                                    error: event.error,
+                                    response: {
+                                        id: event.response?.id,
+                                        status: event.response?.status,
+                                    },
+                                };
+                                const errorMsg = event.error?.message || "Unknown error";
+
+                                if (
+                                    errorMsg.includes("JSON Parse error") ||
+                                    errorMsg.includes('Unexpected identifier "DONE"')
+                                ) {
+                                    if (!stopReason) {
+                                        stopReason =
+                                            toolCalls.length > 0 ? "tool_use" : "end_turn";
+                                    }
+                                    break;
+                                }
+
+                                throw new Error(
+                                    `OpenRouter stream error: ${errorMsg} | ${JSON.stringify(
+                                        errorInfo
+                                    )}`
+                                );
+                            }
 
                             default:
                                 break;
                         }
-                    } catch (err) {
-                        callbacks.onError(err instanceof Error ? err : new Error(String(err)));
-                        return { text: fullText, toolCalls, thinkingBlocks, stopReason, usage };
+                    } catch (parseError) {
+                        // Some upstream providers emit non-JSON lines like "DONE".
+                        // Treat those as benign and skip them, matching OpenAI client behavior.
+                        if (parseError instanceof SyntaxError) {
+                            continue;
+                        }
+                        throw parseError;
                     }
                 }
             }
         }
     } catch (err) {
-        callbacks.onError(err instanceof Error ? err : new Error(String(err)));
-        return { text: fullText, toolCalls, thinkingBlocks, stopReason, usage };
+        throw err;
     }
 
     if (stopReason === null) {
@@ -371,7 +427,7 @@ export function createOpenRouterProvider(options?: { model?: string }): Provider
 
     return {
         defaultModel,
-        systemPrompt: OPENAI_SYSTEM_PROMPT,
+        systemPrompt: OPENROUTER_SYSTEM_PROMPT,
 
         async stream(
             messages: Message[],
@@ -427,13 +483,20 @@ export function createOpenRouterProvider(options?: { model?: string }): Provider
                 if (!response.ok) {
                     const errorText = await response.text();
                     let errorMessage = `OpenRouter API error: ${response.status}`;
+                    let errorDetails: unknown = errorText;
                     try {
                         const errorJson = JSON.parse(errorText);
-                        errorMessage = errorJson.error?.message || errorMessage;
+                        errorDetails = errorJson;
+                        errorMessage =
+                            (errorJson as { error?: { message?: string } }).error?.message ||
+                            errorMessage;
                     } catch {
-                        errorMessage = errorText || errorMessage;
+                        // leave errorDetails as raw text
                     }
-                    callbacks.onError(new Error(errorMessage));
+                    const richError = new Error(
+                        `${errorMessage} | details=${JSON.stringify(errorDetails)}`
+                    );
+                    callbacks.onError(richError);
                     return;
                 }
 

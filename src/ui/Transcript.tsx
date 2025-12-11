@@ -539,7 +539,7 @@ export function Transcript({
     onLearningDecline,
 }: TranscriptProps) {
     const animationsEnabled = entries.length < ANIMATION_DISABLE_THRESHOLD;
-    const assistantName = getAssistantName(currentModel);
+    const assistantName = getAssistantName();
 
     const { staticEntries, dynamicEntries } = useMemo(() => {
         const staticList: TranscriptEntry[] = [];

@@ -1,8 +1,9 @@
-export type ProviderName = "anthropic" | "openai";
+export type ProviderName = "anthropic" | "openai" | "openrouter";
 
 const PROVIDER_INTROS: Record<ProviderName, string> = {
     anthropic: "You run on Claude models provided by Anthropic.",
     openai: "You run on OpenAI GPT models.",
+    openrouter: "You run on OpenRouter-hosted models.",
 };
 
 const OPENAI_RESPONSE_STRUCTURE = `
@@ -182,3 +183,4 @@ export function buildSystemPrompt(provider: ProviderName): string {
 
 export const ANTHROPIC_SYSTEM_PROMPT = buildSystemPrompt("anthropic");
 export const OPENAI_SYSTEM_PROMPT = buildSystemPrompt("openai");
+export const OPENROUTER_SYSTEM_PROMPT = buildSystemPrompt("openrouter");

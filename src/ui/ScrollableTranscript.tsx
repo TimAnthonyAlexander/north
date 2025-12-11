@@ -103,8 +103,8 @@ function entryToLines(
             status === "accepted"
                 ? `${ANSI_YELLOW}📝${ANSI_RESET} ${ANSI_GRAY}${entry.toolName || "edit"} — ${entry.filesCount || 0} file(s)${ANSI_RESET} → ${ANSI_BOLD}Applied${ANSI_RESET}`
                 : status === "always"
-                  ? `${ANSI_YELLOW}📝${ANSI_RESET} ${ANSI_GRAY}${entry.toolName || "edit"} — ${entry.filesCount || 0} file(s)${ANSI_RESET} → ${ANSI_CYAN}Auto-applied${ANSI_RESET}`
-                  : `${ANSI_YELLOW}📝${ANSI_RESET} ${ANSI_GRAY}${entry.toolName || "edit"} — ${entry.filesCount || 0} file(s)${ANSI_RESET} → ${ANSI_RED}Rejected${ANSI_RESET}`;
+                    ? `${ANSI_YELLOW}📝${ANSI_RESET} ${ANSI_GRAY}${entry.toolName || "edit"} — ${entry.filesCount || 0} file(s)${ANSI_RESET} → ${ANSI_CYAN}Auto-applied${ANSI_RESET}`
+                    : `${ANSI_YELLOW}📝${ANSI_RESET} ${ANSI_GRAY}${entry.toolName || "edit"} — ${entry.filesCount || 0} file(s)${ANSI_RESET} → ${ANSI_RED}Rejected${ANSI_RESET}`;
         return { lines: [`  ${statusText}`, ""], isInteractive: false };
     }
 
@@ -119,10 +119,10 @@ function entryToLines(
             status === "ran"
                 ? `${ANSI_YELLOW}🖥️${ANSI_RESET} ${ANSI_GRAY}$ ${truncatedCmd}${ANSI_RESET} → ${ANSI_BOLD}Executed${ANSI_RESET}`
                 : status === "always"
-                  ? `${ANSI_YELLOW}🖥️${ANSI_RESET} ${ANSI_GRAY}$ ${truncatedCmd}${ANSI_RESET} → ${ANSI_BOLD}Executed (allowlisted)${ANSI_RESET}`
-                  : status === "auto"
-                    ? `${ANSI_YELLOW}🖥️${ANSI_RESET} ${ANSI_GRAY}$ ${truncatedCmd}${ANSI_RESET} → ${ANSI_CYAN}Auto-approved${ANSI_RESET}`
-                    : `${ANSI_YELLOW}🖥️${ANSI_RESET} ${ANSI_GRAY}$ ${truncatedCmd}${ANSI_RESET} → ${ANSI_RED}Denied${ANSI_RESET}`;
+                    ? `${ANSI_YELLOW}🖥️${ANSI_RESET} ${ANSI_GRAY}$ ${truncatedCmd}${ANSI_RESET} → ${ANSI_BOLD}Executed (allowlisted)${ANSI_RESET}`
+                    : status === "auto"
+                        ? `${ANSI_YELLOW}🖥️${ANSI_RESET} ${ANSI_GRAY}$ ${truncatedCmd}${ANSI_RESET} → ${ANSI_CYAN}Auto-approved${ANSI_RESET}`
+                        : `${ANSI_YELLOW}🖥️${ANSI_RESET} ${ANSI_GRAY}$ ${truncatedCmd}${ANSI_RESET} → ${ANSI_RED}Denied${ANSI_RESET}`;
         return { lines: [`  ${statusText}`, ""], isInteractive: false };
     }
 
@@ -199,7 +199,7 @@ export function ScrollableTranscript({
     onLearningDecline,
     inputActive,
 }: ScrollableTranscriptProps) {
-    const assistantName = getAssistantName(currentModel);
+    const assistantName = getAssistantName();
     const animationsEnabled = entries.length < 100;
 
     const wrappedEntries = useMemo(() => {

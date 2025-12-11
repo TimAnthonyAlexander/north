@@ -1,3 +1,5 @@
+import { loadOpenRouterModelCache } from "../storage/openrouterModels";
+
 export type ProviderType = "anthropic" | "openai" | "openrouter";
 
 export interface ModelPricing {
@@ -85,12 +87,22 @@ const OPENAI_PRICING: Record<string, ModelPricing> = {
     },
 };
 
-const OPENROUTER_PRICING: Record<string, ModelPricing> = {
-    "openai/gpt-5.1": { ...OPENAI_PRICING["gpt-5.1"] },
-    "anthropic/claude-sonnet-4-5-20250929": {
-        ...ANTHROPIC_PRICING["claude-sonnet-4-5-20250929"],
-    },
-};
+function getOpenRouterPricingMap(): Record<string, ModelPricing> {
+    const cache = loadOpenRouterModelCache();
+    if (!cache?.models) return {};
+
+    const pricingMap: Record<string, ModelPricing> = {};
+    for (const model of cache.models) {
+        const prompt = Number(model.pricing?.prompt ?? "0");
+        const completion = Number(model.pricing?.completion ?? "0");
+        if (Number.isNaN(prompt) || Number.isNaN(completion)) continue;
+        pricingMap[model.id] = {
+            inputPerMillion: prompt * 1_000_000,
+            outputPerMillion: completion * 1_000_000,
+        };
+    }
+    return pricingMap;
+}
 
 export interface TokenUsage {
     inputTokens: number;
@@ -101,14 +113,16 @@ export interface TokenUsage {
 }
 
 export function getModelPricing(modelId: string): ModelPricing | null {
+    const openRouterPricing = getOpenRouterPricingMap();
+
     if (ANTHROPIC_PRICING[modelId]) {
         return ANTHROPIC_PRICING[modelId];
     }
     if (OPENAI_PRICING[modelId]) {
         return OPENAI_PRICING[modelId];
     }
-    if (OPENROUTER_PRICING[modelId]) {
-        return OPENROUTER_PRICING[modelId];
+    if (openRouterPricing[modelId]) {
+        return openRouterPricing[modelId];
     }
     if (modelId.includes("/")) {
         const [vendor, baseModel] = modelId.split("/", 2);
@@ -127,6 +141,9 @@ export function getModelPricing(modelId: string): ModelPricing | null {
             if (baseModel.startsWith("claude-")) {
                 return ANTHROPIC_PRICING["claude-sonnet-4-20250514"];
             }
+        }
+        if (openRouterPricing[modelId]) {
+            return openRouterPricing[modelId];
         }
     }
     if (modelId.startsWith("claude-")) {

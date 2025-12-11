@@ -1,6 +1,11 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Box, Text, useInput } from "ink";
-import { getTokenAtCursor, MODELS, type CommandRegistry, type Mode } from "../commands/index";
+import {
+    getTokenAtCursor,
+    getModels,
+    type CommandRegistry,
+    type Mode,
+} from "../commands/index";
 import { getFileIndex, fuzzyMatchFiles } from "../utils/fileindex";
 import { basename } from "path";
 
@@ -39,7 +44,7 @@ function findPrecedingCommand(value: string, cursorPos: number): string | null {
 
 function getModelSuggestions(prefix: string): Suggestion[] {
     const normalizedPrefix = prefix.toLowerCase();
-    return MODELS.filter(
+    return getModels().filter(
         (m) =>
             m.alias.toLowerCase().startsWith(normalizedPrefix) ||
             m.display.toLowerCase().startsWith(normalizedPrefix) ||

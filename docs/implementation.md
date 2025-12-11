@@ -1101,7 +1101,7 @@ Model selection via `/model`:
 - On startup, loads saved model or defaults to Claude Sonnet 4
 
 **Assistant Name Display:**
-- `getAssistantName(modelId)` returns "Claude" or "GPT" based on provider
+- `getAssistantName(modelId)` returns "Assistant"
 - Transcript displays correct name for current model
 
 **Environment Variables:**

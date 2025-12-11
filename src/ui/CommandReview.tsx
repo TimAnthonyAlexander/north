@@ -92,7 +92,17 @@ export const CommandReview = memo(function CommandReview({
 
     const selectedOption = selectedId ? options.find((o) => o.id === selectedId) : null;
 
-    const boxWidth = commandName === "model" ? 80 : 120;
+    const boxWidth = commandName === "model" ? 160 : 120;
+    const MAX_VISIBLE_OPTIONS = 12;
+    const totalOptions = options.length;
+    const visibleStart = Math.max(
+        0,
+        Math.min(highlightedIndex - Math.floor(MAX_VISIBLE_OPTIONS / 2), totalOptions - MAX_VISIBLE_OPTIONS)
+    );
+    const visibleEnd = Math.min(totalOptions, visibleStart + MAX_VISIBLE_OPTIONS);
+    const visibleOptions = options.slice(visibleStart, visibleEnd);
+    const hasAbove = visibleStart > 0;
+    const hasBelow = visibleEnd < totalOptions;
 
     return (
         <Box
@@ -114,18 +124,29 @@ export const CommandReview = memo(function CommandReview({
             {status === "pending" && (
                 <>
                     <Box flexDirection="column" marginBottom={1}>
-                        {options.map((option, i) => (
-                            <Box key={option.id} flexDirection="row">
-                                <Text
-                                    color={i === highlightedIndex ? "cyan" : "white"}
-                                    bold={i === highlightedIndex}
-                                >
-                                    {i === highlightedIndex ? "› " : "  "}
-                                    {option.label}
-                                </Text>
-                                {option.hint && renderHint(option.hint, i === highlightedIndex)}
-                            </Box>
-                        ))}
+                        {hasAbove && (
+                            <Text color="gray" dimColor>
+                                ↑ {visibleStart} more
+                            </Text>
+                        )}
+                        {visibleOptions.map((option, i) => {
+                            const optionIndex = visibleStart + i;
+                            const isHighlighted = optionIndex === highlightedIndex;
+                            return (
+                                <Box key={option.id} flexDirection="row">
+                                    <Text color={isHighlighted ? "cyan" : "white"} bold={isHighlighted}>
+                                        {isHighlighted ? "› " : "  "}
+                                        {option.label}
+                                    </Text>
+                                    {option.hint && renderHint(option.hint, isHighlighted)}
+                                </Box>
+                            );
+                        })}
+                        {hasBelow && (
+                            <Text color="gray" dimColor>
+                                ↓ {totalOptions - visibleEnd} more
+                            </Text>
+                        )}
                     </Box>
                     <Box>
                         <Text color="gray" dimColor>

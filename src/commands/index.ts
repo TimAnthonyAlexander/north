@@ -18,13 +18,14 @@ export type {
 export { createCommandRegistry, type CommandRegistry } from "./registry";
 export { parseCommandInvocations, getTokenAtCursor, type TokenAtCursor } from "./parse";
 export {
-    MODELS,
+    getModels,
     DEFAULT_MODEL,
     resolveModelId,
     getModelDisplay,
     getModelAliases,
     isThinkingModel,
     getBaseModelId,
+    refreshOpenRouterModelsIfStale,
     type ModelInfo,
 } from "./models";
 
