@@ -35,9 +35,10 @@ export const modelCommand: CommandDefinition = {
             };
         }
 
-        const options: PickerOption[] = MODELS.map((m) => {
+        const optionsWithPricing = MODELS.map((m) => {
             const baseModelId = getBaseModelId(m.pinned);
             const pricing = getModelPricing(baseModelId);
+            const totalCost = pricing ? pricing.inputPerMillion + pricing.outputPerMillion : 0;
             const pricingHint = pricing
                 ? `[PRICE]$${pricing.inputPerMillion}/$${pricing.outputPerMillion} per 1M[/PRICE]`
                 : "";
@@ -46,8 +47,18 @@ export const modelCommand: CommandDefinition = {
                 id: m.pinned,
                 label: m.display,
                 hint,
+                totalCost,
             };
         });
+
+        // Sort by total cost (input + output) from most expensive to cheapest
+        optionsWithPricing.sort((a, b) => b.totalCost - a.totalCost);
+
+        const options: PickerOption[] = optionsWithPricing.map((o) => ({
+            id: o.id,
+            label: o.label,
+            hint: o.hint,
+        }));
 
         const selected = await ctx.showPicker("model", "Select model", options);
 
