@@ -27,11 +27,11 @@ function getBorderColor(status: CommandReviewStatus): string {
 function renderHint(hint: string, isHighlighted: boolean) {
     // Parse hint for [PRICE]...[/PRICE] markers
     const priceMatch = hint.match(/\[PRICE\](.*?)\[\/PRICE\]/);
-    
+
     if (priceMatch) {
         const price = priceMatch[1];
         const left = hint.replace(/\s*\[PRICE\].*?\[\/PRICE\]/, "").trim();
-        
+
         return (
             <Box flexGrow={1} flexDirection="row" justifyContent="space-between" marginLeft={1}>
                 <Text color={isHighlighted ? "cyan" : "#999999"}>{left}</Text>
@@ -39,7 +39,7 @@ function renderHint(hint: string, isHighlighted: boolean) {
             </Box>
         );
     }
-    
+
     // No price tag, just return regular hint
     return (
         <Text color={isHighlighted ? "cyan" : "#999999"} marginLeft={1}>
