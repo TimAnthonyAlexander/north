@@ -49,7 +49,8 @@ function renderIndexHtml(token: string): string {
 
 export async function startWebServer(options: WebServerOptions = {}): Promise<{
     port: number;
-    url: string;
+    cockpitUrl: string;
+    cockpitUrlWithToken: string;
     token: string;
     repoRoot: string;
     logger: Logger;
@@ -80,6 +81,22 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<{
         }
     }
     const distRoot = join(repoRoot, "web", "dist");
+    const bundlePath = join(distRoot, "index.js");
+
+    if (!devProxyOrigin && existsSync(bundlePath)) {
+        try {
+            const bundleText = await Bun.file(bundlePath).text();
+            const looksLikeCockpitBuild = bundleText.toLowerCase().includes("cockpit");
+            if (!looksLikeCockpitBuild) {
+                console.warn(
+                    `[north web] Warning: ${bundlePath} does not appear to include the cockpit route. ` +
+                        `If you just updated the cockpit UI, rebuild it with: (cd web && bun run build)`
+                );
+            }
+        } catch {
+            // ignore
+        }
+    }
 
     type WSData = {
         authed: boolean;
@@ -120,7 +137,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<{
             }
 
             if (url.pathname === "/dist/index.js") {
-                const filePath = join(distRoot, "index.js");
+                const filePath = bundlePath;
                 if (!existsSync(filePath)) {
                     return new Response("Missing web bundle. Build web/ first.", { status: 404 });
                 }
@@ -246,12 +263,13 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<{
     });
 
     const boundPort = server.port ?? port;
-    const url = `http://127.0.0.1:${boundPort}/cockpit`;
+    const cockpitUrl = `http://127.0.0.1:${boundPort}/cockpit`;
+    const cockpitUrlWithToken = `${cockpitUrl}?token=${encodeURIComponent(token)}`;
 
     const stop = () => {
         server.stop(true);
         disposeAllShellServices();
     };
 
-    return { port: boundPort, url, token, repoRoot, logger, stop };
+    return { port: boundPort, cockpitUrl, cockpitUrlWithToken, token, repoRoot, logger, stop };
 }

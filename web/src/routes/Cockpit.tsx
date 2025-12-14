@@ -51,9 +51,10 @@ function isOrchestratorState(value: unknown): value is OrchestratorState {
 }
 
 export default function Cockpit() {
-    const { state: north, actions } = useNorthSession();
+    const { state: north, token, setToken, actions } = useNorthSession();
     const [mode, setMode] = useState<Mode>("agent");
     const [composer, setComposer] = useState("");
+    const [tokenInput, setTokenInput] = useState(token || "");
 
     const orch = useMemo(() => (isOrchestratorState(north.state) ? north.state : null), [north.state]);
 
@@ -87,6 +88,41 @@ export default function Cockpit() {
                     )}
                 </Box>
                 <Divider />
+                {!token && (
+                    <>
+                        <Box sx={{ p: 2 }}>
+                            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                                Token
+                            </Typography>
+                            <Stack direction="row" spacing={1} alignItems="flex-end">
+                                <TextField
+                                    label="Paste token from `north web`"
+                                    value={tokenInput}
+                                    onChange={(e) => setTokenInput(e.target.value)}
+                                    size="small"
+                                    fullWidth
+                                />
+                                <Button
+                                    variant="contained"
+                                    onClick={() => {
+                                        const t = tokenInput.trim();
+                                        if (t) setToken(t);
+                                    }}
+                                >
+                                    Connect
+                                </Button>
+                            </Stack>
+                            <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ display: "block", mt: 1 }}
+                            >
+                                You can also open `/cockpit?token=...`.
+                            </Typography>
+                        </Box>
+                        <Divider />
+                    </>
+                )}
                 <Box sx={{ p: 2 }}>
                     <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
                         Mode
@@ -324,4 +360,3 @@ export default function Cockpit() {
         </Box>
     );
 }
-

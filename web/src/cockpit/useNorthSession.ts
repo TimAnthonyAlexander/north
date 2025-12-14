@@ -44,6 +44,23 @@ function getTokenFromInjectedGlobal(): string | null {
     return typeof token === "string" ? token : null;
 }
 
+function getTokenFromStorage(): string | null {
+    try {
+        const t = window.localStorage.getItem("north.cockpit.token");
+        return t && t.trim() ? t.trim() : null;
+    } catch {
+        return null;
+    }
+}
+
+function setTokenInStorage(token: string): void {
+    try {
+        window.localStorage.setItem("north.cockpit.token", token);
+    } catch {
+        // ignore
+    }
+}
+
 function parseServerMessage(raw: string): ServerToClientMessage | null {
     try {
         const data = JSON.parse(raw);
@@ -81,7 +98,13 @@ export function useNorthSession(options: UseNorthSessionOptions = {}) {
     const wsRef = useRef<WebSocket | null>(null);
     const pendingSendQueueRef = useRef<ClientToServerMessage[]>([]);
 
-    const token = useMemo(() => getTokenFromUrl() || getTokenFromInjectedGlobal(), []);
+    const [token, setToken] = useState<string | null>(() => {
+        return getTokenFromUrl() || getTokenFromInjectedGlobal() || getTokenFromStorage();
+    });
+
+    useEffect(() => {
+        if (token) setTokenInStorage(token);
+    }, [token]);
 
     const send = useCallback((msg: ClientToServerMessage) => {
         const ws = wsRef.current;
@@ -103,12 +126,15 @@ export function useNorthSession(options: UseNorthSessionOptions = {}) {
 
     useEffect(() => {
         if (!token) {
-            setError("Missing token. Start `north web` and open the printed URL.");
+            setWsStatus("disconnected");
+            setError("Token required. Start `north web` and paste the token here.");
             return;
         }
 
         setWsStatus("connecting");
         setError(null);
+        setReadyVersion(null);
+        setSessionId(null);
 
         const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
         const wsUrl = `${scheme}//${window.location.host}${wsPath}`;
@@ -162,7 +188,7 @@ export function useNorthSession(options: UseNorthSessionOptions = {}) {
             wsRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [token, wsPath]);
+    }, [token, wsPath, protocolVersion]);
 
     const actions = useMemo(() => {
         return {
@@ -202,7 +228,7 @@ export function useNorthSession(options: UseNorthSessionOptions = {}) {
             error,
         } satisfies NorthSessionState,
         token,
+        setToken,
         actions,
     };
 }
-

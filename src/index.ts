@@ -27,6 +27,7 @@ interface ParsedCLI {
     logLevel: LogLevel;
     port?: number;
     devProxyOrigin?: string;
+    allowedOrigins?: string[];
 }
 
 function parseArgs(): ParsedCLI {
@@ -37,6 +38,7 @@ function parseArgs(): ParsedCLI {
     let logLevel: LogLevel = "info";
     let port: number | undefined;
     let devProxyOrigin: string | undefined;
+    const allowedOrigins: string[] = [];
 
     let i = 0;
     if (args[0] && !args[0].startsWith("-")) {
@@ -73,10 +75,12 @@ function parseArgs(): ParsedCLI {
             }
         } else if (arg === "--dev-proxy" && args[i + 1]) {
             devProxyOrigin = args[++i];
+        } else if (arg === "--allow-origin" && args[i + 1]) {
+            allowedOrigins.push(args[++i]);
         }
     }
 
-    return { command, resumeId, path, logLevel, port, devProxyOrigin };
+    return { command, resumeId, path, logLevel, port, devProxyOrigin, allowedOrigins };
 }
 
 function summarizeToolArgs(args: unknown): Record<string, unknown> {
@@ -262,19 +266,20 @@ async function runMain(
 
 async function runWebCommand(
     logLevel: LogLevel,
-    opts: { port?: number; devProxyOrigin?: string } = {}
+    opts: { port?: number; devProxyOrigin?: string; allowedOrigins?: string[] } = {}
 ): Promise<void> {
-    const { url, token, repoRoot, stop } = await startWebServer({
+    const { cockpitUrl, cockpitUrlWithToken, token, repoRoot, stop } = await startWebServer({
         port: opts.port,
         logLevel,
         devProxyOrigin: opts.devProxyOrigin,
+        allowedOrigins: opts.allowedOrigins,
     });
 
     console.log("");
     console.log("North Cockpit");
     console.log(`- Repo root: ${repoRoot}`);
-    console.log(`- URL: ${url}`);
-    console.log(`- Token: ${token}`);
+    console.log(`- URL: ${cockpitUrlWithToken}`);
+    console.log(`- Token: ${token} (also accepted via ?token=... query param)`);
     console.log("");
     console.log("Note: keep this terminal open while using the cockpit.");
 
@@ -291,7 +296,7 @@ async function runWebCommand(
 }
 
 async function main() {
-    const { command, resumeId, path, logLevel, port, devProxyOrigin } = parseArgs();
+    const { command, resumeId, path, logLevel, port, devProxyOrigin, allowedOrigins } = parseArgs();
 
     if (command === "list") {
         await runListCommand();
@@ -312,7 +317,7 @@ async function main() {
     }
 
     if (command === "web") {
-        await runWebCommand(logLevel, { port, devProxyOrigin });
+        await runWebCommand(logLevel, { port, devProxyOrigin, allowedOrigins });
         return;
     }
 
