@@ -16,14 +16,17 @@ import {
     type ConversationState,
 } from "./storage/conversations";
 import { existsSync } from "fs";
+import { startWebServer } from "./web/server";
 
-type Command = "run" | "resume" | "list";
+type Command = "run" | "resume" | "list" | "web";
 
 interface ParsedCLI {
     command: Command;
     resumeId?: string;
     path?: string;
     logLevel: LogLevel;
+    port?: number;
+    devProxyOrigin?: string;
 }
 
 function parseArgs(): ParsedCLI {
@@ -32,6 +35,8 @@ function parseArgs(): ParsedCLI {
     let resumeId: string | undefined;
     let path: string | undefined;
     let logLevel: LogLevel = "info";
+    let port: number | undefined;
+    let devProxyOrigin: string | undefined;
 
     let i = 0;
     if (args[0] && !args[0].startsWith("-")) {
@@ -46,6 +51,9 @@ function parseArgs(): ParsedCLI {
         } else if (subcommand === "conversations" || subcommand === "list") {
             command = "list";
             i = 1;
+        } else if (subcommand === "web" || subcommand === "cockpit") {
+            command = "web";
+            i = 1;
         }
     }
 
@@ -53,15 +61,22 @@ function parseArgs(): ParsedCLI {
         const arg = args[i];
         if (arg === "--path" && args[i + 1]) {
             path = args[++i];
+        } else if (arg === "--port" && args[i + 1]) {
+            const n = Number(args[++i]);
+            if (Number.isFinite(n) && n > 0) {
+                port = n;
+            }
         } else if (arg === "--log-level" && args[i + 1]) {
             const level = args[++i];
             if (level === "info" || level === "debug") {
                 logLevel = level;
             }
+        } else if (arg === "--dev-proxy" && args[i + 1]) {
+            devProxyOrigin = args[++i];
         }
     }
 
-    return { command, resumeId, path, logLevel };
+    return { command, resumeId, path, logLevel, port, devProxyOrigin };
 }
 
 function summarizeToolArgs(args: unknown): Record<string, unknown> {
@@ -245,8 +260,38 @@ async function runMain(
     });
 }
 
+async function runWebCommand(
+    logLevel: LogLevel,
+    opts: { port?: number; devProxyOrigin?: string } = {}
+): Promise<void> {
+    const { url, token, repoRoot, stop } = await startWebServer({
+        port: opts.port,
+        logLevel,
+        devProxyOrigin: opts.devProxyOrigin,
+    });
+
+    console.log("");
+    console.log("North Cockpit");
+    console.log(`- Repo root: ${repoRoot}`);
+    console.log(`- URL: ${url}`);
+    console.log(`- Token: ${token}`);
+    console.log("");
+    console.log("Note: keep this terminal open while using the cockpit.");
+
+    const stopAndExit = () => {
+        stop();
+        process.exit(0);
+    };
+
+    process.on("SIGINT", stopAndExit);
+    process.on("SIGTERM", stopAndExit);
+
+    // Keep process alive.
+    await new Promise(() => {});
+}
+
 async function main() {
-    const { command, resumeId, path, logLevel } = parseArgs();
+    const { command, resumeId, path, logLevel, port, devProxyOrigin } = parseArgs();
 
     if (command === "list") {
         await runListCommand();
@@ -263,6 +308,11 @@ async function main() {
         } else {
             await runResumePickerCommand(path, logLevel);
         }
+        return;
+    }
+
+    if (command === "web") {
+        await runWebCommand(logLevel, { port, devProxyOrigin });
         return;
     }
 

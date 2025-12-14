@@ -36,6 +36,7 @@ import {
     Search as SearchIcon,
     SwapHoriz as SwapIcon
 } from '@mui/icons-material';
+import Cockpit from './routes/Cockpit';
 
 const theme = createTheme({
     palette: {
@@ -153,7 +154,7 @@ const commands = [
     { cmd: '/new', desc: 'Start fresh conversation' }
 ];
 
-function App() {
+function MarketingApp() {
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
     return (
@@ -683,4 +684,18 @@ function App() {
     );
 }
 
-export default App;
+export default function App() {
+    const path = window.location.pathname || "/";
+    const isCockpit = path === "/cockpit" || path.startsWith("/cockpit/");
+
+    if (isCockpit) {
+        return (
+            <ThemeProvider theme={theme}>
+                <CssBaseline />
+                <Cockpit />
+            </ThemeProvider>
+        );
+    }
+
+    return <MarketingApp />;
+}
